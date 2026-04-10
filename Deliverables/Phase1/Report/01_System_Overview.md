@@ -18,15 +18,15 @@ Vending machine operators need a unified platform to:
 
 The system scope covers:
 
-| In Scope | Out of Scope |
-|----------|-------------|
-| REST API for all CRUD operations | Vending machine firmware/embedded software |
-| User authentication and role-based authorization | Mobile app front-end (API only) |
-| Product catalog and pricing management | Physical machine hardware maintenance |
-| Sales transaction processing with payment gateway integration | Real-time video monitoring |
-| Machine telemetry ingestion and monitoring | Customer loyalty/rewards programs (Phase 2+ consideration) |
-| OS-level operations (backups, log rotation, report directories) | |
-| Audit logging and security event tracking | |
+| In Scope | 
+|----------|
+| REST API for all CRUD operations | 
+| User authentication and role-based authorization | 
+| Product catalog and pricing management | 
+| Sales transaction processing with payment gateway integration | 
+| Machine telemetry ingestion and monitoring | 
+| OS-level operations (backups, log rotation, report directories) |
+| Audit logging and security event tracking |
 
 ---
 
@@ -48,7 +48,7 @@ Person(customer, "Customer", "Purchases products via\nmachine or companion app")
 Person(operator, "Operator", "Restocks machines,\nextracts logs, reports issues")
 Person(admin, "Administrator", "Manages network, users,\nprices, security, reports")
 
-System(backend, "VendNet Back-End", "REST API (Java/Spring Boot)\n+ PostgreSQL\n+ OS-level operations")
+System(backend, "VendNet Back-End", "REST API (Java/Spring Boot)\n+ MySQL\n+ OS-level operations")
 
 System_Ext(vendingMachine, "Vending Machine (Edge)", "Physical device: dispenses products,\ncollects telemetry, reports sales")
 System_Ext(paymentGw, "Payment Gateway", "External payment processor\n(e.g., Stripe, PayPal)")
@@ -68,8 +68,8 @@ Rel(backend, paymentGw, "Processes payments", "HTTPS/JSON")
 |-------|---------------|------------------|
 | **API / Controller** | HTTP request handling, input validation, DTO mapping | Spring Boot REST Controllers |
 | **Application / Service** | Use-case orchestration, transaction management | Spring Services |
-| **Domain** | Business logic, aggregates, entities, value objects, domain events | Plain Java (POJO) |
-| **Infrastructure** | Persistence, external service integrations, OS operations | Spring Data JPA, PostgreSQL, Java NIO (file ops) |
+| **Domain** | Business logic, aggregates, entities, value objects | Plain Java (POJO) |
+| **Infrastructure** | Persistence, Database transactions,  external service integrations, OS operations | Spring Data JPA, MySQL, Java NIO (file ops) |
 
 ---
 
@@ -77,17 +77,17 @@ Rel(backend, paymentGw, "Processes payments", "HTTPS/JSON")
 
 | Component | Technology | Justification |
 |-----------|-----------|---------------|
-| **Language** | Java 21 (LTS) | Mature ecosystem, strong typing, excellent security libraries, long-term support |
+| **Language** | Java 17 (LTS) | Mature ecosystem, strong typing, excellent security libraries, long-term support |
 | **Framework** | Spring Boot 3.x | Industry standard for REST APIs, built-in security (Spring Security), DI, auto-configuration |
-| **Database** | PostgreSQL 16 | Robust relational DB, ACID compliance, JSON support, strong security features, not in-memory (satisfies constraint C1) |
+| **Database** | MySqlSQL 8.4 (LTS) | Robust relational DB, ACID compliance, strong security features, not in-memory (satisfies constraint C1) |
 | **ORM** | Spring Data JPA / Hibernate | Simplifies persistence layer, supports DDD aggregate mapping |
 | **Authentication** | Spring Security + JWT (JSON Web Tokens) | Stateless authentication, industry standard, supports role-based access control |
 | **Password Hashing** | BCrypt (via Spring Security) | Adaptive hashing, resistant to brute-force and rainbow table attacks |
 | **API Documentation** | SpringDoc OpenAPI (Swagger) | Auto-generated API docs, supports security scheme documentation |
-| **Build Tool** | Gradle | Flexible, fast incremental builds, good dependency management |
-| **Containerization** | Docker + Docker Compose | Reproducible environments, easy PostgreSQL setup, CI/CD ready |
+| **Build Tool** | Maven | Flexible, fast incremental builds, good dependency management |
+| **Containerization** | Docker + Docker Compose | Reproducible environments, easy MySQL setup, CI/CD ready |
 | **CI/CD** | GitHub Actions | Native integration with repository, supports SAST/DAST/SCA pipeline |
-| **Testing** | JUnit 5 + Mockito + Testcontainers | Comprehensive unit/integration testing with real PostgreSQL instances |
+| **Testing** | JUnit 5 + Mockito + Testcontainers | Comprehensive unit/integration testing with real MySQL instances |
 
 ---
 
@@ -129,10 +129,10 @@ The back-end executes several **operating system-level operations** on the serve
 
 | Aspect | Detail |
 |--------|--------|
-| **What** | Encrypted PostgreSQL dump files |
+| **What** | Encrypted MySQL dump files |
 | **Where** | `/var/vendnet/backups/{YYYY-MM-DD}/` |
 | **When** | Scheduled daily (cron) + on-demand by Administrator |
-| **How** | Java `ProcessBuilder` invokes `pg_dump`, output piped through AES-256 encryption, written to time-stamped directory |
+| **How** | Java `ProcessBuilder` invokes `MySQL_Backup`, output piped through AES-256 encryption, written to time-stamped directory |
 | **Security** | Backup directory created with `700` permissions; only the application service user has access; old backups rotated after 30 days |
 
 ### 1.5.2 Audit Log Rotation

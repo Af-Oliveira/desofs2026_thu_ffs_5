@@ -45,7 +45,7 @@ At the highest level of abstraction, the **System Context** provides a broad ove
 The diagram illustrates the interactions between VendNet and its external environment:
 
 - **VendNet System:** The core backend that processes API requests, manages business logic (users, machines, products, sales), and orchestrates data flow between actors, external systems, and persistence.
-- **Vending Machine (Edge):** Physical devices that send telemetry data, report sales events, receive configuration/price updates, and communicate via HTTPS with mTLS.
+- **Vending Machine (Edge):** Physical devices that send telemetry data, report sales events, receive configuration/price updates, and communicate.
 - **Payment Gateway:** External payment processor (e.g., Stripe, PayPal) used for card and mobile payments at vending machines.
 
 ## Process View
@@ -79,7 +79,7 @@ At this level, we zoom into **VendNet** to identify its major deployable units (
 VendNet is composed of the following containers:
 
 - **REST API Application (Java/Spring Boot):** The core backend handling all API requests, business logic, and external integrations.
-- **PostgreSQL Database:** Persistent relational storage for all domain data (users, machines, products, sales, audit events).
+- **MySQL Database:** Persistent relational storage for all domain data (users, machines, products, sales, audit events).
 - **File System (OS):** Server file system used for backup storage, audit log rotation, and report directory generation.
 
 ### L2 - Logical View
@@ -89,7 +89,7 @@ VendNet is composed of the following containers:
 ### Diagram Description:
 
 - **REST API Application (Java/Spring Boot):** The core of the system. This container handles all incoming API requests, executes business logic via DDD aggregates, and coordinates with the database and external services. It is a self-contained, deployable Spring Boot application.
-- **PostgreSQL Database:** Stores all persistent domain data with ACID compliance. Accessed via Spring Data JPA/Hibernate.
+- **MySQL Database:** Stores all persistent domain data with ACID compliance. Accessed via Spring Data JPA/Hibernate.
 - **File System:** Managed via Java NIO for OS-level operations: encrypted backups (`/var/vendnet/backups/`), audit log rotation (`/var/vendnet/logs/audit/`), and vendor report directories (`/var/vendnet/reports/`).
 - **Payment Gateway (External):** Processes payment transactions via HTTPS/JSON.
 - **Vending Machine Fleet (External):** Edge devices communicating via HTTPS with mutual TLS authentication.
@@ -165,7 +165,7 @@ Adapters that convert data between the domain/application format and external fo
 #### 4. Framework and Driver Layer
 Frameworks, tools, and drivers.
 - **Spring Web:** API routing and HTTP server.
-- **Spring Data JPA / Hibernate:** Repository interface implementations for PostgreSQL.
+- **Spring Data JPA / Hibernate:** Repository interface implementations for MySQL.
 - **OS Operations Service:** Java NIO-based service for backups, log rotation, report directories.
 - **Payment Gateway Client:** HTTP client for external payment processor integration.
 
