@@ -66,16 +66,7 @@ Represents a registered user of the system. Users are assigned exactly one role 
 - AccountStatus defaults to `ACTIVE` on creation.
 - A `SUSPENDED` or `LOCKED` user cannot authenticate.
 
-### Domain Events
 
-| Event | Trigger | Payload |
-|-------|---------|---------|
-| `UserRegistered` | New user created | UserId, Email, Role, CreatedAt |
-| `UserRoleChanged` | Administrator changes a user's role | UserId, OldRole, NewRole, ChangedBy |
-| `UserSuspended` | Administrator suspends account | UserId, Reason, SuspendedBy |
-| `UserPasswordChanged` | User changes own password | UserId, ChangedAt |
-
----
 
 ## 2.3 Aggregate: VendingMachine (Machine Management Context)
 
@@ -108,18 +99,6 @@ Represents a physical vending machine and its current state. Each machine contai
 - A Slot **may** have a null ProductId (empty/unassigned slot).
 - MachineStatus defaults to `OFFLINE` on creation.
 
-### Domain Events
-
-| Event | Trigger | Payload |
-|-------|---------|---------|
-| `MachineRegistered` | New machine added to the network | MachineId, SerialNumber, Location |
-| `MachineStatusChanged` | Status transitions (e.g., Online→Maintenance) | MachineId, OldStatus, NewStatus |
-| `SlotRestocked` | Operator refills a slot | MachineId, SlotNumber, ProductId, NewQuantity |
-| `SlotAssigned` | Product assigned to a slot | MachineId, SlotNumber, ProductId |
-| `TelemetryReceived` | Machine sends telemetry data | MachineId, Timestamp, StatusData |
-| `StockDepleted` | Slot reaches zero quantity after a sale | MachineId, SlotNumber, ProductId |
-
----
 
 ## 2.4 Aggregate: Product (Sales & Inventory Context)
 
@@ -145,16 +124,6 @@ Represents an item available for sale through the vending machine network.
 - Price.amount **must** be > 0.
 - Price.currency **must** be a valid ISO 4217 code.
 - A Product with `IsActive = false` **cannot** be assigned to new Slots.
-
-### Domain Events
-
-| Event | Trigger | Payload |
-|-------|---------|---------|
-| `ProductCreated` | New product added to catalog | ProductId, ProductName, Price, Category |
-| `ProductPriceChanged` | Administrator updates price | ProductId, OldPrice, NewPrice, ChangedBy |
-| `ProductDeactivated` | Product removed from active catalog | ProductId, DeactivatedBy |
-
----
 
 ## 2.5 Aggregate: Sale (Sales & Inventory Context)
 
@@ -184,16 +153,6 @@ Represents a completed sales transaction at a vending machine. Sales are **immut
 - Timestamp **must** not be in the future.
 - PaymentInfo.status **must** be `COMPLETED` for the sale to be finalized.
 - Sale records are **immutable** after creation (append-only).
-
-### Domain Events
-
-| Event | Trigger | Payload |
-|-------|---------|---------|
-| `SaleCompleted` | Successful purchase transaction | SaleId, MachineId, ProductId, TotalAmount, Timestamp |
-| `PaymentFailed` | Payment processing fails | MachineId, ProductId, UserId, Reason |
-| `SaleRefunded` | Administrator processes a refund | SaleId, RefundAmount, RefundedBy |
-
----
 
 ## 2.6 Domain Model Class Diagram
 
@@ -391,7 +350,7 @@ Sale ..> UserId : "references"
 
 ## 2.7 Aggregate Interaction Map
 
-Aggregates interact exclusively through **ID references** and **domain events**. No aggregate holds a direct object reference to another aggregate.
+Aggregates interact exclusively through **ID references**. No aggregate holds a direct object reference to another aggregate.
 
 ### Cross-Aggregate References
 
@@ -401,39 +360,3 @@ Aggregates interact exclusively through **ID references** and **domain events**.
 | Sale | `MachineId` | VendingMachine | Where the sale occurred |
 | Sale | `ProductId` | Product | What was sold |
 | Sale | `UserId` | User | Who made the purchase (nullable) |
-
-### Domain Event Flow
-
-```mermaid
-sequenceDiagram
-    participant Customer
-    participant SalesCtx as Sales & Inventory
-    participant MachineCtx as Machine Management
-    participant PaymentGW as Payment Gateway
-
-    Customer->>SalesCtx: Purchase Request (MachineId, SlotNumber)
-    SalesCtx->>MachineCtx: Verify stock (MachineId, SlotNumber)
-    MachineCtx-->>SalesCtx: Stock confirmed (ProductId, UnitPrice)
-    SalesCtx->>PaymentGW: Process payment
-    PaymentGW-->>SalesCtx: Payment result
-
-    alt Payment Successful
-        SalesCtx->>SalesCtx: Create Sale (SaleCompleted event)
-        SalesCtx->>MachineCtx: DecrementStock (MachineId, SlotNumber, Qty)
-        MachineCtx->>MachineCtx: Update slot quantity
-        alt Stock reaches zero
-            MachineCtx->>MachineCtx: Emit StockDepleted event
-        end
-    else Payment Failed
-        SalesCtx->>SalesCtx: Emit PaymentFailed event
-    end
-```
-
-### Aggregate Summary
-
-| # | Aggregate | Bounded Context | Root Entity | Key Entities | Key Value Objects |
-|---|-----------|----------------|-------------|-------------|-------------------|
-| 1 | **User** | Identity & Access | User | — | UserId, Username, Email, PasswordHash, Role, FullName, AccountStatus |
-| 2 | **VendingMachine** | Machine Management | VendingMachine | Slot | MachineId, SerialNumber, Location, MachineStatus, SlotNumber, SlotCapacity, CurrentQuantity |
-| 3 | **Product** | Sales & Inventory | Product | — | ProductId, ProductName, Description, Price, Category, ImageUrl |
-| 4 | **Sale** | Sales & Inventory | Sale | — | SaleId, Quantity, UnitPrice, TotalAmount, PaymentInfo, Timestamp |
