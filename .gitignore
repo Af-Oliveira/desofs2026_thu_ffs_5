@@ -1,0 +1,8 @@
+Desofs/
+.vscode/
+.idea/
+.metals/
+target/
+DS_Store
+bloop/
+Doc/
