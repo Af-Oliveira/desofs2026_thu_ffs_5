@@ -1,0 +1,30 @@
+@startuml
+title Create Process (Level 2) — VendNet
+
+actor "Actor\n(Customer/Operator/Admin)" as User
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Service" as Service
+end box
+
+User -> Controller: Request Creation with Data (DTO)
+activate Controller
+Controller -> Controller: Validate Input Data (DTO)
+alt Input Valid
+    Controller -> Service: Create(data)
+    activate Service
+    alt Business Rules Pass
+        Service --> Controller: Creation Successful (Domain Model Object)
+        Controller -> Controller: Map Domain Model to DTO
+        Controller --> User: Success Message (Created DTO)
+    else Business Rules Fail
+        Service --> Controller: Business Rule Violation
+        deactivate Service
+        Controller --> User: Error Message (Business Rule Failure)
+    end
+else Input Invalid
+    Controller --> User: Error Message (Invalid Input)
+end
+deactivate Controller
+@enduml

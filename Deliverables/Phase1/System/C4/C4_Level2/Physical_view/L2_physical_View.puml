@@ -1,0 +1,43 @@
+@startuml VendNet - Physical View (Level 2)
+
+skinparam node {
+  BackgroundColor FloralWhite
+  BorderColor #333
+}
+
+title Physical View — VendNet Deployment
+
+node "Client Devices" as Client {
+  [Browser / Mobile App] as Browser
+}
+
+node "Vending Machine Fleet" as VMFleet {
+  [Vending Machine (Edge)] as VM
+}
+
+node "Application Server (Docker)" as AppServer {
+  [VendNet API\n(Spring Boot)] as API
+  [OS Operations\n(Backups, Logs, Reports)] as OSops
+}
+
+node "Database Server" as DBServer {
+  [PostgreSQL 16] as PG
+}
+
+node "File System" as FS {
+  [/var/vendnet/\n(backups, logs, reports)] as Files
+}
+
+node "External Services" as External {
+  [Payment Gateway\n(Stripe/PayPal)] as PayGW
+}
+
+' Connections
+Browser --> API : HTTPS/JSON
+VM --> API : HTTPS/JSON (mTLS)
+API --> PG : JDBC/SSL
+API --> PayGW : HTTPS/JSON
+OSops --> Files : Java NIO
+API --> OSops : Internal
+
+@enduml

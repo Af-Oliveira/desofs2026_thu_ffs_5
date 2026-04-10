@@ -1,0 +1,50 @@
+@startuml
+title Read/List Process (Level 3) — VendNet
+
+actor "Actor\n(Customer/Operator/Admin)" as User
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Service" as Service
+    participant "Repository" as Repository
+end box
+
+box "Domain" #LightGreen
+    entity "Domain Model" as DomainModel
+end box
+
+database "Persistence Layer (DB)" as DB
+
+User -> Controller: Request Data (ID/Criteria)
+activate Controller
+Controller -> Controller: Validate Request Parameters
+alt Parameters Valid
+    Controller -> Service: Delegate Read(ID/Criteria)
+    activate Service
+    Service -> Repository: Find Data(ID/Criteria)
+    activate Repository
+    Repository -> DB: Query Data
+    activate DB
+    DB --> Repository: Raw Data
+    deactivate DB
+    Repository -> DomainModel: Reconstitute Domain Model
+    activate DomainModel
+    DomainModel --> Repository: Domain Model Object
+    deactivate DomainModel
+    Repository --> Service: Found Domain Model Object(s)
+    deactivate Repository
+    alt Data Found
+        Service --> Controller: Data Found (Domain Model Object(s))
+        
+        Controller -> Controller: Map Domain Model to DTO
+        Controller --> User: Display Requested Data (DTO)
+    else Data Not Found
+        Service --> Controller: Data Not Found
+        deactivate Service
+        Controller --> User: Error Message (Data Not Found)
+    end
+else Parameters Invalid
+    Controller --> User: Error Message (Invalid Parameters)
+end
+deactivate Controller
+@enduml

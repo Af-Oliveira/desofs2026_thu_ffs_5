@@ -1,0 +1,53 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.1.2 Chrome/138.0.7204.243 Electron/37.4.0 Safari/537.36" version="28.1.2">
+  <diagram name="Page-1" id="InAp6sXn90aFu1wucKR9">
+    <mxGraphModel dx="578" dy="394" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="a0idTxx4a5eygEZy4Bko-128" value="&lt;font style=&quot;&quot;&gt;&lt;span style=&quot;font-size: 14px;&quot;&gt;«Component»&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;Library&amp;nbsp;&lt;/b&gt;&lt;/span&gt;&lt;b style=&quot;font-size: 14px;&quot;&gt;&amp;nbsp;System&lt;/b&gt;&lt;/font&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;strokeWidth=3;" parent="1" vertex="1">
+          <mxGeometry x="375" y="503" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-129" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" parent="a0idTxx4a5eygEZy4Bko-128" vertex="1">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-132" value="" style="ellipse;whiteSpace=wrap;html=1;align=center;aspect=fixed;fillColor=none;strokeColor=none;resizable=0;perimeter=centerPerimeter;rotatable=0;allowArrows=0;points=[];outlineConnect=1;" parent="1" vertex="1">
+          <mxGeometry x="435" y="503" width="10" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-133" value="&lt;u&gt;&lt;b&gt;API&lt;/b&gt;&lt;/u&gt; (IN)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" parent="1" vertex="1">
+          <mxGeometry x="355" y="411" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-134" value="" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="515" y="483" width="20" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-135" value="" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=oval;endFill=0;sketch=0;sourcePerimeterSpacing=0;targetPerimeterSpacing=0;endSize=10;exitX=0.5;exitY=0;exitDx=0;exitDy=0;strokeWidth=3;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="524.67" y="483" as="sourcePoint" />
+            <mxPoint x="524.67" y="453" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-136" value="" style="ellipse;whiteSpace=wrap;html=1;align=center;aspect=fixed;fillColor=none;strokeColor=none;resizable=0;perimeter=centerPerimeter;rotatable=0;allowArrows=0;points=[];outlineConnect=1;" parent="1" vertex="1">
+          <mxGeometry x="520" y="503" width="10" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-137" value="&lt;u&gt;&lt;b&gt;API&lt;/b&gt;&lt;/u&gt; (OUT)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" parent="1" vertex="1">
+          <mxGeometry x="475" y="411" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-138" value="" style="ellipse;whiteSpace=wrap;html=1;align=center;aspect=fixed;fillColor=none;strokeColor=none;resizable=0;perimeter=centerPerimeter;rotatable=0;allowArrows=0;points=[];outlineConnect=1;" parent="1" vertex="1">
+          <mxGeometry x="515" y="502" width="10" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="a0idTxx4a5eygEZy4Bko-141" value="" style="ellipse;whiteSpace=wrap;html=1;align=center;aspect=fixed;fillColor=none;strokeColor=none;resizable=0;perimeter=centerPerimeter;rotatable=0;allowArrows=0;points=[];outlineConnect=1;" parent="1" vertex="1">
+          <mxGeometry x="600" y="502" width="10" height="10" as="geometry" />
+        </mxCell>
+        <UserObject label="" tooltip="Receives a external API " id="a0idTxx4a5eygEZy4Bko-144">
+          <mxCell style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=halfCircle;endFill=0;endSize=6;strokeWidth=3;sketch=0;exitX=0.052;exitY=-0.007;exitDx=0;exitDy=0;exitPerimeter=0;" parent="1" edge="1">
+            <mxGeometry relative="1" as="geometry">
+              <mxPoint x="399.56" y="502" as="sourcePoint" />
+              <mxPoint x="400.45" y="443.63" as="targetPoint" />
+            </mxGeometry>
+          </mxCell>
+        </UserObject>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
