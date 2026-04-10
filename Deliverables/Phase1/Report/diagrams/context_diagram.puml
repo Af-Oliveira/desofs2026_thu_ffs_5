@@ -1,0 +1,21 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title System Context Diagram — Vending Machine Network
+
+Person(customer, "Customer", "Purchases products via machine or app")
+Person(operator, "Operator / Maintenance", "Restocks machines, extracts logs")
+Person(admin, "Administrator", "Manages network, prices, accounts, security")
+
+System(backend, "VendNet Back-End", "REST API + relational DB.\nManages inventory, pricing, reporting, maintenance.")
+System_Ext(vendingMachine, "Vending Machine (Edge)", "Physical device: stock, dispense, telemetry")
+System_Ext(paymentGw, "Payment Gateway", "External payment processor")
+
+Rel(customer, vendingMachine, "Selects product, pays")
+Rel(customer, backend, "Views catalog, history (app)")
+Rel(operator, backend, "Checks stock, uploads logs")
+Rel(admin, backend, "Full management")
+Rel(vendingMachine, backend, "Sends telemetry, sales, stock levels")
+Rel(backend, paymentGw, "Processes payments")
+Rel(backend, backend, "OS ops: backups, log rotation, report dirs")
+@enduml

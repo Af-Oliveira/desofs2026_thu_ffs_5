@@ -1,0 +1,15 @@
+@startuml
+title Authentication Flow
+' TODO: Replace with final authentication flow sequence diagram
+actor User
+participant "API Gateway" as API
+participant "Auth Service" as Auth
+database "Users DB" as DB
+
+User -> API : POST /auth/login (credentials)
+API -> Auth : Validate credentials
+Auth -> DB : Lookup user, verify hash
+DB --> Auth : User record
+Auth --> API : JWT token
+API --> User : 200 OK + JWT
+@enduml
