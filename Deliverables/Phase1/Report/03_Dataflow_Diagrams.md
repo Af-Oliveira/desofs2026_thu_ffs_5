@@ -6,7 +6,7 @@
  ```bash
  cd Deliverables/Phase1/Report/diagrams
  # Level 0
- python dfd_level0.py --dfd | dot -Tpng -o dfd_level0.png
+ python DFD/Level_0/pytm/dfd_level0.py --dfd | dot -Tpng -o DFD/Level_0/pytm/dfd_level0.png
  # Level 1 (Master + 3 Focused Views)
  python dfd_level1.py --dfd | dot -Tpng -o dfd_level1.png
  python DFD/Level_1/pytm/dfd_level1_view_auth.py --dfd | dot -Tpng -o DFD/Level_1/pytm/dfd_level1_view_auth.png
@@ -27,9 +27,13 @@ The Level 0 DFD (Context Diagram) presents the VendNet system as a single proces
 
 ### 3.1.1 DFD Level 0 Diagram
 
-![DFD Level 0 — VendNet Context Diagram](diagrams/dfd_level0.png)
+![DFD Level 0 — VendNet Context Diagram (pytm)](diagrams/DFD/Level_0/pytm/dfd_level0.png)
 
-*Figure 3.1: Level 0 Data Flow Diagram generated with pytm. Source: [`diagrams/dfd_level0.py`](diagrams/dfd_level0.py)*
+*Figure 3.1a: Level 0 Data Flow Diagram generated with pytm. Source: [`diagrams/DFD/Level_0/pytm/dfd_level0.py`](diagrams/DFD/Level_0/pytm/dfd_level0.py)*
+
+![DFD Level 0 — VendNet Context Diagram (draw.io)](diagrams/DFD/Level_0/draw.io/DFD_Level0.drawio.png)
+
+*Figure 3.1b: Level 0 Data Flow Diagram — draw.io version. Source: [`diagrams/DFD/Level_0/draw.io/DFD_Level0.drawio`](diagrams/DFD/Level_0/draw.io/DFD_Level0.drawio)*
 
 ### 3.1.2 DFD Notation Reference
 
