@@ -1,0 +1,134 @@
+@startuml DDD_Level2
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+title Domain Model — Level 2: Aggregates & Properties
+
+skinparam package {
+  BackgroundColor<<iac>> #FFEAEA
+  BackgroundColor<<mm>> #EAF0FF
+  BackgroundColor<<sm>> #E8F0FE
+  BackgroundColor<<pc>> #EAFFF0
+  BackgroundColor<<sa>> #FFF8E1
+}
+
+package "Identity & Access" <<iac>> {
+  class User <<Aggregate Root>> {
+    +UserId id
+    +Username username
+    +Email email
+    +PasswordHash passwordHash
+    +Role role
+    +FullName fullName
+    +AccountStatus accountStatus
+    +CreatedAt createdAt
+  }
+
+  enum Role {
+    CUSTOMER
+    OPERATOR
+    ADMINISTRATOR
+  }
+
+  enum AccountStatus {
+    ACTIVE
+    SUSPENDED
+    LOCKED
+  }
+}
+
+package "Machine Management" <<mm>> {
+  class VendingMachine <<Aggregate Root>> {
+    +MachineId id
+    +SerialNumber serialNumber
+    +Location location
+    +MachineStatus status
+    +InstalledAt installedAt
+    +LastTelemetryAt lastTelemetryAt
+  }
+
+  enum MachineStatus {
+    ONLINE
+    OFFLINE
+    MAINTENANCE
+  }
+}
+
+package "Slot Management" <<sm>> {
+  class Slot <<Aggregate Root>> {
+    +SlotId id
+    +MachineId machineRef
+    +SlotNumber number
+    +ProductId productRef
+    +SlotCapacity capacity
+    +CurrentQuantity currentQuantity
+  }
+}
+
+package "Product Catalog" <<pc>> {
+  class Product <<Aggregate Root>> {
+    +ProductId id
+    +ProductName name
+    +Description description
+    +Price price
+    +Category category
+    +boolean isActive
+    +ImageUrl imageUrl
+    +CreatedAt createdAt
+  }
+
+  enum Category {
+    BEVERAGES
+    SNACKS
+    FRESH_FOOD
+  }
+}
+
+package "Sales" <<sa>> {
+  class Sale <<Aggregate Root>> {
+    +SaleId id
+    +MachineId machineRef
+    +ProductId productRef
+    +UserId userRef
+    +Quantity quantity
+    +UnitPrice unitPrice
+    +TotalAmount totalAmount
+    +PaymentInfo paymentInfo
+    +Timestamp timestamp
+  }
+
+  enum PaymentMethod {
+    CARD
+    CASH
+    MOBILE
+  }
+
+  enum PaymentStatus {
+    COMPLETED
+    FAILED
+    REFUNDED
+  }
+}
+
+' Relationships within aggregates
+User *--> "1" Role
+User *--> "1" AccountStatus
+
+VendingMachine *--> "1" MachineStatus
+
+Product *--> "1" Category
+
+Sale *--> "1" PaymentMethod
+Sale *--> "1" PaymentStatus
+
+' Cross-aggregate references
+Slot ..> VendingMachine : "MachineId"
+Slot ..> Product : "ProductId"
+Sale ..> VendingMachine : "MachineId"
+Sale ..> Product : "ProductId"
+Sale ..> User : "UserId"
+
+@enduml
+Sale ..> User : "UserId"
+
+@enduml

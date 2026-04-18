@@ -1,0 +1,68 @@
+@startuml
+title Purchase Product (Level 1) — VendNet
+
+actor "Customer" as Customer
+
+participant "VendNet System" as VendNet #LightBlue
+participant "Payment Gateway\n(External)" as PG
+
+Customer -> VendNet: Request purchase\n(productId, machineId,\npaymentToken, idempotencyKey)
+activate VendNet
+
+VendNet -> VendNet: Authenticate &\nvalidate input
+
+alt Authenticated & Input Valid
+
+    VendNet -> VendNet: Check idempotency key\n(prevent duplicate charges)
+
+    alt New Request
+
+        VendNet -> VendNet: Check product availability\n& reserve stock
+
+        alt Product In Stock
+
+            VendNet -> PG: Authorize payment\n(amount, paymentToken,\nidempotencyKey)
+            activate PG
+
+            alt Payment Authorized
+                PG --> VendNet: PaymentConfirmation\n(transactionRef)
+                deactivate PG
+                VendNet -> VendNet: Confirm stock deduction\n& record sale (COMPLETED)
+                VendNet -> VendNet: Store idempotency mapping
+                VendNet --> Customer: 201 Created\n(receipt, transactionRef)
+
+            else Payment Declined
+                PG --> VendNet: PaymentDeclined(reason)
+                VendNet -> VendNet: Release reserved stock\n& record sale (FAILED)
+                VendNet --> Customer: 402 Payment Required\n(Payment declined: reason)
+
+            else Gateway Timeout
+                PG --> VendNet: <<timeout>>
+                VendNet -> VendNet: Record sale\n(PENDING_VERIFICATION)
+                VendNet -> VendNet: Schedule async\nverification job
+                VendNet --> Customer: 202 Accepted\n(Payment processing —\ncheck status later)
+
+            else Network Failure
+                VendNet -> VendNet: Release reserved stock
+                VendNet -> VendNet: Record sale\n(PENDING_VERIFICATION)
+                VendNet -> VendNet: Schedule retry with\nsame idempotency key
+                VendNet --> Customer: 202 Accepted\n(Temporary network issue —\nretrying payment)
+            end
+
+        else Out of Stock
+            VendNet --> Customer: 409 Conflict\n(Product out of stock)
+        end
+
+    else Duplicate Request
+        VendNet --> Customer: Return cached response\n(idempotent)
+    end
+
+else Invalid Input
+    VendNet --> Customer: 400 Bad Request
+
+else Unauthenticated
+    VendNet --> Customer: 401 Unauthorized
+end
+
+deactivate VendNet
+@enduml

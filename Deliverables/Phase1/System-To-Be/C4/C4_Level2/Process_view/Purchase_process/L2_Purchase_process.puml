@@ -1,0 +1,92 @@
+@startuml
+title Purchase Product (Level 2) — VendNet
+
+actor "Customer" as Customer
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Sales Service" as SalesService
+end box
+
+database "MySQL Database" as DB
+participant "Payment Gateway\n(External)" as PG
+
+Customer -> Controller: POST /sales/purchase\n(productId, machineId,\npaymentToken, idempotencyKey)
+activate Controller
+Controller -> Controller: Validate Input &\nAuthenticate (JWT)
+
+alt Input Valid & Authenticated
+
+    Controller -> SalesService: processPurchase(request)
+    activate SalesService
+
+    == Idempotency Check ==
+    SalesService -> DB: Check idempotencyKey\n(prevent duplicate charges)
+    activate DB
+    DB --> SalesService: No duplicate found
+    deactivate DB
+
+    == Stock Validation ==
+    SalesService -> DB: SELECT slot\nWHERE machineId AND productId
+    activate DB
+    DB --> SalesService: Slot\n(currentQuantity, price)
+    deactivate DB
+
+    alt Product In Stock (quantity > 0)
+
+        SalesService -> SalesService: Reserve Stock\n(optimistic lock)
+
+        == Payment Processing ==
+        SalesService -> PG: Authorize Payment\n(amount, paymentToken,\nidempotencyKey)
+        activate PG
+
+        alt Payment Authorized
+            PG --> SalesService: PaymentConfirmation\n(transactionRef)
+            deactivate PG
+            SalesService -> DB: UPDATE slot\nquantity −= 1
+            SalesService -> DB: INSERT sale record\n(status = COMPLETED)
+            SalesService -> DB: Store idempotencyKey\n→ transactionRef mapping
+            activate DB
+            DB --> SalesService: Committed
+            deactivate DB
+            SalesService --> Controller: SaleResult\n(success, transactionRef,\nreceipt)
+            Controller --> Customer: 201 Created\n(receipt, transactionRef)
+
+        else Payment Declined
+            PG --> SalesService: PaymentDeclined(reason)
+            SalesService -> SalesService: Release Reserved Stock
+            SalesService -> DB: INSERT sale record\n(status = FAILED, reason)
+            SalesService --> Controller: PaymentDeclinedException
+            Controller --> Customer: 402 Payment Required\n(Payment declined: reason)
+
+        else Gateway Timeout
+            PG --> SalesService: <<timeout>>
+            SalesService -> DB: INSERT sale record\n(status = PENDING_VERIFICATION)
+            SalesService -> SalesService: Schedule async\nverification job
+            SalesService --> Controller: PaymentPendingResult
+            Controller --> Customer: 202 Accepted\n(Payment processing —\ncheck status via\nGET /sales/{id})
+
+        else Network Failure → Gateway
+            SalesService -> SalesService: Connection exception\ncaught
+            SalesService -> SalesService: Release Reserved Stock
+            SalesService -> DB: INSERT sale record\n(status = PENDING_VERIFICATION)
+            SalesService -> SalesService: Schedule retry with\nsame idempotencyKey
+            SalesService --> Controller: PaymentPendingResult
+            Controller --> Customer: 202 Accepted\n(Temporary network issue —\nretrying payment)
+        end
+
+    else Out of Stock
+        SalesService --> Controller: OutOfStockException
+        deactivate SalesService
+        Controller --> Customer: 409 Conflict\n(Product out of stock)
+    end
+
+else Invalid Input
+    Controller --> Customer: 400 Bad Request
+
+else Unauthenticated
+    Controller --> Customer: 401 Unauthorized
+end
+
+deactivate Controller
+@enduml

@@ -1,0 +1,46 @@
+@startuml DDD_Context_Map
+skinparam linetype ortho
+skinparam shadowing false
+skinparam handwritten false
+title Context Map — Bounded Contexts & Cross-Context References
+
+skinparam package {
+  BackgroundColor<<iac>> #FFEAEA
+  BackgroundColor<<mm>> #EAF0FF
+  BackgroundColor<<sm>> #E8F0FE
+  BackgroundColor<<pc>> #EAFFF0
+  BackgroundColor<<sa>> #FFF8E1
+}
+
+skinparam rectangle {
+  RoundCorner 15
+  FontSize 14
+}
+
+package "Identity & Access" <<iac>> {
+  rectangle "User" as User
+}
+
+package "Machine Management" <<mm>> {
+  rectangle "VendingMachine" as VendingMachine
+}
+
+package "Slot Management" <<sm>> {
+  rectangle "Slot" as Slot
+}
+
+package "Product Catalog" <<pc>> {
+  rectangle "Product" as Product
+}
+
+package "Sales" <<sa>> {
+  rectangle "Sale" as Sale
+}
+
+User ..> Sale : "UserId"
+VendingMachine ..> Slot : "MachineId"
+VendingMachine ..> Sale : "MachineId"
+Product ..> Slot : "ProductId"
+Product ..> Sale : "ProductId"
+
+@enduml

@@ -1,0 +1,110 @@
+@startuml
+title Create Product with Image Upload (Level 2) — VendNet
+
+actor "Administrator" as Admin
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Product Service" as ProductService
+    participant "File Validation\nService" as FileService
+end box
+
+database "MySQL Database" as DB
+collections "File Storage\n(/var/vendnet/images/)" as FS
+
+Admin -> Controller: POST /admin/products\nmultipart/form-data\n{name, description, price,\ncategory, image}\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT &\nVerify ADMIN role
+
+alt Authorized (ADMINISTRATOR role)
+
+    Controller -> Controller: Validate Product DTO\n(name: 1-100 chars,\nprice > 0 & ISO 4217,\ncategory ∈ valid enum,\ndescription: max 500 chars)
+
+    alt Input Valid
+
+        == Secure File Upload Validation ==
+
+        Controller -> Controller: Check Content-Length\nheader & actual file size\n(max 5 MB)
+
+        alt File Size Within Limit
+
+            Controller -> FileService: validateAndProcess(file)
+            activate FileService
+
+            FileService -> FileService: Check file extension\n(whitelist: .jpg, .jpeg,\n.png, .webp)
+
+            alt Extension Allowed
+
+                FileService -> FileService: Read first 16 bytes\n(magic bytes)\n\nFF D8 FF → JPEG\n89 50 4E 47 → PNG\n52 49 46 46...57 45 42 50 → WebP
+
+                alt Magic Bytes Match Image
+
+                    FileService -> FileService: Decode image with\nImageIO.read()\n(fails on corrupt/non-image)
+
+                    alt Image Decodes Successfully
+
+                        FileService -> FileService: Re-encode image\n(BufferedImage →\nImageIO.write())\n\nStrips EXIF metadata,\nneutralizes embedded\npayloads, prevents\npolyglot files
+
+                        FileService -> FileService: Generate UUID filename\n(UUID.randomUUID() +\nvalidated extension)\n\nOriginal filename\nfully discarded
+
+                        FileService -> FS: Write re-encoded image\nto /var/vendnet/images/\n{uuid}.{ext}\n\nSet POSIX permissions:\n644 (owner rw, group r)
+                        activate FS
+                        FS --> FileService: File stored
+                        deactivate FS
+
+                        FileService --> Controller: FileResult\n(storedPath, checksum)
+                        deactivate FileService
+
+                        Controller -> ProductService: createProduct(request,\nstoredImagePath)
+                        activate ProductService
+
+                        == Persist Product ==
+                        ProductService -> DB: INSERT INTO products\n(id, name, description,\nprice, currency, category,\nimage_url, is_active = true,\ncreated_at)
+                        activate DB
+                        DB --> ProductService: Product stored
+                        deactivate DB
+
+                        ProductService -> DB: INSERT audit_log\n(PRODUCT_CREATED,\nadminId, productId)
+                        activate DB
+                        DB --> ProductService: Logged
+                        deactivate DB
+
+                        ProductService --> Controller: ProductResult
+                        deactivate ProductService
+
+                        Controller --> Admin: 201 Created\n{product DTO + imageUrl}
+
+                    else Image Decode Failed
+                        FileService -> FileService: Log Security Event\n(CORRUPT_IMAGE_UPLOAD)
+                        FileService --> Controller: InvalidImageException
+                        deactivate FileService
+                        Controller --> Admin: 400 Bad Request\n(File is corrupt or\nnot a valid image)
+                    end
+
+                else Magic Bytes Mismatch
+                    FileService -> FileService: Log Security Event\n(DISGUISED_FILE_UPLOAD,\nadminId, claimed ext,\nactual bytes)
+                    FileService --> Controller: MaliciousFileException
+                    deactivate FileService
+                    Controller --> Admin: 400 Bad Request\n(File content does not\nmatch image format)
+                end
+
+            else Extension Not Allowed
+                FileService --> Controller: UnsupportedFileTypeException
+                deactivate FileService
+                Controller --> Admin: 400 Bad Request\n(Unsupported file type —\nonly JPG, PNG, WebP)
+            end
+
+        else File Too Large
+            Controller --> Admin: 413 Payload Too Large\n(Max 5 MB)
+        end
+
+    else Input Invalid
+        Controller --> Admin: 400 Bad Request\n(validation errors)
+    end
+
+else Unauthorized
+    Controller --> Admin: 403 Forbidden\n(Administrator access required)
+end
+
+deactivate Controller
+@enduml

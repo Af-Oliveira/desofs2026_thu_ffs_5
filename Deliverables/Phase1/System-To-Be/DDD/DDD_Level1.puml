@@ -1,0 +1,25 @@
+@startuml DDD_Level1
+skinparam linetype ortho
+skinparam shadowing false
+skinparam handwritten false
+title Domain Model — Level 1: Entities
+
+skinparam rectangle {
+  RoundCorner 15
+  FontSize 14
+}
+
+rectangle "User" as User
+rectangle "VendingMachine" as VendingMachine
+rectangle "Slot" as Slot
+rectangle "Product" as Product
+rectangle "Sale" as Sale
+
+' Relationships
+Slot ..> VendingMachine : "belongs to"
+Slot ..> Product : "references"
+Sale ..> VendingMachine : "sold at"
+Sale ..> Product : "product sold"
+Sale ..> User : "purchased by"
+
+@enduml

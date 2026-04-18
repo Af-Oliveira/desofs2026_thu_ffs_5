@@ -1,0 +1,71 @@
+@startuml
+title Create Product with Image Upload (Level 1) — VendNet
+
+actor "Administrator" as Admin
+
+participant "VendNet System" as VendNet #LightBlue
+
+Admin -> VendNet: Create product\n(name, description, price,\ncategory, image file)\n[Authorization: Bearer JWT]
+activate VendNet
+
+VendNet -> VendNet: Validate JWT &\nverify ADMIN role
+
+alt Authorized (ADMINISTRATOR role)
+
+    VendNet -> VendNet: Validate product data\n(name, price > 0,\ncategory, description)
+
+    alt Input Valid
+
+        VendNet -> VendNet: Enforce file size limit\n(max 5 MB)
+
+        alt File Size Within Limit
+
+            == Secure Image Validation Pipeline ==
+
+            VendNet -> VendNet: Check file extension\nwhitelist\n(.jpg, .jpeg, .png, .webp)
+
+            alt Extension Allowed
+
+                VendNet -> VendNet: Read magic bytes\n(first 16 bytes)\n& cross-check against\nclaimed extension
+
+                alt Magic Bytes Match Image Format
+
+                    VendNet -> VendNet: Decode with ImageIO.read()\n(verify real image)
+
+                    alt Image Decodes Successfully
+
+                        VendNet -> VendNet: Re-encode image\n(strip EXIF metadata,\nneutralize embedded payloads)
+                        VendNet -> VendNet: Generate UUID filename\n(discard original filename)
+                        VendNet -> VendNet: Store re-encoded image\n(POSIX 644 permissions)
+                        VendNet -> VendNet: Persist product record
+                        VendNet -> VendNet: Record audit event\n(PRODUCT_CREATED)
+                        VendNet --> Admin: 201 Created\n{product DTO + imageUrl}
+
+                    else Corrupt / Non-Image File
+                        VendNet -> VendNet: Log security event\n(CORRUPT_IMAGE_UPLOAD)
+                        VendNet --> Admin: 400 Bad Request\n(File is corrupt or\nnot a valid image)
+                    end
+
+                else Disguised File Detected
+                    VendNet -> VendNet: Log security event\n(DISGUISED_FILE_UPLOAD)
+                    VendNet --> Admin: 400 Bad Request\n(File content does not\nmatch image format)
+                end
+
+            else Unsupported Extension
+                VendNet --> Admin: 400 Bad Request\n(Only JPG, PNG, WebP)
+            end
+
+        else File Too Large
+            VendNet --> Admin: 413 Payload Too Large\n(Max 5 MB)
+        end
+
+    else Input Invalid
+        VendNet --> Admin: 400 Bad Request\n(Validation errors)
+    end
+
+else Unauthorized
+    VendNet --> Admin: 403 Forbidden\n(Administrator access required)
+end
+
+deactivate VendNet
+@enduml

@@ -1,0 +1,49 @@
+@startuml
+title User Registration (Level 1) — VendNet
+
+actor "Administrator" as Admin
+
+participant "VendNet System" as VendNet #LightBlue
+
+Admin -> VendNet: Create user\n(username, email, password,\nfullName, role)\n[Authorization: Bearer JWT]
+activate VendNet
+
+VendNet -> VendNet: Validate JWT &\nverify ADMIN role
+
+alt Authorized (ADMINISTRATOR role)
+
+    VendNet -> VendNet: Validate input\n(username 3-30 chars,\nemail RFC 5322,\npassword policy,\nrole ∈ {CUSTOMER,\nOPERATOR, ADMIN})
+
+    alt Input Valid
+
+        VendNet -> VendNet: Check username uniqueness
+
+        alt Username Available
+
+            VendNet -> VendNet: Check email uniqueness
+
+            alt Email Available
+
+                VendNet -> VendNet: Hash password\n(BCrypt, cost factor 12)
+                VendNet -> VendNet: Create user\n(status = ACTIVE)
+                VendNet -> VendNet: Record audit event\n(USER_CREATED,\nadminId, newUserId)
+                VendNet --> Admin: 201 Created\n{user DTO — no password hash}
+
+            else Email Already Registered
+                VendNet --> Admin: 409 Conflict\n(Email already registered)
+            end
+
+        else Username Already Taken
+            VendNet --> Admin: 409 Conflict\n(Username already taken)
+        end
+
+    else Input Invalid
+        VendNet --> Admin: 400 Bad Request\n(Validation errors)
+    end
+
+else Unauthorized
+    VendNet --> Admin: 403 Forbidden\n(Administrator access required)
+end
+
+deactivate VendNet
+@enduml

@@ -1,0 +1,54 @@
+@startuml
+title Machine Restock (Level 1) — VendNet
+
+actor "Operator" as Operator
+
+participant "VendNet System" as VendNet #LightBlue
+
+Operator -> VendNet: Restock slot\n(machineId, slotId, quantity)\n[Authorization: Bearer JWT]
+activate VendNet
+
+VendNet -> VendNet: Validate JWT &\nextract role
+
+alt Authorized (OPERATOR or ADMIN)
+
+    VendNet -> VendNet: Validate input\n(quantity > 0)
+
+    alt Input Valid
+
+        VendNet -> VendNet: Verify machine\n& slot exist
+
+        alt Slot Found
+
+            VendNet -> VendNet: Check capacity:\ncurrentQuantity + quantity\n≤ slotCapacity
+
+            alt Within Capacity
+
+                VendNet -> VendNet: Update slot quantity\n(with optimistic locking)
+
+                alt No Concurrent Modification
+                    VendNet -> VendNet: Record audit event\n(RESTOCK, operatorId,\nmachineId, slotId, qty)
+                    VendNet --> Operator: 200 OK\n(updated slot data)
+
+                else Concurrent Modification
+                    VendNet --> Operator: 409 Conflict\n(Concurrent modification —\nretry request)
+                end
+
+            else Exceeds Capacity
+                VendNet --> Operator: 422 Unprocessable Entity\n(Exceeds slot capacity)
+            end
+
+        else Slot Not Found
+            VendNet --> Operator: 404 Not Found
+        end
+
+    else Invalid Input
+        VendNet --> Operator: 400 Bad Request
+    end
+
+else Unauthorized
+    VendNet --> Operator: 403 Forbidden\n(Insufficient permissions)
+end
+
+deactivate VendNet
+@enduml

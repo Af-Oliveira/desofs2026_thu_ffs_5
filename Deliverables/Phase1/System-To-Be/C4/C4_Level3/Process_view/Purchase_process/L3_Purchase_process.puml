@@ -1,0 +1,158 @@
+@startuml
+title Purchase Product (Level 3) — VendNet
+
+actor "Customer" as Customer
+
+box "Interface Adapters" #LightBlue
+    participant "SalesController" as Controller
+end box
+
+box "Application Services" #LightYellow
+    participant "PurchaseService" as PurchaseService
+    participant "IdempotencyService" as IdempService
+end box
+
+box "Domain" #LightGreen
+    entity "Sale Aggregate" as SaleEntity
+    entity "Slot Aggregate" as SlotEntity
+end box
+
+box "Infrastructure" #LightCoral
+    participant "SaleRepository" as SaleRepo
+    participant "SlotRepository" as SlotRepo
+    participant "PaymentGatewayClient" as PGClient
+end box
+
+database "MySQL Database" as DB
+participant "Payment Gateway\n(External)" as PG
+
+Customer -> Controller: POST /sales/purchase\n{productId, machineId,\npaymentToken,\nidempotencyKey}
+activate Controller
+Controller -> Controller: Validate\nPurchaseRequest DTO\n& Authenticate JWT\n(CUSTOMER role)
+
+alt Valid & Authenticated
+
+    Controller -> PurchaseService: processPurchase\n(request)
+    activate PurchaseService
+
+    == Idempotency Check ==
+    PurchaseService -> IdempService: checkDuplicate\n(idempotencyKey)
+    activate IdempService
+    IdempService -> DB: SELECT FROM\nidempotency_store\nWHERE key = ?
+    activate DB
+    DB --> IdempService: Result
+    deactivate DB
+
+    alt Duplicate Found
+        IdempService --> PurchaseService: CachedResponse\n(previous result)
+        PurchaseService --> Controller: Previous SaleResult
+        Controller --> Customer: 200 OK\n(cached response)
+    else No Duplicate
+        IdempService --> PurchaseService: Proceed
+        deactivate IdempService
+    end
+
+    == Stock Validation & Reservation ==
+    PurchaseService -> SlotRepo: findByMachineAndProduct\n(machineId, productId)
+    activate SlotRepo
+    SlotRepo -> DB: SELECT ... FOR UPDATE\n(pessimistic lock)
+    activate DB
+    DB --> SlotRepo: Row (locked)
+    deactivate DB
+    SlotRepo -> SlotEntity: Reconstitute Slot
+    activate SlotEntity
+    SlotEntity --> SlotRepo: Slot aggregate
+    deactivate SlotEntity
+    SlotRepo --> PurchaseService: Slot
+    deactivate SlotRepo
+
+    alt Stock Available (currentQuantity > 0)
+
+        PurchaseService -> SlotEntity: reserveUnit()
+        activate SlotEntity
+        SlotEntity -> SlotEntity: Decrement\ncurrentQuantity\n& validate ≥ 0
+        SlotEntity --> PurchaseService: Reserved
+        deactivate SlotEntity
+
+        == Payment Processing ==
+        PurchaseService -> PGClient: authorizePayment\n(amount, token,\nidempotencyKey)
+        activate PGClient
+        PGClient -> PG: HTTPS POST /charges\n(with idempotencyKey\nheader)
+        activate PG
+
+        alt Payment Authorized
+            PG --> PGClient: 200 OK\n(transactionRef)
+            deactivate PG
+            PGClient --> PurchaseService: PaymentResult.SUCCESS
+            deactivate PGClient
+
+            == Persist Sale ==
+            PurchaseService -> SaleEntity: create(machineId,\nproductId, userId,\nunitPrice, paymentInfo)
+            activate SaleEntity
+            SaleEntity -> SaleEntity: Validate invariants\n(quantity ≥ 1,\ntotalAmount =\nqty × price)
+            SaleEntity --> PurchaseService: Sale aggregate
+            deactivate SaleEntity
+
+            PurchaseService -> SaleRepo: save(sale)
+            activate SaleRepo
+            SaleRepo -> DB: INSERT INTO sales
+            deactivate SaleRepo
+
+            PurchaseService -> SlotRepo: save(slot)
+            activate SlotRepo
+            SlotRepo -> DB: UPDATE slot\nquantity
+            deactivate SlotRepo
+
+            PurchaseService -> IdempService: store\n(idempotencyKey,\nresult)
+
+            PurchaseService --> Controller: SaleResult\n(SUCCESS, receipt)
+            Controller --> Customer: 201 Created\n{receipt, transactionRef}
+
+        else Payment Declined
+            PG --> PGClient: 402\n(declineReason)
+            PGClient --> PurchaseService: PaymentResult\n.DECLINED
+
+            PurchaseService -> SlotEntity: releaseReservation()
+            activate SlotEntity
+            SlotEntity --> PurchaseService: Released
+            deactivate SlotEntity
+
+            PurchaseService -> SaleRepo: save(sale\nstatus=FAILED)
+            PurchaseService --> Controller: PaymentDeclinedException
+            Controller --> Customer: 402 Payment Required\n{reason}
+
+        else Gateway Timeout
+            PG --> PGClient: <<timeout>>
+            PGClient --> PurchaseService: PaymentResult\n.TIMEOUT
+
+            PurchaseService -> SaleRepo: save(sale\nstatus=PENDING_VERIFICATION)
+            PurchaseService -> PurchaseService: Schedule async\nverification with\nidempotencyKey
+            PurchaseService --> Controller: PaymentPendingResult
+            Controller --> Customer: 202 Accepted\n{saleId, statusUrl}
+
+        else Network Failure (→ Gateway)
+            PGClient -> PGClient: IOException /\nConnectException
+            PGClient --> PurchaseService: PaymentResult\n.NETWORK_ERROR
+
+            PurchaseService -> SlotEntity: releaseReservation()
+            PurchaseService -> SaleRepo: save(sale\nstatus=PENDING_VERIFICATION)
+            PurchaseService -> PurchaseService: Schedule retry\nwith same\nidempotencyKey
+            PurchaseService --> Controller: PaymentPendingResult
+            deactivate PurchaseService
+            Controller --> Customer: 202 Accepted\n{saleId, message:\n"Retrying payment"}
+        end
+
+    else Out of Stock
+        PurchaseService --> Controller: OutOfStockException
+        Controller --> Customer: 409 Conflict\n{message:\n"Out of stock"}
+    end
+
+else Invalid Input
+    Controller --> Customer: 400 Bad Request
+
+else Unauthenticated
+    Controller --> Customer: 401 Unauthorized
+end
+
+deactivate Controller
+@enduml

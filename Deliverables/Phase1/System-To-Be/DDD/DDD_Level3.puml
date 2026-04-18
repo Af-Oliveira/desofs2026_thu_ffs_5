@@ -1,0 +1,209 @@
+@startuml DDD_Level3
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+title Domain Model — Level 3: Full Detail with Value Objects & ID References
+
+skinparam package {
+  BackgroundColor<<iac>> #FFEAEA
+  BackgroundColor<<mm>> #EAF0FF
+  BackgroundColor<<sm>> #E8F0FE
+  BackgroundColor<<pc>> #EAFFF0
+  BackgroundColor<<sa>> #FFF8E1
+}
+
+package "Identity & Access" <<iac>> {
+  class User <<Aggregate Root>> {
+  }
+
+  enum Role <<Value Object>> {
+    CUSTOMER
+    OPERATOR
+    ADMINISTRATOR
+  }
+
+  enum AccountStatus <<Value Object>> {
+    ACTIVE
+    SUSPENDED
+    LOCKED
+  }
+
+  class Username <<Value Object>> {
+    +String value
+  }
+  class Email <<Value Object>> {
+    +String value
+  }
+  class PasswordHash <<Value Object>> {
+    +String value
+  }
+  class FullName <<Value Object>> {
+    +String value
+  }
+}
+
+package "Machine Management" <<mm>> {
+  class VendingMachine <<Aggregate Root>> {
+  }
+
+  class Location <<Value Object>> {
+    +String address
+    +double latitude
+    +double longitude
+  }
+
+  enum MachineStatus <<Value Object>> {
+    ONLINE
+    OFFLINE
+    MAINTENANCE
+  }
+
+  class SerialNumber <<Value Object>> {
+    +String value
+  }
+}
+
+package "Slot Management" <<sm>> {
+  class Slot <<Aggregate Root>> {
+  }
+
+  class SlotId <<Value Object>> {
+    +UUID value
+  }
+  class SlotNumber <<Value Object>> {
+    +int value
+  }
+  class SlotCapacity <<Value Object>> {
+    +int value
+  }
+  class CurrentQuantity <<Value Object>> {
+    +int value
+  }
+}
+
+package "Product Catalog" <<pc>> {
+  class Product <<Aggregate Root>> {
+  }
+
+  class Price <<Value Object>> {
+    +BigDecimal amount
+    +String currency
+  }
+
+  enum Category <<Value Object>> {
+    BEVERAGES
+    SNACKS
+    FRESH_FOOD
+  }
+
+  class ProductName <<Value Object>> {
+    +String value
+  }
+  class Description <<Value Object>> {
+    +String value
+  }
+  class ImageUrl <<Value Object>> {
+    +String value
+  }
+}
+
+package "Sales" <<sa>> {
+  class Sale <<Aggregate Root>> {
+  }
+
+  class UnitPrice <<Value Object>> {
+    +BigDecimal amount
+    +String currency
+  }
+
+  class PaymentInfo <<Value Object>> {
+    +PaymentMethod method
+    +String transactionRef
+    +PaymentStatus status
+  }
+
+  enum PaymentMethod <<Value Object>> {
+    CARD
+    CASH
+    MOBILE
+  }
+
+  enum PaymentStatus <<Value Object>> {
+    COMPLETED
+    FAILED
+    REFUNDED
+  }
+
+  class SaleId <<Value Object>> {
+    +UUID value
+  }
+  class Quantity <<Value Object>> {
+    +int value
+  }
+  class TotalAmount <<Value Object>> {
+    +BigDecimal value
+  }
+  class Timestamp <<Value Object>> {
+    +Instant value
+  }
+}
+
+' ── Identity & Access: internal compositions ──
+User *--> "1" Username
+User *--> "1" Email
+User *--> "1" PasswordHash
+User *--> "1" Role
+User *--> "1" FullName
+User *--> "1" AccountStatus
+
+' ── Machine Management: internal compositions ──
+VendingMachine *--> "1" SerialNumber
+VendingMachine *--> "1" Location
+VendingMachine *--> "1" MachineStatus
+
+' ── Slot Management: internal compositions ──
+Slot *--> "1" SlotId
+Slot *--> "1" SlotNumber
+Slot *--> "1" SlotCapacity
+Slot *--> "1" CurrentQuantity
+
+' ── Product Catalog: internal compositions ──
+Product *--> "1" ProductName
+Product *--> "1" Description
+Product *--> "1" Price
+Product *--> "1" Category
+Product *--> "1" ImageUrl
+
+' ── Sales: internal compositions ──
+Sale *--> "1" SaleId
+Sale *--> "1" Quantity
+Sale *--> "1" UnitPrice
+Sale *--> "1" TotalAmount
+Sale *--> "1" Timestamp
+Sale *--> "1" PaymentInfo
+PaymentInfo *--> "1" PaymentMethod
+PaymentInfo *--> "1" PaymentStatus
+
+' ── Shared ID Value Objects (cross-aggregate connectors) ──
+class UserId <<Value Object>> #LightYellow {
+  +UUID value
+}
+class MachineId <<Value Object>> #LightYellow {
+  +UUID value
+}
+class ProductId <<Value Object>> #LightYellow {
+  +UUID value
+}
+
+' ── Cross-aggregate references (by ID only) ──
+User *--> "1" UserId
+VendingMachine *--> "1" MachineId
+Product *--> "1" ProductId
+
+Slot ..> MachineId : "references"
+Slot ..> ProductId : "references"
+Sale ..> MachineId : "references"
+Sale ..> ProductId : "references"
+Sale ..> UserId : "references"
+
+@enduml

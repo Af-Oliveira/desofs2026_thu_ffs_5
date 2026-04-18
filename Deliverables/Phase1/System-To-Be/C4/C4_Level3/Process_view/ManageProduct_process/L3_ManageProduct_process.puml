@@ -1,0 +1,171 @@
+@startuml
+title Create Product with Image Upload (Level 3) — VendNet
+
+actor "Administrator" as Admin
+
+box "Interface Adapters" #LightBlue
+    participant "ProductController" as Controller
+end box
+
+box "Application Services" #LightYellow
+    participant "ProductManagementService" as ProdService
+    participant "FileValidationService" as FileService
+end box
+
+box "Domain" #LightGreen
+    entity "Product Aggregate" as ProductEntity
+end box
+
+box "Infrastructure" #LightCoral
+    participant "ProductRepository" as ProdRepo
+    participant "ImageStorageService" as StorageService
+    participant "AuditRepository" as AuditRepo
+end box
+
+database "MySQL Database" as DB
+collections "File Storage\n(/var/vendnet/images/)" as FS
+
+Admin -> Controller: POST /admin/products\nmultipart/form-data\n{name, description, price,\ncurrency, category, image}\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT &\nVerify ADMIN role
+
+alt Authorized (ADMINISTRATOR)
+
+    Controller -> Controller: Validate\nCreateProductRequest DTO\n(name: 1-100 non-empty,\ndescription: max 500,\nprice: BigDecimal > 0,\ncurrency: ISO 4217,\ncategory ∈ valid enum)
+
+    alt Input Valid
+
+        == File Size Gate (Controller level) ==
+        Controller -> Controller: Reject if file size\n> 5 MB\n(Spring multipart.max-file-size)
+
+        alt File Size OK
+
+            Controller -> ProdService: createProduct(\nrequest, imageFile)
+            activate ProdService
+
+            == Stage 1 — File Security Validation ==
+            ProdService -> FileService: validateAndProcess(\nimageFile)
+            activate FileService
+
+            FileService -> FileService: Extract original\nfilename & extension\n\nSanitize: strip path\ncomponents, reject\nif contains ".." or\npath separators
+
+            FileService -> FileService: Whitelist check:\nextension ∈ {jpg, jpeg,\npng, webp}\n(case-insensitive)
+
+            alt Extension Allowed
+
+                FileService -> FileService: Read first 16 bytes\nfrom InputStream\n\nMatch magic bytes:\nFF D8 FF → JPEG\n89 50 4E 47 0D 0A → PNG\n52 49 46 46 xx xx xx xx\n57 45 42 50 → WebP
+
+                FileService -> FileService: Cross-check:\nmagic bytes ↔ extension\n(reject .jpg with\nPNG magic, etc.)
+
+                alt Magic Bytes Valid & Consistent
+
+                    FileService -> FileService: ImageIO.read(stream)\n→ BufferedImage\n\nVerifies image is\ndecodable (catches\ncorrupt / crafted files\nthat pass magic bytes)
+
+                    alt Image Decodes OK
+
+                        FileService -> FileService: Re-encode:\nBufferedImage →\nImageIO.write(\noutputFormat)\n\n• Strips ALL EXIF/XMP\n  metadata\n• Neutralizes embedded\n  scripts (polyglot files)\n• Normalizes color space\n• Generates clean bytes
+
+                        FileService -> FileService: Compute SHA-256\nchecksum of\nre-encoded bytes
+
+                        FileService -> FileService: Generate UUID filename:\nUUID.randomUUID()\n+ "." + validatedExt\n\nOriginal filename\nfully discarded
+
+                        FileService --> ProdService: ValidatedImage\n(cleanBytes, uuid\nfilename, checksum,\nwidth, height)
+                        deactivate FileService
+
+                        == Stage 2 — Persist Image to Isolated Storage ==
+                        ProdService -> StorageService: store(validatedImage)
+                        activate StorageService
+
+                        StorageService -> StorageService: Construct path:\n/var/vendnet/images/\n{uuid}.{ext}\n\nCanonical path check:\nresolve().startsWith(\nallowedRoot)\n(prevents symlink\ntraversal)
+
+                        StorageService -> FS: Write re-encoded\nbytes to disk\n(Files.write with\nCREATE_NEW —\nfails if exists)
+                        activate FS
+                        FS --> StorageService: Written
+                        deactivate FS
+
+                        StorageService -> FS: Set POSIX permissions:\nrw-r----- (640)\n(PosixFilePermissions)
+                        activate FS
+                        FS --> StorageService: Permissions set
+                        deactivate FS
+
+                        StorageService --> ProdService: StoredImageResult\n(storedPath, checksum)
+                        deactivate StorageService
+
+                        == Stage 3 — Domain Object Creation ==
+                        ProdService -> ProductEntity: create(name, description,\nprice, currency, category,\nimageUrl)
+                        activate ProductEntity
+
+                        ProductEntity -> ProductEntity: Validate name\n(1-100 chars,\nnon-empty,\nno HTML/script tags)
+
+                        ProductEntity -> ProductEntity: Validate price\n(BigDecimal > 0,\nscale ≤ 2)
+
+                        ProductEntity -> ProductEntity: Validate currency\n(ISO 4217)
+
+                        ProductEntity -> ProductEntity: Set isActive = true
+                        ProductEntity -> ProductEntity: Set createdAt = now()
+                        ProductEntity -> ProductEntity: Generate ProductId\n(UUID)
+
+                        ProductEntity --> ProdService: Product aggregate
+                        deactivate ProductEntity
+
+                        == Stage 4 — Persistence ==
+                        ProdService -> ProdRepo: save(product)
+                        activate ProdRepo
+                        ProdRepo -> DB: INSERT INTO products\n(id, name, description,\nprice, currency,\ncategory, image_url,\nimage_checksum,\nis_active, created_at)
+                        activate DB
+                        DB --> ProdRepo: Stored
+                        deactivate DB
+                        ProdRepo --> ProdService: Saved Product
+                        deactivate ProdRepo
+
+                        == Stage 5 — Audit ==
+                        ProdService -> AuditRepo: logEvent(\nPRODUCT_CREATED,\nadminId, productId,\ncategory, hasImage=true)
+                        activate AuditRepo
+                        AuditRepo -> DB: INSERT INTO\naudit_log
+                        deactivate AuditRepo
+
+                        ProdService --> Controller: ProductResult\n(productId, name,\nimageUrl, category)
+                        deactivate ProdService
+
+                        Controller --> Admin: 201 Created\n{product DTO}
+
+                    else Image Decode Failed
+                        FileService -> AuditRepo: logSecurityEvent(\nCORRUPT_IMAGE_UPLOAD,\nadminId, filename,\nchecksum)
+                        FileService --> ProdService: InvalidImageException
+                        deactivate FileService
+                        ProdService --> Controller: InvalidImageException
+                        deactivate ProdService
+                        Controller --> Admin: 400 Bad Request\n(File is corrupt or\nnot a valid image)
+                    end
+
+                else Magic Bytes Mismatch / Inconsistent
+                    FileService -> AuditRepo: logSecurityEvent(\nDISGUISED_FILE_UPLOAD,\nadminId, claimedExt,\nactualMagicBytes)
+                    FileService --> ProdService: MaliciousFileException
+                    deactivate FileService
+                    ProdService --> Controller: MaliciousFileException
+                    deactivate ProdService
+                    Controller --> Admin: 400 Bad Request\n(File content does not\nmatch declared format)
+                end
+
+            else Extension Not In Whitelist
+                FileService --> ProdService: UnsupportedFileType\nException
+                deactivate FileService
+                ProdService --> Controller: UnsupportedFileType\nException
+                deactivate ProdService
+                Controller --> Admin: 400 Bad Request\n(Unsupported file type)
+            end
+
+        else File Too Large
+            Controller --> Admin: 413 Payload Too Large\n(Max 5 MB)
+        end
+
+    else Input Invalid
+        Controller --> Admin: 400 Bad Request\n(validation errors)
+    end
+
+else Unauthorized
+    Controller --> Admin: 403 Forbidden
+end
+
+deactivate Controller
+@enduml

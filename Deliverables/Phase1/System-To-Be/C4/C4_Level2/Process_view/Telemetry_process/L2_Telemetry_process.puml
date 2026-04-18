@@ -1,0 +1,85 @@
+@startuml
+title Telemetry Ingestion (Level 2) — VendNet
+
+participant "Vending Machine\n(Edge Device)" as VM
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Telemetry Service" as TelemetryService
+end box
+
+database "MySQL Database" as DB
+
+== mTLS Handshake ==
+VM -> Controller: HTTPS POST /machines/telemetry\n{serialNumber, temperature,\nstockLevels[], statusCode,\nerrorCodes[], timestamp}\n[mTLS client certificate]
+activate Controller
+
+Controller -> Controller: Extract client certificate\nCN (Common Name)\nfrom TLS session
+
+alt Certificate Valid
+
+    Controller -> Controller: Validate\nTelemetryRequest DTO
+
+    alt Input Valid
+
+        Controller -> TelemetryService: ingestTelemetry\n(certificateCN, request)
+        activate TelemetryService
+
+        == Machine Identity Verification ==
+        TelemetryService -> DB: SELECT machine\nWHERE serial_number =\ncertificateCN
+        activate DB
+        DB --> TelemetryService: Machine record
+        deactivate DB
+
+        alt Machine Registered & Status ≠ DECOMMISSIONED
+
+            == Rate Limiting ==
+            TelemetryService -> TelemetryService: Check rate limit\n(max N requests/min\nper machine)
+
+            alt Within Rate Limit
+
+                == Data Persistence ==
+                TelemetryService -> DB: INSERT telemetry_record\n(machineId, temperature,\nstockLevels, statusCode,\ntimestamp)
+                activate DB
+                DB --> TelemetryService: Stored
+                deactivate DB
+
+                TelemetryService -> DB: UPDATE vending_machines\nSET last_telemetry_at = NOW(),\nstatus = ?
+                activate DB
+                DB --> TelemetryService: Updated
+                deactivate DB
+
+                == Alert Evaluation ==
+                TelemetryService -> TelemetryService: Evaluate alert rules\n(temperature thresholds,\ncritical error codes)
+
+                alt Alert Triggered
+                    TelemetryService -> DB: INSERT alert_event\n(machineId, alertType,\nseverity)
+                end
+
+                TelemetryService --> Controller: TelemetryResult\n(accepted, alertsRaised)
+                Controller --> VM: 200 OK\n{accepted: true}
+
+            else Rate Limit Exceeded
+                TelemetryService -> DB: INSERT audit_log\n(RATE_LIMIT_EXCEEDED,\nmachineId)
+                TelemetryService --> Controller: RateLimitException
+                Controller --> VM: 429 Too Many Requests\n(Retry-After header)
+            end
+
+        else Machine Not Registered / Decommissioned
+            TelemetryService -> DB: INSERT audit_log\n(UNKNOWN_MACHINE_ATTEMPT,\ncertificateCN)
+            TelemetryService --> Controller: MachineNotFoundException
+            deactivate TelemetryService
+            Controller --> VM: 403 Forbidden\n(Machine not registered)
+        end
+
+    else Input Invalid
+        Controller --> VM: 400 Bad Request\n(validation errors)
+    end
+
+else Certificate Invalid / Missing
+    Controller -> Controller: Log security violation
+    Controller --> VM: 401 Unauthorized\n(Invalid client certificate)
+end
+
+deactivate Controller
+@enduml

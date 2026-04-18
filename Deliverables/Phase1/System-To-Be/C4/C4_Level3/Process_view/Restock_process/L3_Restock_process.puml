@@ -1,0 +1,136 @@
+@startuml
+title Machine Restock (Level 3) — VendNet
+
+actor "Operator" as Operator
+
+box "Interface Adapters" #LightBlue
+    participant "SlotController" as Controller
+end box
+
+box "Application Services" #LightYellow
+    participant "RestockService" as RestockService
+end box
+
+box "Domain" #LightGreen
+    entity "Slot Aggregate" as SlotEntity
+    entity "VendingMachine\nAggregate" as MachineEntity
+end box
+
+box "Infrastructure" #LightCoral
+    participant "SlotRepository" as SlotRepo
+    participant "MachineRepository" as MachineRepo
+end box
+
+database "MySQL Database" as DB
+
+Operator -> Controller: PUT /machines/{machineId}\n/slots/{slotId}/restock\n{quantity}\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT\n& Verify Role\n(OPERATOR or ADMIN)
+
+alt Authorized
+
+    Controller -> Controller: Validate\nRestockRequest DTO\n(quantity > 0)
+
+    alt Input Valid
+
+        Controller -> RestockService: restock(machineId,\nslotId, quantity)
+        activate RestockService
+
+        == Machine Validation ==
+        RestockService -> MachineRepo: findById(machineId)
+        activate MachineRepo
+        MachineRepo -> DB: SELECT FROM\nvending_machines\nWHERE id = ?
+        activate DB
+        DB --> MachineRepo: Row
+        deactivate DB
+        MachineRepo -> MachineEntity: Reconstitute
+        activate MachineEntity
+        MachineEntity --> MachineRepo: VendingMachine
+        deactivate MachineEntity
+        MachineRepo --> RestockService: VendingMachine
+        deactivate MachineRepo
+
+        alt Machine Found
+
+            RestockService -> MachineEntity: checkStatus()
+            activate MachineEntity
+
+            alt Machine ONLINE or MAINTENANCE
+                MachineEntity --> RestockService: Status OK
+                deactivate MachineEntity
+
+                == Slot Retrieval with Lock ==
+                RestockService -> SlotRepo: findByIdWithLock\n(slotId, machineId)
+                activate SlotRepo
+                SlotRepo -> DB: SELECT ... FOR UPDATE\n(pessimistic lock)
+                activate DB
+                DB --> SlotRepo: Row (locked)
+                deactivate DB
+                SlotRepo -> SlotEntity: Reconstitute
+                activate SlotEntity
+                SlotEntity --> SlotRepo: Slot
+                deactivate SlotEntity
+                SlotRepo --> RestockService: Slot
+                deactivate SlotRepo
+
+                alt Slot Found
+
+                    == Business Rule Validation ==
+                    RestockService -> SlotEntity: addStock(quantity)
+                    activate SlotEntity
+                    SlotEntity -> SlotEntity: Validate:\ncurrentQuantity\n+ quantity\n≤ slotCapacity
+
+                    alt Within Capacity
+                        SlotEntity -> SlotEntity: currentQuantity\n+= quantity
+                        SlotEntity --> RestockService: Updated Slot
+                        deactivate SlotEntity
+
+                        == Persist & Audit ==
+                        RestockService -> SlotRepo: save(slot)
+                        activate SlotRepo
+                        SlotRepo -> DB: UPDATE slots\nSET current_quantity = ?,\nversion = version + 1
+                        activate DB
+                        DB --> SlotRepo: Updated
+                        deactivate DB
+                        SlotRepo --> RestockService: Saved
+                        deactivate SlotRepo
+
+                        RestockService -> DB: INSERT audit_log\n(RESTOCK, operatorId,\nmachineId, slotId,\nquantity)
+                        RestockService --> Controller: RestockResult\n(updatedSlot)
+                        Controller --> Operator: 200 OK\n{slot DTO}
+
+                    else Exceeds Capacity
+                        SlotEntity --> RestockService: CapacityExceededException
+                        deactivate SlotEntity
+                        RestockService --> Controller: CapacityExceededException
+                        Controller --> Operator: 422 Unprocessable\nEntity
+                    end
+
+                else Slot Not Found
+                    RestockService --> Controller: NotFoundException
+                    Controller --> Operator: 404 Not Found
+                end
+
+            else Machine OFFLINE
+                MachineEntity --> RestockService: MachineOfflineException
+                deactivate MachineEntity
+                RestockService --> Controller: MachineOfflineException
+                Controller --> Operator: 409 Conflict\n(Machine offline)
+            end
+
+        else Machine Not Found
+            RestockService --> Controller: NotFoundException
+            deactivate RestockService
+            Controller --> Operator: 404 Not Found
+        end
+
+    else Input Invalid
+        Controller --> Operator: 400 Bad Request
+    end
+
+else Unauthorized
+    Controller --> Operator: 403 Forbidden
+end
+
+deactivate Controller
+@enduml

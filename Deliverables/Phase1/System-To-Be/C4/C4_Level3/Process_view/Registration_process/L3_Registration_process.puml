@@ -1,0 +1,112 @@
+@startuml
+title User Registration (Level 3) — VendNet
+
+actor "Administrator" as Admin
+
+box "Interface Adapters" #LightBlue
+    participant "UserController" as Controller
+end box
+
+box "Application Services" #LightYellow
+    participant "UserRegistrationService" as RegService
+end box
+
+box "Domain" #LightGreen
+    entity "User Aggregate" as UserEntity
+end box
+
+box "Infrastructure" #LightCoral
+    participant "UserRepository" as UserRepo
+    participant "AuditRepository" as AuditRepo
+end box
+
+database "MySQL Database" as DB
+
+Admin -> Controller: POST /admin/users\n{username, email, password,\nfullName, role}\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT &\nVerify ADMIN role
+
+alt Authorized (ADMINISTRATOR)
+
+    Controller -> Controller: Validate\nCreateUserRequest DTO\n(username: 3-30 alphanum,\nemail: RFC 5322,\npassword: min 12 chars\n+ complexity rules,\nrole ∈ valid enum)
+
+    alt Input Valid
+
+        Controller -> RegService: registerUser(request)
+        activate RegService
+
+        == Uniqueness Checks ==
+        RegService -> UserRepo: existsByUsername\n(username)
+        activate UserRepo
+        UserRepo -> DB: SELECT COUNT(*)\nFROM users\nWHERE username = ?
+        activate DB
+        DB --> UserRepo: count
+        deactivate DB
+        UserRepo --> RegService: boolean
+        deactivate UserRepo
+
+        alt Username Available
+
+            RegService -> UserRepo: existsByEmail(email)
+            activate UserRepo
+            UserRepo -> DB: SELECT COUNT(*)\nFROM users\nWHERE email = ?
+            activate DB
+            DB --> UserRepo: count
+            deactivate DB
+            UserRepo --> RegService: boolean
+            deactivate UserRepo
+
+            alt Email Available
+
+                == Domain Object Creation ==
+                RegService -> UserEntity: create(username,\nemail, rawPassword,\nfullName, role)
+                activate UserEntity
+                UserEntity -> UserEntity: Validate username\n(3-30 alphanumeric)
+                UserEntity -> UserEntity: Validate email\n(RFC 5322 format)
+                UserEntity -> UserEntity: Hash password\n(BCrypt, cost factor 12)
+                UserEntity -> UserEntity: Set status = ACTIVE
+                UserEntity -> UserEntity: Set createdAt = now()
+                UserEntity -> UserEntity: Generate UUID
+                UserEntity --> RegService: User aggregate
+                deactivate UserEntity
+
+                == Persistence ==
+                RegService -> UserRepo: save(user)
+                activate UserRepo
+                UserRepo -> DB: INSERT INTO users\n(id, username, email,\npassword_hash, role,\nfull_name, status,\ncreated_at)
+                activate DB
+                DB --> UserRepo: Stored
+                deactivate DB
+                UserRepo --> RegService: Saved User
+                deactivate UserRepo
+
+                == Audit ==
+                RegService -> AuditRepo: logEvent\n(USER_CREATED,\nadminId, newUserId,\nrole)
+                activate AuditRepo
+                AuditRepo -> DB: INSERT INTO\naudit_log
+                deactivate AuditRepo
+
+                RegService --> Controller: UserResult\n(userId, username, role)
+                Controller --> Admin: 201 Created\n{user DTO —\nno password hash exposed}
+
+            else Email Already Registered
+                RegService --> Controller: DuplicateEmailException
+                Controller --> Admin: 409 Conflict\n(Email already registered)
+            end
+
+        else Username Already Taken
+            RegService --> Controller: DuplicateUsernameException
+            deactivate RegService
+            Controller --> Admin: 409 Conflict\n(Username already taken)
+        end
+
+    else Input Invalid
+        Controller --> Admin: 400 Bad Request\n(validation errors)
+    end
+
+else Unauthorized
+    Controller --> Admin: 403 Forbidden
+end
+
+deactivate Controller
+@enduml
