@@ -1,0 +1,70 @@
+@startuml
+title Machine Restock (Level 2) — VendNet
+
+actor "Operator" as Operator
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Slot Service" as SlotService
+end box
+
+database "MySQL Database" as DB
+
+Operator -> Controller: PUT /machines/{machineId}\n/slots/{slotId}/restock\n(quantity)\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT &\nExtract Role
+
+alt Authorized (OPERATOR or ADMIN role)
+
+    Controller -> Controller: Validate Input\n(quantity > 0)
+
+    alt Input Valid
+
+        Controller -> SlotService: restock(machineId,\nslotId, quantity)
+        activate SlotService
+
+        SlotService -> DB: SELECT slot\nWHERE machineId AND slotId
+        activate DB
+        DB --> SlotService: Slot Record\n(currentQuantity, capacity)
+        deactivate DB
+
+        alt Slot Found
+
+            SlotService -> SlotService: Validate:\ncurrentQuantity + quantity\n≤ capacity
+
+            alt Within Capacity
+                SlotService -> DB: UPDATE slot\nSET currentQuantity += quantity\n(optimistic lock version check)
+                activate DB
+                alt No Concurrent Modification
+                    DB --> SlotService: Updated\n(1 row affected)
+                    deactivate DB
+                    SlotService -> DB: INSERT audit_log\n(RESTOCK event,\noperatorId, machineId,\nslotId, quantity)
+                    SlotService --> Controller: RestockResult\n(updatedSlot)
+                    Controller --> Operator: 200 OK\n(updated slot DTO)
+                else Concurrent Modification Detected
+                    DB --> SlotService: OptimisticLockException
+                    SlotService --> Controller: ConflictException
+                    Controller --> Operator: 409 Conflict\n(Concurrent modification —\nretry request)
+                end
+
+            else Exceeds Capacity
+                SlotService --> Controller: CapacityExceededException
+                Controller --> Operator: 422 Unprocessable Entity\n(Exceeds slot capacity)
+            end
+
+        else Slot Not Found
+            SlotService --> Controller: SlotNotFoundException
+            deactivate SlotService
+            Controller --> Operator: 404 Not Found
+        end
+
+    else Input Invalid
+        Controller --> Operator: 400 Bad Request
+    end
+
+else Unauthorized
+    Controller --> Operator: 403 Forbidden\n(Insufficient permissions)
+end
+
+deactivate Controller
+@enduml

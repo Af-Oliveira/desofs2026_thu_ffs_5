@@ -1,0 +1,145 @@
+@startuml
+title Telemetry Ingestion (Level 3) — VendNet
+
+participant "Vending Machine\n(Edge Device)" as VM
+
+box "Interface Adapters" #LightBlue
+    participant "TelemetryController" as Controller
+end box
+
+box "Application Services" #LightYellow
+    participant "TelemetryIngestionService" as TelemetryService
+    participant "AlertEvaluationService" as AlertService
+end box
+
+box "Domain" #LightGreen
+    entity "VendingMachine\nAggregate" as MachineEntity
+end box
+
+box "Infrastructure" #LightCoral
+    participant "MachineRepository" as MachineRepo
+    participant "TelemetryRepository" as TelemetryRepo
+    participant "AuditRepository" as AuditRepo
+end box
+
+database "MySQL Database" as DB
+
+== mTLS Handshake (Spring Security) ==
+VM -> Controller: HTTPS POST\n/machines/telemetry\n{serialNumber, temperature,\nstockLevels[], statusCode,\nerrorCodes[], timestamp}\n[mTLS client certificate]
+activate Controller
+
+Controller -> Controller: Extract X.509\nclient certificate CN\nfrom SecurityContext
+
+alt Certificate Present & Valid
+
+    Controller -> Controller: Validate\nTelemetryRequest DTO\n(temperature: numeric range,\nstockLevels: non-negative,\ntimestamp: not in future)
+
+    alt Input Valid
+
+        Controller -> TelemetryService: ingestTelemetry\n(certificateCN, request)
+        activate TelemetryService
+
+        == Machine Identity Verification ==
+        TelemetryService -> MachineRepo: findBySerialNumber\n(certificateCN)
+        activate MachineRepo
+        MachineRepo -> DB: SELECT FROM\nvending_machines\nWHERE serial_number = ?
+        activate DB
+        DB --> MachineRepo: Row
+        deactivate DB
+        MachineRepo -> MachineEntity: Reconstitute
+        activate MachineEntity
+        MachineEntity --> MachineRepo: VendingMachine
+        deactivate MachineEntity
+        MachineRepo --> TelemetryService: Optional<VendingMachine>
+        deactivate MachineRepo
+
+        alt Machine Found & Active
+
+            == Cross-check: Certificate CN must match serialNumber in body ==
+            TelemetryService -> TelemetryService: Verify certificateCN\n== request.serialNumber\n(prevent spoofing)
+
+            alt Identity Consistent
+
+                == Rate Limiting ==
+                TelemetryService -> TelemetryRepo: countRecentByMachineId\n(machineId, since=1min ago)
+                activate TelemetryRepo
+                TelemetryRepo -> DB: SELECT COUNT(*)\nFROM telemetry\nWHERE machine_id = ?\nAND timestamp > ?
+                activate DB
+                DB --> TelemetryRepo: count
+                deactivate DB
+                TelemetryRepo --> TelemetryService: requestCount
+                deactivate TelemetryRepo
+
+                alt Within Rate Limit
+
+                    == Persist Telemetry ==
+                    TelemetryService -> TelemetryRepo: save\n(telemetryRecord)
+                    activate TelemetryRepo
+                    TelemetryRepo -> DB: INSERT INTO telemetry\n(id, machine_id,\ntemperature, stock_levels,\nstatus_code, error_codes,\ntimestamp)
+                    activate DB
+                    DB --> TelemetryRepo: Stored
+                    deactivate DB
+                    TelemetryRepo --> TelemetryService: Saved
+                    deactivate TelemetryRepo
+
+                    == Update Machine State ==
+                    TelemetryService -> MachineEntity: updateFromTelemetry\n(statusCode, timestamp)
+                    activate MachineEntity
+                    MachineEntity -> MachineEntity: Set lastTelemetryAt\n= timestamp
+                    MachineEntity -> MachineEntity: Update machineStatus\nbased on statusCode
+                    MachineEntity --> TelemetryService: Updated
+                    deactivate MachineEntity
+
+                    TelemetryService -> MachineRepo: save(machine)
+                    activate MachineRepo
+                    MachineRepo -> DB: UPDATE\nvending_machines\nSET status = ?,\nlast_telemetry_at = ?
+                    deactivate MachineRepo
+
+                    == Alert Evaluation ==
+                    TelemetryService -> AlertService: evaluate\n(machineId, telemetryData)
+                    activate AlertService
+                    AlertService -> AlertService: Check temperature\n> threshold
+                    AlertService -> AlertService: Check critical\nerror codes
+                    AlertService -> AlertService: Check stock levels\n< minimum
+
+                    alt Alert(s) Triggered
+                        AlertService -> AuditRepo: logAlertEvent\n(machineId, alertType,\nseverity)
+                        AlertService --> TelemetryService: alerts[]
+                    else No Alerts
+                        AlertService --> TelemetryService: empty[]
+                    end
+                    deactivate AlertService
+
+                    TelemetryService --> Controller: TelemetryResult\n(accepted, alerts)
+                    Controller --> VM: 200 OK\n{accepted: true,\nalertsRaised: N}
+
+                else Rate Limit Exceeded
+                    TelemetryService -> AuditRepo: logEvent\n(RATE_LIMIT_EXCEEDED,\nmachineId)
+                    TelemetryService --> Controller: RateLimitException
+                    Controller --> VM: 429 Too Many\nRequests\n(Retry-After: 60)
+                end
+
+            else Identity Mismatch (spoofing attempt)
+                TelemetryService -> AuditRepo: logEvent\n(IDENTITY_MISMATCH,\ncertificateCN,\nrequest.serialNumber)
+                TelemetryService --> Controller: SecurityException
+                Controller --> VM: 403 Forbidden\n(Identity mismatch)
+            end
+
+        else Machine Not Found / Decommissioned
+            TelemetryService -> AuditRepo: logEvent\n(UNKNOWN_MACHINE,\ncertificateCN)
+            TelemetryService --> Controller: MachineNotFoundException
+            deactivate TelemetryService
+            Controller --> VM: 403 Forbidden\n(Machine not registered)
+        end
+
+    else Input Invalid
+        Controller --> VM: 400 Bad Request
+    end
+
+else Certificate Missing / Invalid
+    Controller -> Controller: Log security event
+    Controller --> VM: 401 Unauthorized
+end
+
+deactivate Controller
+@enduml

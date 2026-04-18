@@ -1,0 +1,63 @@
+@startuml
+title Encrypted Database Backup (Level 2) — VendNet
+
+actor "Administrator" as Admin
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Backup Service" as BackupService
+end box
+
+database "MySQL Database" as DB
+database "Server File System" as FS
+
+Admin -> Controller: POST /admin/backups\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT &\nVerify ADMIN role
+
+alt Authorized (ADMINISTRATOR role)
+
+    Controller -> BackupService: generateBackup()
+    activate BackupService
+
+    == Path Validation ==
+    BackupService -> BackupService: Build backup path:\n/var/vendnet/backups/{date}/
+    BackupService -> BackupService: Validate path against\nwhitelist pattern\n(prevent path traversal)
+
+    alt Path Valid
+        BackupService -> FS: Create timestamped directory\n(permissions: 700)
+        activate FS
+        FS --> BackupService: Directory created
+        deactivate FS
+
+        == Database Dump ==
+        BackupService -> DB: Execute mysqldump\nvia ProcessBuilder
+        activate DB
+        DB --> BackupService: SQL dump stream
+        deactivate DB
+
+        == Encryption & Storage ==
+        BackupService -> BackupService: Encrypt stream\n(AES-256-GCM)
+        BackupService -> FS: Write encrypted file\n(.sql.enc, permissions: 600)
+        activate FS
+        FS --> BackupService: File written
+        deactivate FS
+
+        BackupService -> BackupService: Calculate SHA-256\nchecksum
+        BackupService -> DB: INSERT audit_log\n(BACKUP_CREATED event)
+        BackupService --> Controller: BackupResult\n(filename, size, checksum)
+        Controller --> Admin: 201 Created\n(backup metadata)
+
+    else Path Validation Failed
+        BackupService -> DB: INSERT audit_log\n(SECURITY_VIOLATION event)
+        BackupService --> Controller: SecurityException
+        deactivate BackupService
+        Controller --> Admin: 400 Bad Request\n(Invalid backup configuration)
+    end
+
+else Unauthorized
+    Controller --> Admin: 403 Forbidden\n(Administrator access required)
+end
+
+deactivate Controller
+@enduml

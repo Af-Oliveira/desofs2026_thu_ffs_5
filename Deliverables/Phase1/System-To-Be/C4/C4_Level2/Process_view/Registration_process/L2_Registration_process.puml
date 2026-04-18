@@ -1,0 +1,73 @@
+@startuml
+title User Registration (Level 2) — VendNet
+
+actor "Administrator" as Admin
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "User Service" as UserService
+end box
+
+database "MySQL Database" as DB
+
+Admin -> Controller: POST /admin/users\n{username, email, password,\nfullName, role}\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT &\nVerify ADMIN role
+
+alt Authorized (ADMINISTRATOR role)
+
+    Controller -> Controller: Validate Input DTO\n(username 3-30 chars,\nemail RFC 5322,\npassword policy,\nrole ∈ {CUSTOMER,\nOPERATOR, ADMIN})
+
+    alt Input Valid
+
+        Controller -> UserService: createUser(request)
+        activate UserService
+
+        == Uniqueness Checks ==
+        UserService -> DB: SELECT COUNT(*)\nWHERE username = ?
+        activate DB
+        DB --> UserService: count
+        deactivate DB
+
+        alt Username Available
+            UserService -> DB: SELECT COUNT(*)\nWHERE email = ?
+            activate DB
+            DB --> UserService: count
+            deactivate DB
+
+            alt Email Available
+
+                == Password Hashing ==
+                UserService -> UserService: Hash password\n(BCrypt, cost factor 12)
+
+                == Persist User ==
+                UserService -> DB: INSERT INTO users\n(id, username, email,\npassword_hash, role,\nfull_name,\nstatus = ACTIVE)
+                activate DB
+                DB --> UserService: User stored
+                deactivate DB
+
+                UserService -> DB: INSERT audit_log\n(USER_CREATED event,\nadminId, newUserId)
+                UserService --> Controller: UserResult\n(userId, username, role)
+                Controller --> Admin: 201 Created\n{user DTO}
+
+            else Email Already Registered
+                UserService --> Controller: DuplicateEmailException
+                Controller --> Admin: 409 Conflict\n(Email already registered)
+            end
+
+        else Username Already Taken
+            UserService --> Controller: DuplicateUsernameException
+            deactivate UserService
+            Controller --> Admin: 409 Conflict\n(Username already taken)
+        end
+
+    else Input Invalid
+        Controller --> Admin: 400 Bad Request\n(validation errors)
+    end
+
+else Unauthorized
+    Controller --> Admin: 403 Forbidden\n(Administrator access required)
+end
+
+deactivate Controller
+@enduml

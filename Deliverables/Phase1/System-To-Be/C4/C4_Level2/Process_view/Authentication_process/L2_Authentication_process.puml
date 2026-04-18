@@ -1,0 +1,73 @@
+@startuml
+title User Authentication (Level 2) — VendNet
+
+actor "User\n(Customer/Operator/Admin)" as User
+
+box "VendNet API" #LightBlue
+    participant "Controller" as Controller
+    participant "Auth Service" as AuthService
+end box
+
+database "MySQL Database" as DB
+
+User -> Controller: POST /auth/login\n(username, password)
+activate Controller
+Controller -> Controller: Validate Input Format
+
+alt Input Valid
+
+    Controller -> AuthService: authenticate(username, password)
+    activate AuthService
+
+    AuthService -> DB: SELECT user\nWHERE username = ?
+    activate DB
+    DB --> AuthService: User Record\n(passwordHash, role, status,\nfailedAttempts)
+    deactivate DB
+
+    alt User Found
+
+        AuthService -> AuthService: Check Account Status
+
+        alt Account Active
+
+            AuthService -> AuthService: Verify Password\n(BCrypt compare)
+
+            alt Password Matches
+                AuthService -> DB: Reset failedAttempts = 0
+                AuthService -> AuthService: Generate JWT\n(userId, role, expiry)
+                AuthService -> DB: INSERT audit_log\n(LOGIN_SUCCESS event)
+                AuthService --> Controller: AuthResult\n(JWT, refreshToken)
+                Controller --> User: 200 OK\n(accessToken, refreshToken,\nexpiresIn)
+
+            else Password Invalid
+                AuthService -> DB: INCREMENT failedAttempts
+                alt failedAttempts ≥ threshold
+                    AuthService -> DB: SET status = LOCKED
+                    AuthService -> DB: INSERT audit_log\n(ACCOUNT_LOCKED event)
+                    AuthService --> Controller: AccountLockedException
+                    Controller --> User: 423 Locked\n(Account locked —\ncontact admin)
+                else Below Threshold
+                    AuthService -> DB: INSERT audit_log\n(FAILED_LOGIN event)
+                    AuthService --> Controller: InvalidCredentialsException
+                    Controller --> User: 401 Unauthorized\n(Invalid credentials)
+                end
+            end
+
+        else Account Suspended / Locked
+            AuthService --> Controller: AccountInactiveException
+            deactivate AuthService
+            Controller --> User: 403 Forbidden\n(Account inactive)
+        end
+
+    else User Not Found
+        AuthService -> AuthService: Dummy BCrypt hash\n(prevent timing attack)
+        AuthService --> Controller: InvalidCredentialsException
+        Controller --> User: 401 Unauthorized\n(Invalid credentials)
+    end
+
+else Input Invalid
+    Controller --> User: 400 Bad Request\n(Validation errors)
+end
+
+deactivate Controller
+@enduml

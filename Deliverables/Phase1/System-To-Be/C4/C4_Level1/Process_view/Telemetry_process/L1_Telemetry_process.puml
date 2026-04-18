@@ -1,0 +1,59 @@
+@startuml
+title Telemetry Ingestion (Level 1) — VendNet
+
+participant "Vending Machine\n(Edge Device)" as VM
+
+participant "VendNet System" as VendNet #LightBlue
+
+== mTLS Handshake ==
+VM -> VendNet: Send telemetry\n{serialNumber, temperature,\nstockLevels[], statusCode,\nerrorCodes[], timestamp}\n[mTLS client certificate]
+activate VendNet
+
+VendNet -> VendNet: Extract & validate\nclient certificate CN
+
+alt Certificate Valid
+
+    VendNet -> VendNet: Validate telemetry\nrequest data
+
+    alt Input Valid
+
+        VendNet -> VendNet: Verify machine identity\n(certificate CN matches\nregistered machine)
+
+        alt Machine Registered & Active
+
+            VendNet -> VendNet: Check rate limit\n(max N requests/min\nper machine)
+
+            alt Within Rate Limit
+
+                VendNet -> VendNet: Store telemetry record
+                VendNet -> VendNet: Update machine status\n& last contact time
+
+                VendNet -> VendNet: Evaluate alert rules\n(temperature thresholds,\ncritical error codes,\nlow stock levels)
+
+                alt Alert Triggered
+                    VendNet -> VendNet: Record alert event\n(machineId, alertType,\nseverity)
+                end
+
+                VendNet --> VM: 200 OK\n{accepted: true}
+
+            else Rate Limit Exceeded
+                VendNet -> VendNet: Record audit event\n(RATE_LIMIT_EXCEEDED)
+                VendNet --> VM: 429 Too Many Requests\n(Retry-After header)
+            end
+
+        else Machine Not Registered / Decommissioned
+            VendNet -> VendNet: Record security event\n(UNKNOWN_MACHINE_ATTEMPT)
+            VendNet --> VM: 403 Forbidden\n(Machine not registered)
+        end
+
+    else Input Invalid
+        VendNet --> VM: 400 Bad Request\n(Validation errors)
+    end
+
+else Certificate Invalid / Missing
+    VendNet -> VendNet: Log security violation
+    VendNet --> VM: 401 Unauthorized\n(Invalid client certificate)
+end
+
+deactivate VendNet
+@enduml

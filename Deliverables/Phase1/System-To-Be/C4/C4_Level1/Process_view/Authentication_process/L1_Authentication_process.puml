@@ -1,0 +1,53 @@
+@startuml
+title User Authentication (Level 1) — VendNet
+
+actor "User\n(Customer / Operator / Admin)" as User
+
+participant "VendNet System" as VendNet #LightBlue
+
+User -> VendNet: Submit credentials\n(username, password)
+activate VendNet
+
+VendNet -> VendNet: Validate input format
+
+alt Valid Credentials
+
+    VendNet -> VendNet: Verify user exists\n& account is active
+
+    alt Account Active
+
+        VendNet -> VendNet: Verify password\n(BCrypt comparison)
+
+        alt Password Matches
+            VendNet -> VendNet: Reset failed attempt counter
+            VendNet -> VendNet: Generate JWT token\n(userId, role, expiry)
+            VendNet -> VendNet: Record audit event\n(LOGIN_SUCCESS)
+            VendNet --> User: 200 OK\n(accessToken, refreshToken, expiresIn)
+
+        else Password Invalid
+            VendNet -> VendNet: Increment failed attempts
+
+            alt Failed attempts ≥ threshold
+                VendNet -> VendNet: Lock account
+                VendNet -> VendNet: Record audit event\n(ACCOUNT_LOCKED)
+                VendNet --> User: 423 Locked\n(Account locked — contact admin)
+            else Below threshold
+                VendNet -> VendNet: Record audit event\n(FAILED_LOGIN)
+                VendNet --> User: 401 Unauthorized\n(Invalid credentials)
+            end
+        end
+
+    else Account Suspended / Locked
+        VendNet --> User: 403 Forbidden\n(Account inactive)
+    end
+
+else User Not Found
+    VendNet -> VendNet: Dummy BCrypt hash\n(timing attack prevention)
+    VendNet --> User: 401 Unauthorized\n(Invalid credentials)
+
+else Invalid Input
+    VendNet --> User: 400 Bad Request\n(Validation errors)
+end
+
+deactivate VendNet
+@enduml

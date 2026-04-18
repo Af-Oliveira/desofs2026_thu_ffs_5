@@ -1,0 +1,101 @@
+@startuml
+title Encrypted Database Backup (Level 3) — VendNet
+
+actor "Administrator" as Admin
+
+box "Interface Adapters" #LightBlue
+    participant "BackupController" as Controller
+end box
+
+box "Application Services" #LightYellow
+    participant "BackupService" as BackupService
+end box
+
+box "Infrastructure" #LightCoral
+    participant "OsOperationsService" as OsOps
+    participant "EncryptionService" as Crypto
+    participant "AuditRepository" as AuditRepo
+end box
+
+database "MySQL Database" as DB
+database "Server File System\n(/var/vendnet/)" as FS
+
+Admin -> Controller: POST /admin/backups\n(Authorization: Bearer JWT)
+activate Controller
+Controller -> Controller: Validate JWT &\nVerify ADMIN role
+
+alt Authorized (ADMINISTRATOR)
+
+    Controller -> BackupService: generateBackup()
+    activate BackupService
+
+    == Path Validation ==
+    BackupService -> OsOps: buildBackupPath(date)
+    activate OsOps
+    OsOps -> OsOps: Construct path:\n/var/vendnet/backups/\n{date}/
+    OsOps -> OsOps: Validate against whitelist:\n^/var/vendnet/backups/\n[0-9]{4}-[0-9]{2}-[0-9]{2}/$
+    OsOps -> OsOps: Canonicalize & check\nno path traversal\n(.. sequences)
+
+    alt Path Valid
+        OsOps -> FS: Files.createDirectories\n(path) with\nPosixPermissions 700
+        activate FS
+        FS --> OsOps: Directory created
+        deactivate FS
+        OsOps --> BackupService: Validated path
+        deactivate OsOps
+
+        == Database Dump ==
+        BackupService -> OsOps: executeMySQLDump()
+        activate OsOps
+        OsOps -> OsOps: Build ProcessBuilder\n(mysqldump\n--single-transaction\n--routines --triggers)
+        OsOps -> DB: Execute dump process\n(piped output)
+        activate DB
+        DB --> OsOps: SQL dump stream
+        deactivate DB
+        OsOps --> BackupService: InputStream\n(raw dump)
+        deactivate OsOps
+
+        == Encryption ==
+        BackupService -> Crypto: encrypt\n(inputStream, outputPath)
+        activate Crypto
+        Crypto -> Crypto: Load AES-256-GCM key\nfrom secure keystore
+        Crypto -> Crypto: Generate random IV\n(96-bit)
+        Crypto -> Crypto: Encrypt stream\n(chunked processing)
+        Crypto -> FS: Write .sql.enc file\nwith permissions 600
+        activate FS
+        FS --> Crypto: File written
+        deactivate FS
+        Crypto -> Crypto: Calculate SHA-256\nchecksum of\nencrypted file
+        Crypto --> BackupService: EncryptionResult\n(filename, size,\nchecksum)
+        deactivate Crypto
+
+        == Audit & Cleanup ==
+        BackupService -> AuditRepo: logEvent\n(BACKUP_CREATED,\nadmin, filename,\nchecksum)
+        activate AuditRepo
+        AuditRepo -> DB: INSERT INTO\naudit_log
+        deactivate AuditRepo
+
+        BackupService -> OsOps: rotateOldBackups\n(retentionDays=30)
+        activate OsOps
+        OsOps -> FS: List & delete backups\nolder than 30 days
+        OsOps --> BackupService: Cleanup complete
+        deactivate OsOps
+
+        BackupService --> Controller: BackupResult\n(filename, size,\nchecksum)
+        Controller --> Admin: 201 Created\n{filename, size,\nchecksum, timestamp}
+
+    else Path Validation Failed
+        OsOps --> BackupService: SecurityException\n(Path traversal attempt)
+        deactivate OsOps
+        BackupService -> AuditRepo: logEvent\n(SECURITY_VIOLATION,\nadmin, attemptedPath)
+        BackupService --> Controller: SecurityException
+        deactivate BackupService
+        Controller --> Admin: 400 Bad Request\n(Invalid path)
+    end
+
+else Unauthorized
+    Controller --> Admin: 403 Forbidden
+end
+
+deactivate Controller
+@enduml

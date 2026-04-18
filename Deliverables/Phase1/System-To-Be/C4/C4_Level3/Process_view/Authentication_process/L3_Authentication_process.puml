@@ -1,0 +1,123 @@
+@startuml
+title User Authentication (Level 3) — VendNet
+
+actor "User\n(Customer/Operator/Admin)" as User
+
+box "Interface Adapters" #LightBlue
+    participant "AuthController" as Controller
+end box
+
+box "Application Services" #LightYellow
+    participant "AuthenticationService" as AuthService
+    participant "JwtTokenProvider" as JwtProvider
+end box
+
+box "Domain" #LightGreen
+    entity "User Aggregate" as UserEntity
+end box
+
+box "Infrastructure" #LightCoral
+    participant "UserRepository" as UserRepo
+end box
+
+database "MySQL Database" as DB
+
+User -> Controller: POST /auth/login\n{username, password}
+activate Controller
+Controller -> Controller: Validate\nLoginRequest DTO
+
+alt Input Valid
+
+    Controller -> AuthService: authenticate\n(username, password)
+    activate AuthService
+
+    AuthService -> UserRepo: findByUsername\n(username)
+    activate UserRepo
+    UserRepo -> DB: SELECT * FROM users\nWHERE username = ?
+    activate DB
+    DB --> UserRepo: Result Row
+    deactivate DB
+    UserRepo -> UserEntity: Reconstitute\nfrom DB row
+    activate UserEntity
+    UserEntity --> UserRepo: User aggregate
+    deactivate UserEntity
+    UserRepo --> AuthService: Optional<User>
+    deactivate UserRepo
+
+    alt User Found
+
+        AuthService -> UserEntity: checkAccountStatus()
+        activate UserEntity
+
+        alt Account ACTIVE
+            UserEntity --> AuthService: Status OK
+            deactivate UserEntity
+
+            AuthService -> UserEntity: verifyPassword\n(password)
+            activate UserEntity
+            UserEntity -> UserEntity: BCrypt.checkpw(\npassword, passwordHash)
+
+            alt Password Valid
+                UserEntity -> UserEntity: resetFailedAttempts()
+                UserEntity --> AuthService: Verified
+                deactivate UserEntity
+
+                AuthService -> UserRepo: save(user)
+                activate UserRepo
+                UserRepo -> DB: UPDATE users\nSET failed_attempts = 0
+                deactivate UserRepo
+
+                AuthService -> JwtProvider: generateToken\n(userId, role)
+                activate JwtProvider
+                JwtProvider -> JwtProvider: Build JWT claims\n(sub, role, iat, exp)
+                JwtProvider -> JwtProvider: Sign with\nHMAC-SHA256
+                JwtProvider --> AuthService: JWT\n+ RefreshToken
+                deactivate JwtProvider
+
+                AuthService -> UserRepo: saveAuditEvent\n(LOGIN_SUCCESS)
+                AuthService --> Controller: AuthResult\n(jwt, refreshToken)
+                Controller --> User: 200 OK\n{accessToken,\nrefreshToken, expiresIn}
+
+            else Password Invalid
+                UserEntity -> UserEntity: incrementFailedAttempts()
+
+                alt failedAttempts ≥ MAX_ATTEMPTS
+                    UserEntity -> UserEntity: lockAccount()
+                    UserEntity --> AuthService: AccountLockedException
+                    deactivate UserEntity
+                    AuthService -> UserRepo: save(user)
+                    AuthService -> UserRepo: saveAuditEvent\n(ACCOUNT_LOCKED)
+                    AuthService --> Controller: AccountLockedException
+                    Controller --> User: 423 Locked
+
+                else Below Threshold
+                    UserEntity --> AuthService: InvalidPasswordException
+                    deactivate UserEntity
+                    AuthService -> UserRepo: save(user)
+                    AuthService -> UserRepo: saveAuditEvent\n(LOGIN_FAILED)
+                    AuthService --> Controller: InvalidCredentialsException
+                    Controller --> User: 401 Unauthorized
+                end
+            end
+
+        else Account SUSPENDED / LOCKED
+            UserEntity --> AuthService: AccountInactiveException
+            deactivate UserEntity
+            AuthService -> UserRepo: saveAuditEvent\n(LOGIN_DENIED_INACTIVE)
+            AuthService --> Controller: AccountInactiveException
+            deactivate AuthService
+            Controller --> User: 403 Forbidden
+        end
+
+    else User Not Found
+        AuthService -> AuthService: Perform dummy BCrypt\n(prevent timing attack)
+        AuthService --> Controller: InvalidCredentialsException
+        Controller --> User: 401 Unauthorized
+    end
+
+else Input Invalid
+    Controller --> User: 400 Bad Request
+end
+
+deactivate Controller
+@enduml

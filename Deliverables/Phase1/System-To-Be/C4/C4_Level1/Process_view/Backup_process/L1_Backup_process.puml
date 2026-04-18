@@ -1,0 +1,43 @@
+@startuml
+title Encrypted Database Backup (Level 1) — VendNet
+
+actor "Administrator" as Admin
+
+participant "VendNet System" as VendNet #LightBlue
+
+Admin -> VendNet: Request encrypted backup\n[Authorization: Bearer JWT]
+activate VendNet
+
+VendNet -> VendNet: Validate JWT &\nverify ADMIN role
+
+alt Authorized (ADMINISTRATOR role)
+
+    == Path Validation ==
+    VendNet -> VendNet: Build backup path\n& validate against\nwhitelist pattern\n(prevent path traversal)
+
+    alt Path Valid
+
+        == Database Dump ==
+        VendNet -> VendNet: Execute database dump\n(mysqldump via ProcessBuilder)
+
+        == Encryption & Storage ==
+        VendNet -> VendNet: Encrypt dump\n(AES-256-GCM)
+        VendNet -> VendNet: Write encrypted file\n(permissions: 600)
+        VendNet -> VendNet: Calculate SHA-256 checksum
+
+        == Audit ==
+        VendNet -> VendNet: Record audit event\n(BACKUP_CREATED,\nfilename, size, checksum)
+
+        VendNet --> Admin: 201 Created\n(backup metadata:\nfilename, size, checksum)
+
+    else Path Validation Failed
+        VendNet -> VendNet: Record security event\n(SECURITY_VIOLATION)
+        VendNet --> Admin: 400 Bad Request\n(Invalid backup configuration)
+    end
+
+else Unauthorized
+    VendNet --> Admin: 403 Forbidden\n(Administrator access required)
+end
+
+deactivate VendNet
+@enduml
