@@ -1,0 +1,61 @@
+@startuml
+title Authentication Flow — Human Actor (JWT) + Edge Device (mTLS)
+
+actor "Human User\n(Customer/Operator/Admin)" as User
+actor "Vending Machine\n(Edge Device)" as VM
+participant "Spring Security\nFilter Chain" as SEC
+participant "Auth Service\n(P1.0)" as Auth
+participant "JWT Token\nValidator" as JWT
+database "Users DB\n(DS1)" as DB
+database "Redis\nBlocklist" as Redis
+participant "TOTP MFA\n(Admin only)" as MFA
+
+== Human: Password Login ==
+User -> SEC : POST /auth/login {email, password}\nHTTPS TLS 1.3
+SEC -> Auth : AuthenticationManager.authenticate()
+Auth -> DB : SELECT user WHERE email = :email
+DB --> Auth : User {passwordHash, accountStatus, role}
+Auth -> Auth : BCryptPasswordEncoder(cost=12)\n.matches(password, hash)
+alt AccountStatus = SUSPENDED or LOCKED
+  Auth --> SEC : DisabledException
+  SEC --> User : HTTP 401 {"error":"Invalid credentials"}
+else Valid credentials
+  Auth -> JWT : issue(sub, jti=UUID, exp, alg=HS256)
+  JWT -> JWT : sign with Keys.secretKeyFor(HS256)\n[256-bit key from JWT_SECRET env var]
+  JWT --> Auth : signed JWT (no role claim in payload)
+  alt Role = ADMINISTRATOR
+    Auth --> User : HTTP 200 + partial token (mfa_pending)
+    User -> MFA : POST /auth/mfa/verify {totp_code}
+    MFA --> User : HTTP 200 + full Admin JWT
+  else Non-admin
+    Auth --> User : HTTP 200 + JWT
+  end
+end
+
+== Subsequent Requests ==
+User -> SEC : GET /any/endpoint\nAuthorization: Bearer <JWT>
+SEC -> JWT : parse & verify alg=HS256 (rejects alg:none)
+JWT -> Redis : GET jwt:revoked:{jti}
+alt Token revoked
+  Redis --> JWT : "revoked"
+  JWT --> SEC : JwtException
+  SEC --> User : HTTP 401
+else Token active
+  JWT -> DB : SELECT role, accountStatus WHERE username = sub
+  note right: role loaded from DB — JWT payload claim ignored
+  DB --> JWT : {role, accountStatus=ACTIVE}
+  JWT --> SEC : Authentication{ROLE_<role>}
+  SEC -> SEC : @PreAuthorize("hasRole(...)")
+  SEC --> User : HTTP 200 + response
+end
+
+== Vending Machine: mTLS ==
+VM -> SEC : POST /telemetry + client X.509 cert
+SEC -> SEC : TrustManager validates cert\nagainst CRL/OCSP
+alt Cert revoked or invalid
+  SEC --> VM : TLS handshake failure
+else Valid cert
+  SEC -> SEC : Extract CN → MachineAuthenticationToken\nROLE_MACHINE (scoped to /telemetry, /sales/firmware)
+  SEC --> VM : HTTP 200 + process telemetry
+end
+@enduml

@@ -1,0 +1,50 @@
+@startuml
+title Logging Architecture — Event Flow & Tamper Protection
+
+skinparam rectangle {
+  BackgroundColor<<source>> #E3F2FD
+  BackgroundColor<<processing>> #FFF3E0
+  BackgroundColor<<storage>> #E8F5E9
+  BackgroundColor<<verification>> #FCE4EC
+  BorderColor #546E7A
+}
+
+together {
+  rectangle "Auth Events\n(SR-37)" <<source>> as S1
+  rectangle "Inventory Changes\n(SR-38)" <<source>> as S2
+  rectangle "Role Changes\n(SR-39)" <<source>> as S3
+  rectangle "Payment Txns\n(SR-40)" <<source>> as S4
+  rectangle "File Operations\n(SR-42)" <<source>> as S5
+  rectangle "Security Alerts\n(SR-44)" <<source>> as S6
+}
+
+rectangle "**LogbackSanitizingFilter**\nStrips password, token, cvv,\nsecret, authorization fields\n(SR-45, T-87, T-89)" <<processing>> as FILTER
+
+rectangle "**Structured JSON Formatter**\ntimestamp, eventType, traceId,\nspanId, userId, machineId,\nentityId, oldValue, newValue,\nsourceIp" <<processing>> as FORMAT
+
+rectangle "**HMAC-SHA256 Signing**\nDedicated AUDIT_HMAC_KEY\n(separate from JWT_SECRET)\nAppended to each entry\n(SR-34, T-79)" <<processing>> as HMAC
+
+rectangle "**Logback RollingFileAppender**\n/var/vendnet/logs/audit/\nDaily rotation, .gz after 7 days\nDeleted after 90 days (FR-27)\nPOSIX: 640" <<storage>> as STORE
+
+rectangle "**MySQL Binary Log**\nROW format, 90-day retention\nShipped to SIEM\n(SR-59, T-73)" <<storage>> as BINLOG
+
+rectangle "**Nightly Quartz Verification**\nRe-computes HMAC for prior day\nMismatch → Actuator DOWN\n→ PagerDuty alert\n(SR-41, T-79)" <<verification>> as VERIFY
+
+rectangle "**Prometheus Alert**\nDisk > 80% capacity\n(T-62, T-83)" <<verification>> as DISK
+
+S1 -down-> FILTER
+S2 -down-> FILTER
+S3 -down-> FILTER
+S4 -down-> FILTER
+S5 -down-> FILTER
+S6 -down-> FILTER
+
+FILTER -down-> FORMAT
+FORMAT -down-> HMAC
+HMAC -down-> STORE
+STORE -right-> VERIFY
+STORE -down-> DISK
+
+S4 -right[hidden]-> BINLOG
+
+@enduml

@@ -1,0 +1,56 @@
+@startuml
+title Path Validation Pipeline — OS Operations Security
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF9C4
+  DiamondBorderColor #F9A825
+}
+
+start
+
+:Receive user-influenced\npath component\n(e.g. reportType);
+
+partition "**Layer 1 — Whitelist Regex** (fast fail)" {
+  :Apply regex\n^^[a-zA-Z0-9_-]+$^^;
+  if (Matches?) then (no)
+    #FF8A80:Reject\nHTTP 400;
+    stop
+  else (yes)
+  endif
+}
+
+partition "**Layer 2 — Bypass Prevention**" {
+  :URL-decode\nURLDecoder.decode(input, UTF_8);
+  :Unicode NFC normalise\nNormalizer.normalize(decoded, NFC);
+  :Re-run whitelist regex\non normalised form;
+  if (Matches?) then (no)
+    #FF8A80:Reject\nHTTP 400\n(encoded traversal detected);
+    stop
+  else (yes)
+  endif
+}
+
+partition "**Layer 3 — Canonical Path Assertion** (authoritative)" {
+  :Resolve path\nbaseDir.resolve(input).normalize();
+  if (resolved.startsWith(baseDir)?) then (no)
+    #FF8A80:Reject\nSecurityException\n(path escapes sandbox);
+    stop
+  else (yes)
+  endif
+}
+
+partition "**Layer 4 — Symlink Detection**" {
+  :Check each path segment\nfor symbolic links;
+  if (Any segment is symlink?) then (yes)
+    #FF8A80:Reject\nSecurityException\n(symlink in path);
+    stop
+  else (no)
+  endif
+}
+
+#A5D6A7:Proceed with\nfile operation;
+stop
+
+@enduml

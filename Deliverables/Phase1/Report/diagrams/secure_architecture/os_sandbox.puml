@@ -1,0 +1,38 @@
+@startuml
+title OS Sandbox & Filesystem Permissions
+
+skinparam rectangle {
+  BackgroundColor<<systemd>> #FFCDD2
+  BackgroundColor<<dir>> #E8F5E9
+  BackgroundColor<<file>> #E3F2FD
+  BorderColor #546E7A
+}
+
+rectangle "**systemd Unit Confinement**\nUser=vendnet\nNoNewPrivileges=true\nPrivateDevices=true\nPrivateTmp=true\nReadWritePaths=/var/vendnet/\n(SR-17)" <<systemd>> as SYSTEMD
+
+package "/var/vendnet/ (owner: vendnet, 750)" {
+
+  rectangle "**backups/**\nPOSIX: 700\n(only service account)" <<dir>> as BDIR {
+    rectangle "backup_*.sql.enc\nPOSIX: 600\nAES-256-GCM encrypted\n(SR-56, SR-61)" <<file>> as BFILE
+  }
+
+  rectangle "**logs/audit/**\nPOSIX: 750" <<dir>> as LDIR {
+    rectangle "audit_YYYY-MM-DD.log\nPOSIX: 640 (current)\n.log.gz after 7 days\nDeleted at 90 days" <<file>> as LFILE
+  }
+
+  rectangle "**reports/**\nPOSIX: 750" <<dir>> as RDIR {
+    rectangle "sales/ stock/\nGenerated CSV/JSON\nPOSIX: 640" <<file>> as RFILE
+  }
+}
+
+SYSTEMD -down-> BDIR
+SYSTEMD -down-> LDIR
+SYSTEMD -down-> RDIR
+
+note bottom of BDIR
+  No sudo rights for vendnet account
+  useradd -r -s /sbin/nologin vendnet
+  (mitigating T-61, T-63)
+end note
+
+@enduml

@@ -1,0 +1,32 @@
+@startuml
+title Input Validation — Defense in Depth Layers
+
+skinparam rectangle {
+  BackgroundColor<<layer1>> #E3F2FD
+  BackgroundColor<<layer2>> #FFF3E0
+  BackgroundColor<<layer3>> #E8F5E9
+  BorderColor #546E7A
+}
+
+rectangle "**Layer 1 — Controller (Bean Validation)**\n@Valid on DTO parameters\n@NotNull, @NotBlank, @Email, @Size, @Pattern\n@Min, @Max, @DecimalMin, @Positive\nConstraintViolationException → HTTP 400\n(SR-28, T-56)" <<layer1>> as L1
+
+rectangle "**Layer 2 — Jackson Deserialization**\nfail-on-unknown-properties: true\n@JsonIgnoreProperties(ignoreUnknown=false)\n@JsonIgnore on sensitive fields (unitPrice)\nMass-assignment → HTTP 400\n(SR-29, SR-50, T-43)" <<layer1>> as L2
+
+rectangle "**Layer 3 — Application Service**\nServer-side price resolution\nfrom productRepository\nIdempotency key validation\nOptimistic/pessimistic locking\n(SR-03, T-46)" <<layer2>> as L3
+
+rectangle "**Layer 4 — Repository / ORM**\nJPQL named parameters only\nnativeQuery concatenation banned\nby SpotBugs find-sec-bugs + ArchUnit\n(SR-09, SR-10, T-39, T-72)" <<layer2>> as L4
+
+rectangle "**Layer 5 — Database Schema**\nCHECK constraints (price > 0)\nNOT NULL on transaction_ref\nMySQL user: SELECT, INSERT, UPDATE only\nNo DDL / GRANT ALL\n(SR-20, SR-23, SR-47)" <<layer3>> as L5
+
+rectangle "**Error Boundary**\nserver.error.include-message: never\nserver.error.include-stacktrace: never\n@RestControllerAdvice masks\nDataAccessException\n(SR-46, T-75)" as ERR
+
+L1 -down-> L2
+L2 -down-> L3
+L3 -down-> L4
+L4 -down-> L5
+L1 -right-> ERR : validation\nerror
+L2 -right-> ERR : unknown\nfield
+L3 -right-> ERR : business\nrule
+L4 -right-> ERR : data\naccess
+
+@enduml

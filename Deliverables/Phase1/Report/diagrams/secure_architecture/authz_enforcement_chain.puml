@@ -1,0 +1,29 @@
+@startuml
+title Authorization Enforcement Chain — VendNet
+
+skinparam rectangle {
+  BackgroundColor<<filter>> #E8F5E9
+  BackgroundColor<<controller>> #E3F2FD
+  BackgroundColor<<service>> #FFF3E0
+  BackgroundColor<<domain>> #FCE4EC
+  BorderColor #546E7A
+}
+
+rectangle "**HTTP Request**\n(from Client or Vending Machine)" as REQ
+
+rectangle "**JwtAuthenticationFilter**\nValidates HS256 signature\nRejects alg:none (SR-04, T-28)\nChecks Redis blocklist (SR-47, T-35)\nLoads role from DB (not JWT claim)" <<filter>> as JWT
+
+rectangle "**@PreAuthorize — Controller Layer**\nhasRole('ADMINISTRATOR')\nhasAnyRole('OPERATOR','ADMINISTRATOR')\npermitAll() for public catalog" <<controller>> as CTRL
+
+rectangle "**@PreAuthorize — Service Layer**\n@EnableMethodSecurity\nCatches internal / scheduled callers\n(SR-14, T-11, T-36)" <<service>> as SVC
+
+rectangle "**MachinePermissionEvaluator**\nOperator ↔ machine assignment check\nReturns HTTP 404 for unassigned\n(SR-44, SR-49, T-10, T-38)" <<service>> as MPE
+
+rectangle "**Domain Invariants**\nSlot.quantity ≥ 0\nProduct.price > 0\nSale.unitPrice = catalog price\n(SR-03, SR-23, T-46)" <<domain>> as DOM
+
+REQ -down-> JWT
+JWT -down-> CTRL
+CTRL -down-> SVC
+SVC -down-> MPE
+MPE -down-> DOM
+@enduml
