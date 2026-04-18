@@ -82,16 +82,16 @@
 
 ### 8.3.4 Input Validation & Data Handling
 
-| ID | Requirement                                                                                         | Justification                                                 | Threat Ref        | ASVS Ref |
-|----|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------|-------------------|----------|
-| SR-24 | The system shall determine product prices on the server and reject any client-supplied price values | Prevents price manipulation attacks                           | T-46              | V5.1.1 |
-| SR-25 | The system shall validate stock quantities to ensure they remain within valid limits before saving  | Prevents invalid stock values and system errors               | T-45              | V5.1.2 |
-| SR-26 | The system shall validate report input values and restrict file operations to approved directories  | Prevents path traversal and unauthorized file access          | T-58, T-113, T-84 | V5.3.6 |
-| SR-27 | The system shall ensure file operations do not follow unsafe file paths or links                    | revents unauthorized file access through system-level attacks | T-80              | V5.3.7 |
-| SR-28 | The system shall validate all incoming data to ensure it matches expected formats and ranges        | Prevents malformed or malicious data from being processed     | T-56              | V5.2.4 |
-| SR-29 | The system shall reject requests containing unexpected or unknown fields                            | Prevents mass-assignment vulnerabilities                      | T-43              | V5.1.4 |
-| SR-30 | The system shall limit the maximum size of incoming requests                                        | Prevents resource exhaustion attacks                          | T-92              | V5.1.5 |
-| SR-31 | The system shall enforce limits on paginated responses to avoid excessive data returns              | Prevents large responses that could impact system stability   | T-92              | V5.1.5 |
+| ID | Requirement                                                                                         | Justification                                                  | Threat Ref        | ASVS Ref |
+|----|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------|-------------------|----------|
+| SR-24 | The system shall determine product prices on the server and reject any client-supplied price values | Prevents price manipulation attacks                            | T-46              | V5.1.1 |
+| SR-25 | The system shall validate stock quantities to ensure they remain within valid limits before saving  | Prevents invalid stock values and system errors                | T-45              | V5.1.2 |
+| SR-26 | The system shall validate report input values and restrict file operations to approved directories  | Prevents path traversal and unauthorized file access           | T-58, T-113, T-84 | V5.3.6 |
+| SR-27 | The system shall ensure file operations do not follow unsafe file paths or links                    | Prevents unauthorized file access through system-level attacks | T-80              | V5.3.7 |
+| SR-28 | The system shall validate all incoming data to ensure it matches expected formats and ranges        | Prevents malformed or malicious data from being processed      | T-56              | V5.2.4 |
+| SR-29 | The system shall reject requests containing unexpected or unknown fields                            | Prevents mass-assignment vulnerabilities                       | T-43              | V5.1.4 |
+| SR-30 | The system shall limit the maximum size of incoming requests                                        | Prevents resource exhaustion attacks                           | T-92              | V5.1.5 |
+| SR-31 | The system shall enforce limits on paginated responses to avoid excessive data returns              | Prevents large responses that could impact system stability    | T-92              | V5.1.5 |
 
 ### 8.3.5 Third-Party Components
 
