@@ -1,0 +1,66 @@
+@startuml AC-05_SQL_Injection
+
+title AC-05 — SQL Injection via Application Input Modifies Database Records\nSTRIDE: Tampering | Severity: Critical | Mitigation: M-05
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Operator / Customer\n(Legitimate)" as user #DDEEFF
+actor "External Attacker /\nMalicious Operator" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Search Products or\nMachines via API" as UC5 << normal >>
+  usecase "Detect Injectable\nParameter (error-based)" as AC5a << abuse >>
+  usecase "Inject SQL to Modify\nMySQL Records Directly" as AC5 << abuse >>
+  usecase "Escalate Privilege /\nErase Audit Trail" as AC5b << abuse >>
+}
+
+user --> UC5
+
+attacker --> AC5a
+AC5a ..> AC5  : <<enables>>
+AC5 ..> UC5   : <<threatens>>
+AC5 ..> AC5b  : <<extends>>
+
+note right of AC5
+  **Preconditions:**
+  • At least one endpoint uses Hibernate
+    native query with string concatenation
+  • Application DB account holds DML
+    privileges (INSERT, UPDATE, DELETE)
+  • Error responses confirm injectable param
+  • Attacker holds any valid JWT (or none
+    if endpoint is unprotected)
+end note
+
+note right of AC5b
+  **Impact:**
+  Integrity: arbitrary DML on any table —
+  roles modified, prices zeroed, sale records
+  deleted, audit entries removed
+  Confidentiality: UNION SELECT / INTO OUTFILE
+  Business: irreversible data corruption,
+  regulatory liability for lost audit trail
+end note
+
+note bottom of attacker
+  **Attack vectors:**
+  Probe: {"name":"Juice'"}  → MySQL syntax error
+  Privilege escalation:
+    name=Juice'; UPDATE users SET role='ADMINISTRATOR'
+    WHERE username='attacker';--
+  Destroy evidence:
+    name=Juice'; DELETE FROM sale WHERE created_at < NOW();--
+end note
+
+@enduml

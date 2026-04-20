@@ -1,0 +1,63 @@
+@startuml AC-02_Forged_Payment_Webhook
+
+title AC-02 — Forged Payment Confirmation Webhook via HMAC Bypass\nSTRIDE: Spoofing | Severity: Critical | Mitigation: M-02
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+  BackgroundColor<< impact >> #FFF3CD
+  BorderColor<< impact >> #856404
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Payment Gateway\n(Legitimate)" as gateway #DDEEFF
+actor "External Attacker" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Receive Legitimate\nPayment Confirmation (EP3)" as UC2 << normal >>
+  usecase "Recover HMAC-SHA256\nSecret (brute-force / leak)" as AC2a << abuse >>
+  usecase "Forge Payment Webhook\nwith Crafted HMAC Signature" as AC2 << abuse >>
+  usecase "Trigger Fraudulent\nProduct Dispensing" as AC2b << abuse >>
+}
+
+gateway --> UC2
+
+attacker --> AC2a
+attacker --> AC2
+AC2a ..> AC2  : <<enables>>
+AC2 ..> UC2   : <<threatens>>
+AC2 ..> AC2b  : <<extends>>
+
+note right of AC2a
+  **Preconditions:**
+  • Callback URL (EP3) reachable from internet
+  • HMAC secret weak / leaked in Git history
+  • No mutual TLS on EP3 inbound channel
+  • No cross-validation with Gateway ledger
+end note
+
+note right of AC2b
+  **Impact:**
+  Integrity: fraudulent Sale records with
+  PaymentStatus.COMPLETED
+  Financial: free product dispensing at scale,
+  inventory depletion without revenue
+  Business: contractual breach with
+  Payment Gateway
+end note
+
+note bottom of attacker
+  **Attack vector:**
+  {"transactionRef":"TXN-FAKE-001","status":"COMPLETED",
+   "amount":2.50,"machineId":"M-07","productId":"P-42"}
+  + X-Signature: sha256=<computed_hmac>
+end note
+
+@enduml

@@ -1,0 +1,62 @@
+@startuml AC-03_Client_Supplied_Price
+
+title AC-03 — Client-Supplied Unit Price Bypasses Server-Side Catalog Validation\nSTRIDE: Tampering | Severity: Critical | Mitigation: M-03
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Customer\n(Legitimate)" as customer #DDEEFF
+actor "Malicious Customer" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Purchase Product at\nCatalog Price" as UC3 << normal >>
+  usecase "Intercept POST /sales\nRequest (Burp Suite)" as AC3a << abuse >>
+  usecase "Submit Modified unitPrice\n(e.g., £0.01)" as AC3 << abuse >>
+  usecase "Purchase High-Value Products\nat Near-Zero Cost" as AC3b << abuse >>
+}
+
+customer --> UC3
+
+attacker --> AC3a
+AC3a ..> AC3   : <<extends>>
+AC3 ..> UC3    : <<threatens>>
+AC3 ..> AC3b   : <<extends>>
+
+note right of AC3
+  **Preconditions:**
+  • Valid Customer-scoped JWT
+  • POST /sales body contains
+    user-controllable unitPrice field
+  • P3 uses client-supplied unitPrice
+    instead of server-side catalog lookup
+  • No cross-validation at commit time
+end note
+
+note right of AC3b
+  **Impact:**
+  Integrity: Sale records contain false
+  UnitPrice values; inventory depleted
+  without corresponding revenue
+  Financial: direct revenue loss per
+  transaction, scalable across all products
+  Business: corrupted financial reports,
+  fraud liability
+end note
+
+note bottom of attacker
+  **Attack vector (intercepting proxy):**
+  Original: {"productId":"prod-123","unitPrice":2.50}
+  Modified: {"productId":"prod-123","unitPrice":0.01}
+end note
+
+@enduml

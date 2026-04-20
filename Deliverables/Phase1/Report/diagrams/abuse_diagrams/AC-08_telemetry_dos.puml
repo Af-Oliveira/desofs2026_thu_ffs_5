@@ -1,0 +1,67 @@
+@startuml AC-08_Telemetry_DoS
+
+title AC-08 — Coordinated Compromised VM Fleet Floods Telemetry Database\nSTRIDE: Denial of Service | Severity: High | Mitigation: M-08
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Vending Machine\n(Legitimate)" as machine #DDEEFF
+actor "Compromised VM Fleet\n(Stolen mTLS Certs)" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Report Machine Telemetry\nat Normal Rate (~1 req/min)" as UC8 << normal >>
+  usecase "Extract mTLS Certs\nfrom Compromised Machines" as AC8a << abuse >>
+  usecase "Flood Telemetry Endpoint\n(200 req/s per machine)" as AC8 << abuse >>
+  usecase "Exhaust MySQL Disk /\nSaturate Thread Pool" as AC8b << abuse >>
+}
+
+machine --> UC8
+
+attacker --> AC8a
+AC8a ..> AC8   : <<enables>>
+AC8 ..> UC8    : <<threatens>>
+AC8 ..> AC8b   : <<extends>>
+
+note right of AC8a
+  **Preconditions:**
+  • mTLS certs extracted from N >= 10
+    physically/logically compromised VMs
+  • No per-machine request-rate limit on EP2
+    beyond mTLS authentication check
+  • Telemetry table has no DB-level retention
+    or write-throttle policy
+  • Telemetry DB shares same MySQL instance
+    disk as users/sales/inventory tables
+end note
+
+note right of AC8b
+  **Impact:**
+  Availability: disk fills ~33 GB/hour at
+  N=10 machines × 200 req/s × 200 bytes/row
+  Integrity: in-flight Sale transactions fail
+  mid-commit → partial/corrupt records
+  Business: purchase failures, SLA breach,
+  inability to produce compliance audit logs
+  Recovery: disk cleanup + telemetry truncation
+  (data loss required)
+end note
+
+note bottom of attacker
+  **Attack vector:**
+  N machines × 200 req/s = 2,000+ concurrent inserts
+  vs. legitimate rate: ~1 req/min per machine
+  All requests carry valid mTLS certs —
+  backend authenticates each as legitimate
+end note
+
+@enduml

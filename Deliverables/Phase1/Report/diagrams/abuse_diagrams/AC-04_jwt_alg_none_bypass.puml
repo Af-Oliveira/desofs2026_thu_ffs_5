@@ -1,0 +1,66 @@
+@startuml AC-04_JWT_Alg_None_Bypass
+
+title AC-04 — JWT alg:none Signature Bypass Grants Arbitrary Identity\nSTRIDE: Spoofing | Severity: Critical | Mitigation: M-04
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Registered User\n(any role)" as user #DDEEFF
+actor "External Attacker\n(any valid account)" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Authenticate with\nValid Signed JWT" as UC4 << normal >>
+  usecase "Obtain Legitimate\nCustomer JWT" as AC4a << abuse >>
+  usecase "Forge Unsigned JWT\n(alg:none) with ADMINISTRATOR Role" as AC4 << abuse >>
+  usecase "Access All Admin Endpoints\nWithout Credentials" as AC4b << abuse >>
+}
+
+user --> UC4
+
+attacker --> AC4a
+AC4a ..> AC4  : <<enables>>
+AC4 ..> UC4   : <<threatens>>
+AC4 ..> AC4b  : <<extends>>
+
+note right of AC4
+  **Preconditions:**
+  • Attacker can register any valid account
+  • JWT library does not explicitly reject
+    alg:none algorithm
+  • No fixed expected-algorithm enforcement
+    before signature verification
+  • Admin endpoints protected only by
+    JWT role-claim (no IP/session binding)
+end note
+
+note right of AC4b
+  **Impact:**
+  Confidentiality: full user table PII,
+  BCrypt hashes, audit logs exfiltrated
+  Integrity: roles reassigned, pricing
+  modified, backdoor accounts created
+  Business: complete system compromise,
+  no physical access required,
+  GDPR breach notification obligation
+end note
+
+note bottom of attacker
+  **Attack vector:**
+  1. Decode original HS256 JWT
+  2. Change header: {"alg":"none","typ":"JWT"}
+  3. Change payload role: "ADMINISTRATOR"
+  4. Reconstruct with empty signature:
+     base64(header).base64(payload).
+end note
+
+@enduml

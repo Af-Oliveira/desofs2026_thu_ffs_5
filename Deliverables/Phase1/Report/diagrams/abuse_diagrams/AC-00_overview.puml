@@ -1,0 +1,81 @@
+@startuml AC-00_Abuse_Cases_Overview
+
+title VendNet — Abuse Cases Overview (AC-01 to AC-08)
+
+skinparam usecase {
+  BackgroundColor<< critical >> #FFCCCC
+  BorderColor<< critical >> #CC0000
+  FontColor<< critical >> #990000
+  BackgroundColor<< high >> #FFE5CC
+  BorderColor<< high >> #CC6600
+  FontColor<< high >> #994400
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam packageBackgroundColor #F8F8FF
+skinparam packageBorderColor #AAAACC
+skinparam noteFontSize 9
+skinparam legendBackgroundColor #FFFFF0
+skinparam legendBorderColor #AAAAAA
+
+actor "External\nAttacker" as ext_attacker
+actor "Malicious Admin /\nCompromised Account" as mal_admin
+actor "Malicious\nCustomer" as mal_customer
+actor "Compromised\nVM Fleet" as mal_fleet
+
+package "P1 — Authentication & Authorization" {
+  usecase "AC-04\nJWT alg:none\nSignature Bypass" as AC4 << critical >>
+}
+
+package "P3 — Sales Processing" {
+  usecase "AC-03\nClient-Supplied\nUnit Price" as AC3 << critical >>
+  usecase "AC-07\nTOCTOU Race\nCondition" as AC7 << high >>
+}
+
+package "P4 — Telemetry & Monitoring" {
+  usecase "AC-08\nTelemetry DoS\nvia Compromised Fleet" as AC8 << high >>
+}
+
+package "P5 — OS Operations" {
+  usecase "AC-01\nOS Command\nInjection" as AC1 << critical >>
+}
+
+package "DF10 — Payment Callback" {
+  usecase "AC-02\nForged Payment\nWebhook (HMAC Bypass)" as AC2 << critical >>
+}
+
+package "DS1 — MySQL Database" {
+  usecase "AC-05\nSQL Injection\nvia Application Input" as AC5 << critical >>
+}
+
+package "DS2 — Server File System" {
+  usecase "AC-06\nPath Traversal\nto /etc/cron.d/" as AC6 << critical >>
+}
+
+ext_attacker --> AC4
+ext_attacker --> AC2
+ext_attacker --> AC5
+ext_attacker --> AC7
+
+mal_admin --> AC1
+mal_admin --> AC6
+
+mal_customer --> AC3
+
+mal_fleet --> AC8
+
+legend right
+  |= Colour |= Severity |
+  |<#FFCCCC> Critical | 6 abuse cases |
+  |<#FFE5CC> High     | 2 abuse cases |
+endlegend
+
+note as N1
+  **Threat Refs:**
+  AC-01 → T-59  AC-05 → T-72
+  AC-02 → T-108 AC-06 → T-84
+  AC-03 → T-46  AC-07 → T-45
+  AC-04 → T-28  AC-08 → T-55
+end note
+
+@enduml

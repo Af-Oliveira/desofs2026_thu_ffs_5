@@ -1,0 +1,66 @@
+@startuml AC-07_TOCTOU_Race_Condition
+
+title AC-07 — TOCTOU Race Condition Drives Stock to Negative Quantity\nSTRIDE: Tampering | Severity: High | Mitigation: M-07
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Customer\n(Legitimate)" as customer #DDEEFF
+actor "External Attacker\n(Concurrent Requests)" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Purchase Last Unit\nof a Product" as UC7 << normal >>
+  usecase "Identify Slot with\nCurrentQuantity = 1" as AC7a << abuse >>
+  usecase "Race Two Concurrent\nPurchases on Same Slot" as AC7 << abuse >>
+  usecase "Drive CurrentQuantity\nto Negative Value" as AC7b << abuse >>
+}
+
+customer --> UC7
+
+attacker --> AC7a
+AC7a ..> AC7   : <<enables>>
+AC7 ..> UC7    : <<threatens>>
+AC7 ..> AC7b   : <<extends>>
+
+note right of AC7
+  **Preconditions:**
+  • POST /sales checks stock and decrements
+    in separate operations (no pessimistic lock)
+  • @Transactional isolation: READ_COMMITTED
+    (MySQL default) — two transactions each
+    see pre-decrement stock level
+  • Attacker can open two+ parallel HTTP
+    connections with valid Customer JWTs
+  • Target slot has CurrentQuantity = 1
+end note
+
+note right of AC7b
+  **Impact:**
+  Integrity: Slot.CurrentQuantity driven to -1,
+  corrupting inventory model and restock logic
+  Financial: two Sale records charged against
+  one unit — one customer pays but receives nothing
+  Availability: negative-inventory states block
+  restocking workflows until manual correction
+  Business: customer trust loss, operational
+  overhead for fleet-wide reconciliation
+end note
+
+note bottom of attacker
+  **Attack vector:**
+  T1: POST /sales {"machineId":"M-03","slotNumber":5} → reads qty=1, passes check
+  T2: POST /sales {"machineId":"M-03","slotNumber":5} → reads qty=1, passes check
+  T1 commits: qty=0  |  T2 commits: qty=-1 (invariant violation)
+end note
+
+@enduml

