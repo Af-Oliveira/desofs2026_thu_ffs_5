@@ -12,23 +12,19 @@ processors:
     send_batch_size: 512
 
 exporters:
+  debug:
+    verbosity: detailed
   prometheus:
     endpoint: 0.0.0.0:8889
     namespace: vendnet
-  logging:
-    loglevel: debug
-  otlp:
-    endpoint: http://jaeger:4317
-    tls:
-      insecure: true
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, otlp]
+      exporters: [debug]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, prometheus]
+      exporters: [debug, prometheus]

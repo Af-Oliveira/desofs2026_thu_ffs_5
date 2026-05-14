@@ -94,6 +94,7 @@ metrics:
 
 ## ===== APP =====
 run: db-up
+	@mkdir -p logs data
 	@echo "Starting VendNet on http://localhost:$(APP_PORT)..."
 	@$(MVN) spring-boot:run -Dspring-boot.run.profiles=dev
 
