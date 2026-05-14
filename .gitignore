@@ -1,9 +1,68 @@
-Desofs/
-.vscode/
-.idea/
-.metals/
-target/
-DS_Store
-bloop/
-Doc/
+### macOS ###
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
 
+### Windows ###
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+### Java ###
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.log
+*.tmp
+hs_err_pid*
+
+### Maven ###
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+dependency-reduced-pom.xml
+release.properties
+
+### Spring Boot ###
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### IDE ###
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.apt_generated
+.factorypath
+.springBeans
+.sts4-cache
+.metals/
+bloop/
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### Environment ###
+.env
+.env.*
+!.env.example
+application-local.properties
+application-dev.properties
+
+### Docker ###
+docker-compose.override.yml
