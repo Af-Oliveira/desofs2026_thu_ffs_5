@@ -10,6 +10,9 @@ class VendnetApplicationTests {
 
 	@Test
 	void contextLoads() {
+		// Arrange — done by SpringBootTest bootstrap
+		// Act — nothing (Spring context loading is the act)
+		// Assert — test passes if the application context loads without exception
 	}
 
 }

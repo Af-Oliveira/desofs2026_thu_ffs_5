@@ -41,6 +41,7 @@ class RbacIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // Arrange — create users and generate tokens for each role
         customerToken = tokenForRole("rbac-customer@vendnet.com", Role.ROLE_CUSTOMER);
         operatorToken = tokenForRole("rbac-operator@vendnet.com", Role.ROLE_OPERATOR);
         adminToken    = tokenForRole("rbac-admin@vendnet.com",    Role.ROLE_ADMINISTRATOR);
@@ -50,6 +51,7 @@ class RbacIntegrationTest {
 
     @Test
     void customer_cannotAccess_adminDashboard_returns403() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/admin/dashboard")
                         .header("Authorization", "Bearer " + customerToken))
                 .andExpect(status().isForbidden());
@@ -57,6 +59,7 @@ class RbacIntegrationTest {
 
     @Test
     void operator_cannotAccess_adminDashboard_returns403() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/admin/dashboard")
                         .header("Authorization", "Bearer " + operatorToken))
                 .andExpect(status().isForbidden());
@@ -64,6 +67,7 @@ class RbacIntegrationTest {
 
     @Test
     void admin_canAccess_adminDashboard_returns200() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/admin/dashboard")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
@@ -71,6 +75,7 @@ class RbacIntegrationTest {
 
     @Test
     void customer_cannotAccess_adminUsers_returns403() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/admin/users")
                         .header("Authorization", "Bearer " + customerToken))
                 .andExpect(status().isForbidden());
@@ -78,6 +83,7 @@ class RbacIntegrationTest {
 
     @Test
     void operator_cannotAccess_adminUsers_returns403() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/admin/users")
                         .header("Authorization", "Bearer " + operatorToken))
                 .andExpect(status().isForbidden());
@@ -85,15 +91,17 @@ class RbacIntegrationTest {
 
     @Test
     void admin_canAccess_adminUsers_returns200() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/admin/users")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
     }
 
-    // ── Machine endpoints (CUSTOMER+ via hierarchy) ───────────────────────────
+    // ── Machine endpoints — CUSTOMER, OPERATOR, ADMINISTRATOR all allowed ──────
 
     @Test
     void customer_canAccess_machines_returns200() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/machines")
                         .header("Authorization", "Bearer " + customerToken))
                 .andExpect(status().isOk());
@@ -101,6 +109,7 @@ class RbacIntegrationTest {
 
     @Test
     void operator_canAccess_machines_returns200() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/machines")
                         .header("Authorization", "Bearer " + operatorToken))
                 .andExpect(status().isOk());
@@ -108,6 +117,7 @@ class RbacIntegrationTest {
 
     @Test
     void admin_canAccess_machines_returns200() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/machines")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
@@ -117,6 +127,7 @@ class RbacIntegrationTest {
 
     @Test
     void noToken_cannotAccess_protectedEndpoint_returns401() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/admin/dashboard"))
                 .andExpect(status().isUnauthorized());
     }
@@ -125,14 +136,16 @@ class RbacIntegrationTest {
 
     @Test
     void noToken_canAccess_publicInfo_returns200() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/public/info"))
                 .andExpect(status().isOk());
     }
 
-    // ── Sales (OPERATOR+) ─────────────────────────────────────────────────────
+    // ── Sales — OPERATOR and ADMINISTRATOR allowed ─────────────────────────────
 
     @Test
     void customer_cannotAccess_sales_returns403() throws Exception {
+        // Act & Assert
         mockMvc.perform(get("/api/sales/machine/1")
                         .header("Authorization", "Bearer " + customerToken))
                 .andExpect(status().isForbidden());
@@ -140,7 +153,7 @@ class RbacIntegrationTest {
 
     @Test
     void operator_canAccess_sales_returns2xxOr404() throws Exception {
-        // 200 (empty list) or 404 if machine doesn't exist — both mean auth passed
+        // Act & Assert — 200 or 404 both mean auth passed (machine may not exist)
         mockMvc.perform(get("/api/sales/machine/999999")
                         .header("Authorization", "Bearer " + operatorToken))
                 .andExpect(result -> {

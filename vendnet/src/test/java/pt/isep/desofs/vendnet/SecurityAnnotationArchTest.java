@@ -17,6 +17,8 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 )
 class SecurityAnnotationArchTest {
 
+    // Arrange — ArchUnit scans classes in pt.isep.desofs.vendnet (excluding tests)
+    // Act & Assert — the rule verifies every public controller method carries a security annotation
     @ArchTest
     static final ArchRule all_public_controller_methods_must_have_security_annotation =
             methods()

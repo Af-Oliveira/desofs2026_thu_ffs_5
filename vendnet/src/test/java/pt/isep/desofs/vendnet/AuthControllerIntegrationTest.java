@@ -73,8 +73,10 @@ class AuthControllerIntegrationTest {
 
     @Test
     void login_validCredentials_returns200WithJwt() throws Exception {
+        // Arrange
         Map<String, String> body = Map.of("email", TEST_EMAIL, "password", TEST_PASSWORD);
 
+        // Act & Assert
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -85,8 +87,10 @@ class AuthControllerIntegrationTest {
 
     @Test
     void login_invalidPassword_returns401() throws Exception {
+        // Arrange
         Map<String, String> body = Map.of("email", TEST_EMAIL, "password", "WrongPassword1!");
 
+        // Act & Assert
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -95,8 +99,10 @@ class AuthControllerIntegrationTest {
 
     @Test
     void login_nonExistentUser_returns401() throws Exception {
+        // Arrange
         Map<String, String> body = Map.of("email", "nobody@vendnet.com", "password", "Any@1234");
 
+        // Act & Assert
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -105,8 +111,10 @@ class AuthControllerIntegrationTest {
 
     @Test
     void request_withValidJwt_allowsAccess() throws Exception {
+        // Arrange
         String token = jwtService.generateToken(TEST_EMAIL, Role.ROLE_CUSTOMER.name());
 
+        // Act & Assert
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -115,10 +123,10 @@ class AuthControllerIntegrationTest {
 
     @Test
     void request_withExpiredJwt_returns401() throws Exception {
-        // Build an expired token by hand: sign a valid HS256 token with past dates
-        // We use a known expired token string (expired 2000-01-01)
+        // Arrange — build an expired token with past dates and invalid signature
         String expiredToken = buildExpiredToken();
 
+        // Act & Assert
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer " + expiredToken))
                 .andExpect(status().isUnauthorized());
@@ -126,12 +134,14 @@ class AuthControllerIntegrationTest {
 
     @Test
     void request_withAlgNoneToken_returns401() throws Exception {
+        // Arrange — craft a JWT with alg:none header and no signature
         String header = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString("{\"alg\":\"none\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
         String payload = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(("{\"sub\":\"" + TEST_EMAIL + "\",\"role\":\"ROLE_CUSTOMER\"}").getBytes(StandardCharsets.UTF_8));
         String algNoneToken = header + "." + payload + ".";
 
+        // Act & Assert
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer " + algNoneToken))
                 .andExpect(status().isUnauthorized());
@@ -139,6 +149,7 @@ class AuthControllerIntegrationTest {
 
     @Test
     void accountLockout_after5FailedAttempts_returns401WithLockMessage() throws Exception {
+        // Arrange — ensure a fresh user exists for the lockout test
         String lockoutEmail = "lockout-test@vendnet.com";
         userRepository.findByEmail(lockoutEmail).ifPresent(u -> userRepository.save(resetUser(u)));
         if (userRepository.findByEmail(lockoutEmail).isEmpty()) {
@@ -154,6 +165,7 @@ class AuthControllerIntegrationTest {
             userRepository.save(user);
         }
 
+        // Act — submit 5 failed login attempts to trigger lockout
         Map<String, String> wrongCreds = Map.of("email", lockoutEmail, "password", "Wrong@9999");
         for (int i = 0; i < 5; i++) {
             mockMvc.perform(post("/api/auth/login")
@@ -162,7 +174,7 @@ class AuthControllerIntegrationTest {
                     .andExpect(status().isUnauthorized());
         }
 
-        // 6th attempt — account should be locked now
+        // Assert — 6th attempt with correct password is rejected because account is locked
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("email", lockoutEmail, "password", "Correct@1234"))))
