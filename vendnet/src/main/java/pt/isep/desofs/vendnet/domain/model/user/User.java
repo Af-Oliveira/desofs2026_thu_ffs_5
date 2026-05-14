@@ -47,4 +47,14 @@ public class User {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int failedAttempts = 0;
+
+    @Column
+    private LocalDateTime lockTime;
+
+    @Column
+    private LocalDateTime lastFailedAttemptTime;
 }

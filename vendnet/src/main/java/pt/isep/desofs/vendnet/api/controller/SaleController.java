@@ -20,7 +20,7 @@ public class SaleController {
     private final SaleService saleService;
 
     @GetMapping("/machine/{machineId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasRole('OPERATOR')")
     public ResponseEntity<List<Sale>> findByMachine(@PathVariable Long machineId) {
         return ResponseEntity.ok(saleService.findByMachineId(machineId));
     }

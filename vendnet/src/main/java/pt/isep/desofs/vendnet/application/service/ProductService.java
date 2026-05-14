@@ -2,6 +2,7 @@ package pt.isep.desofs.vendnet.application.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
@@ -20,15 +21,18 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final FileStorageService fileStorageService;
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     public List<Product> findAllActive() {
         return productRepository.findAllByActiveTrue();
     }
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     public Product findBySku(String sku) {
         return productRepository.findBySku(sku)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + sku));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     public Product createProduct(String name, String description, BigDecimal price,
                                   String sku, MultipartFile image) {
         String imageUrl = null;

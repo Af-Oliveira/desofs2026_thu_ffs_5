@@ -1,7 +1,6 @@
 package pt.isep.desofs.vendnet.api.controller;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.annotation.Secured;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,20 +22,20 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    @Secured("ROLE_ADMIN")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> listUsers() {
         return ResponseEntity.ok(Map.of(
                 "message", "Admin-only user list endpoint",
-                "auth", "@Secured(\"ROLE_ADMIN\") — single role (secured)"
+                "auth", "hasRole('ADMIN')"
         ));
     }
 
     @GetMapping("/reports")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> reports() {
         return ResponseEntity.ok(Map.of(
-                "message", "Reports accessible by admin and user",
-                "auth", "hasAnyRole('ADMIN', 'USER') — role collection"
+                "message", "Reports accessible by admin only",
+                "auth", "hasRole('ADMIN')"
         ));
     }
 }

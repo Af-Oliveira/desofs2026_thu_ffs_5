@@ -2,6 +2,7 @@ package pt.isep.desofs.vendnet.application.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import pt.isep.desofs.vendnet.domain.model.telemetry.MachineTelemetry;
 import pt.isep.desofs.vendnet.domain.repository.TelemetryRepository;
@@ -15,10 +16,12 @@ public class TelemetryService {
 
     private final TelemetryRepository telemetryRepository;
 
+    @PreAuthorize("permitAll()")
     public MachineTelemetry save(MachineTelemetry telemetry) {
         return telemetryRepository.save(telemetry);
     }
 
+    @PreAuthorize("hasRole('OPERATOR')")
     public List<MachineTelemetry> findByMachineId(Long machineId) {
         return telemetryRepository.findByMachineId(machineId);
     }
