@@ -66,3 +66,22 @@ application-dev.properties
 
 ### Docker ###
 docker-compose.override.yml
+docker/prometheus/prometheus_data/
+docker/grafana/grafana_data/
+
+### mTLS Certs ###
+docker/certs/*.pem
+docker/certs/*.p12
+docker/certs/*.jks
+docker/certs/*.srl
+
+### Logs & Uploads ###
+logs/
+vendnet/logs/
+/var/vendnet/
+
+### Security ###
+*.p12
+*.jks
+!docker/certs/*.p12
+!docker/certs/*.jks

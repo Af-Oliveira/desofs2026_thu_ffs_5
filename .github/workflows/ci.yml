@@ -49,7 +49,15 @@ jobs:
           SPRING_DATASOURCE_USERNAME: vendnet_user
           SPRING_DATASOURCE_PASSWORD: vendnet_pass
 
-      - name: Upload test reports
+      - name: ArchUnit Architecture Tests
+        run: make test
+        working-directory: vendnet
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/vendnet
+          SPRING_DATASOURCE_USERNAME: vendnet_user
+          SPRING_DATASOURCE_PASSWORD: vendnet_pass
+
+      - name: Upload reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -58,3 +66,4 @@ jobs:
             vendnet/target/surefire-reports/
             vendnet/target/dependency-check-report.html
             vendnet/target/site/jacoco/
+            vendnet/target/spotbugsXml.xml
