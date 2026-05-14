@@ -1,148 +1,75 @@
 {
   "annotations": { "list": [] },
   "editable": true,
-  "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
   "links": [],
   "panels": [
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 80, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineWidth": 1, "scaleDistribution": { "type": "linear" }, "thresholdsStyle": { "mode": "off" } },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "bytes" } },
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
       "id": 1,
-      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(jvm_memory_used_bytes{app=\"vendnet\"}) by (area)", "legendFormat": "{{area}}", "refId": "A" }
-      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "jvm_memory_used_bytes", "legendFormat": "{{area}}", "refId": "A" } ],
       "title": "JVM Memory Used",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 90 }] },
-          "unit": "percent"
-        }
-      },
+      "fieldConfig": { "defaults": { "unit": "percent", "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 90 } ] } } },
       "gridPos": { "h": 8, "w": 4, "x": 8, "y": 0 },
       "id": 2,
-      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
-      "pluginVersion": "11.3.1",
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "process_cpu_usage{app=\"vendnet\"} * 100", "refId": "A" }
-      ],
-      "title": "CPU Usage",
+      "options": { "reduceOptions": { "calcs": [ "lastNotNull" ] } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "process_cpu_usage * 100", "refId": "A" } ],
+      "title": "CPU Usage %",
       "type": "gauge"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 25, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineWidth": 1, "scaleDistribution": { "type": "linear" }, "thresholdsStyle": { "mode": "off" } },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "id": 3,
-      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(http_server_requests_seconds_count{app=\"vendnet\"}[1m])", "legendFormat": "{{method}} {{uri}}", "refId": "A" }
-      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "calcs": [ "mean", "max" ] } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(http_server_requests_seconds_count[1m])", "legendFormat": "{{method}} {{uri}}", "refId": "A" } ],
       "title": "HTTP Request Rate",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 15, "gradientMode": "opacity", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineWidth": 2, "scaleDistribution": { "type": "linear" } },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
-          "unit": "s"
-        }
-      },
+      "fieldConfig": { "defaults": { "unit": "s" } },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "id": 4,
-      "options": { "legend": { "calcs": ["mean", "p95", "max"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{app=\"vendnet\"}[5m]))", "legendFormat": "p95 {{method}} {{uri}}", "refId": "A" }
-      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "calcs": [ "mean", "p95", "max" ] } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m]))", "legendFormat": "p95 {{method}} {{uri}}", "refId": "A" } ],
       "title": "HTTP Latency (p95)",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "mappings": [{ "options": { "200": { "color": "green", "index": 0, "text": "UP" } }, "type": "value" }],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "none"
-        }
-      },
+      "fieldConfig": { "defaults": { "mappings": [ { "options": { "1": { "text": "UP", "color": "green" } }, "type": "value" } ] } },
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 8 },
       "id": 5,
-      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "percentChangeColorMode": "standard", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
-      "pluginVersion": "11.3.1",
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "up{app=\"vendnet\"}", "refId": "A" }
-      ],
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": [ "lastNotNull" ] } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "up", "refId": "A" } ],
       "title": "App Status",
       "type": "stat"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "none"
-        }
-      },
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 8 },
       "id": 6,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "percentChangeColorMode": "standard", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
-      "pluginVersion": "11.3.1",
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "count(jvm_threads_live_threads{app=\"vendnet\"})", "refId": "A" }
-      ],
+      "options": { "reduceOptions": { "calcs": [ "lastNotNull" ] } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "jvm_threads_live_threads", "refId": "A" } ],
       "title": "Active Threads",
       "type": "stat"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0 }] },
-          "unit": "bytes"
-        }
-      },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 8 },
       "id": 7,
-      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "percentChangeColorMode": "standard", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
-      "pluginVersion": "11.3.1",
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "jvm_memory_max_bytes{app=\"vendnet\",area=\"heap\"}", "refId": "A" }
-      ],
+      "options": { "reduceOptions": { "calcs": [ "lastNotNull" ] } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "jvm_memory_max_bytes{area=\"heap\"}", "refId": "A" } ],
       "title": "Max Heap",
       "type": "stat"
     },
@@ -150,23 +77,20 @@
       "datasource": { "type": "loki", "uid": "loki" },
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 16 },
       "id": 8,
-      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "expr": "{app=\"vendnet\"} | json", "refId": "A" }
-      ],
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [ { "datasource": { "type": "loki", "uid": "loki" }, "expr": "{job=\"vendnet\"}", "refId": "A" } ],
       "title": "Application Logs",
       "type": "logs"
     }
   ],
   "refresh": "10s",
   "schemaVersion": 40,
-  "tags": ["vendnet"],
+  "tags": [ "vendnet" ],
   "templating": { "list": [] },
-  "time": { "from": "now-15m", "to": "now" },
+  "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "VendNet Dashboard",
   "uid": "vendnet-main",
-  "version": 0,
-  "weekStart": ""
+  "version": 0
 }
