@@ -14,5 +14,4 @@ class VendnetApplicationTests {
 		// Act — nothing (Spring context loading is the act)
 		// Assert — test passes if the application context loads without exception
 	}
-
 }

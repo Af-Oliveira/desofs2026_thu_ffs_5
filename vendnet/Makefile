@@ -2,6 +2,7 @@
         db-up db-down obs-up obs-down up down restart \
         logs db-logs app-logs loki-logs obs-logs \
         run stop debug ping \
+        lint format format-check lint-fix \
         swagger grafana prometheus jaeger \
         metrics traces status urls \
         api-test api-test-full \
@@ -78,6 +79,12 @@ help:
 	@printf "$(C_BOLD)═══ TEST ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make api-test$(C_RESET)       Smoke test: register + login + all endpoints\n"
 	@printf "  $(C_GREEN)make api-test-full$(C_RESET)  Full test: 50 requests for traffic gen\n"
+	@printf "\n"
+	@printf "$(C_BOLD)═══ LINT ═══$(C_RESET)\n"
+	@printf "  $(C_GREEN)make lint$(C_RESET)           Run Checkstyle + PMD (warnings & errors)\n"
+	@printf "  $(C_GREEN)make format$(C_RESET)         Auto-format code with Spotless (Google AOSP)\n"
+	@printf "  $(C_GREEN)make format-check$(C_RESET)   Check formatting without changing files\n"
+	@printf "  $(C_GREEN)make lint-fix$(C_RESET)       Format + lint (iterate until clean)\n"
 	@printf "\n"
 	@printf "$(C_BOLD)═══ CI/CD ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make build$(C_RESET)          Compile\n"
@@ -287,8 +294,28 @@ api-test-full:
 	printf "\n"
 
 ## ======================================================================
-##  CI/CD
+##  LINT & FORMAT
 ## ======================================================================
+lint:
+	@printf "\n$(C_BOLD)$(C_MAG)  ═══ Lint: Checkstyle + PMD ═══$(C_RESET)\n\n"
+	@printf "$(C_BOLD)  Checkstyle (code style):$(C_RESET)\n"
+	@$(MVN) checkstyle:check -q 2>&1 | grep -E "WARN|ERROR|BUILD|warn|error" || printf "  $(C_OK) 0 warnings\n"
+	@printf "\n$(C_BOLD)  PMD (static analysis):$(C_RESET)\n"
+	@$(MVN) pmd:check -q 2>&1 | grep -E "WARN|ERROR|violation|BUILD" || printf "  $(C_OK) 0 violations\n"
+	@printf "\n$(C_OK) Lint complete. Run 'make format' to auto-fix style issues.\n"
+
+format:
+	@printf "$(C_ARROW) Formatting code with Spotless...\n"
+	@$(MVN) spotless:apply -q
+	@printf "$(C_OK) Code formatted.\n"
+
+format-check:
+	@printf "$(C_ARROW) Checking format...\n"
+	@$(MVN) spotless:check -q && printf "$(C_OK) All files correctly formatted.\n" || printf "$(C_FAIL) Some files need formatting. Run 'make format'.\n"
+
+lint-fix: format
+	@make lint
+	@printf "\n$(C_OK) Format applied + lint checked.\n"
 build:
 	@$(MVN) compile -q && printf "$(C_OK) Build OK\n"
 

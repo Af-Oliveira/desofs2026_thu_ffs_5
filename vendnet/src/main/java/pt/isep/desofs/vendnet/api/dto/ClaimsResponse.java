@@ -1,11 +1,10 @@
 package pt.isep.desofs.vendnet.api.dto;
 
+import java.util.Date;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.Date;
 
 @Data
 @NoArgsConstructor
@@ -13,8 +12,8 @@ import java.util.Date;
 @Builder
 public class ClaimsResponse {
 
-    private String subject;
-    private String role;
-    private Date issuedAt;
-    private Date expiration;
+	private String subject;
+	private String role;
+	private Date issuedAt;
+	private Date expiration;
 }

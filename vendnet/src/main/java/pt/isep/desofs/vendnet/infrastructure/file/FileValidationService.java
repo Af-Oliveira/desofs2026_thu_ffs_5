@@ -4,9 +4,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface FileValidationService {
 
-    void validate(MultipartFile file);
+	void validate(MultipartFile file);
 
-    boolean isAllowedContentType(String contentType);
+	boolean isAllowedContentType(String contentType);
 
-    boolean hasValidMagicBytes(byte[] data);
+	boolean hasValidMagicBytes(byte[] data);
 }

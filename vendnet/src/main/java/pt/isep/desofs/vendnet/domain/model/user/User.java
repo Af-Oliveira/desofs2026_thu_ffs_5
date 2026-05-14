@@ -8,13 +8,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
@@ -25,44 +24,42 @@ import java.time.LocalDateTime;
 @Builder
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
-    private String email;
+	@Column(nullable = false, unique = true, length = 100)
+	private String email;
 
-    @Column(nullable = false)
-    private String password;
+	@Column(nullable = false)
+	private String password;
 
-    @Column(nullable = false, length = 100)
-    private String name;
+	@Column(nullable = false, length = 100)
+	private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private Role role;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
-    private AccountStatus accountStatus = AccountStatus.ACTIVE;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	@Builder.Default
+	private AccountStatus accountStatus = AccountStatus.ACTIVE;
 
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+	@Column(nullable = false, updatable = false)
+	private LocalDateTime createdAt;
 
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
+	@Column(nullable = false)
+	private LocalDateTime updatedAt;
 
-    @Column(nullable = false)
-    @Builder.Default
-    private int failedAttempts = 0;
+	@Column(nullable = false)
+	@Builder.Default
+	private int failedAttempts = 0;
 
-    @Column
-    private LocalDateTime lockTime;
+	@Column private LocalDateTime lockTime;
 
-    @Column
-    private LocalDateTime lastFailedAttemptTime;
+	@Column private LocalDateTime lastFailedAttemptTime;
 
-    @Column(length = 32)
-    private String totpSecret;
+	@Column(length = 32)
+	private String totpSecret;
 }

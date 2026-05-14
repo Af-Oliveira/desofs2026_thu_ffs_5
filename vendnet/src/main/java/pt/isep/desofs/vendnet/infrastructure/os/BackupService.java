@@ -2,7 +2,7 @@ package pt.isep.desofs.vendnet.infrastructure.os;
 
 public interface BackupService {
 
-    void generateBackup();
+	void generateBackup();
 
-    void rotateBackups(int retentionDays);
+	void rotateBackups(int retentionDays);
 }

@@ -11,10 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MfaVerifyRequest {
 
-    @NotBlank
-    @Email
-    private String email;
+	@NotBlank @Email private String email;
 
-    @NotBlank
-    private String code;
+	@NotBlank private String code;
 }

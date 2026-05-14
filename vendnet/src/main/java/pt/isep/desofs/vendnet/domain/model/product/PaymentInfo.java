@@ -13,9 +13,9 @@ import lombok.NoArgsConstructor;
 @Builder
 public class PaymentInfo {
 
-    private String method;
+	private String method;
 
-    private String transactionRef;
+	private String transactionRef;
 
-    private String status;
+	private String status;
 }

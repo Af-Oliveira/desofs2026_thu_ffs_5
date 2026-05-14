@@ -30,80 +30,98 @@ import pt.isep.desofs.vendnet.infrastructure.security.X509MachineAuthenticationF
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final CorrelationIdFilter correlationIdFilter;
+	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final CorrelationIdFilter correlationIdFilter;
 
-    @Bean
-    public FilterRegistrationBean<CorrelationIdFilter> correlationIdFilterRegistration() {
-        FilterRegistrationBean<CorrelationIdFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(correlationIdFilter);
-        registration.addUrlPatterns("/*");
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
-        return registration;
-    }
+	@Bean
+	public FilterRegistrationBean<CorrelationIdFilter> correlationIdFilterRegistration() {
+		FilterRegistrationBean<CorrelationIdFilter> registration = new FilterRegistrationBean<>();
+		registration.setFilter(correlationIdFilter);
+		registration.addUrlPatterns("/*");
+		registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+		return registration;
+	}
 
-    @Bean
-    public FilterRegistrationBean<X509MachineAuthenticationFilter> x509FilterRegistration() {
-        FilterRegistrationBean<X509MachineAuthenticationFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new X509MachineAuthenticationFilter());
-        registration.addUrlPatterns("/api/telemetry/*");
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
-        return registration;
-    }
+	@Bean
+	public FilterRegistrationBean<X509MachineAuthenticationFilter> x509FilterRegistration() {
+		FilterRegistrationBean<X509MachineAuthenticationFilter> registration =
+				new FilterRegistrationBean<>();
+		registration.setFilter(new X509MachineAuthenticationFilter());
+		registration.addUrlPatterns("/api/telemetry/*");
+		registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+		return registration;
+	}
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/mfa/verify").permitAll()
-                .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/health/ping").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/telemetry").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
-                .requestMatchers("/api/health/**").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/actuator/prometheus").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint((request, response, authException) -> {
-                    response.setStatus(401);
-                    response.setContentType("application/json");
-                    response.getWriter().write(
-                        "{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
-                })
-            )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		http.csrf(csrf -> csrf.disable())
+				.sessionManagement(
+						session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.authorizeHttpRequests(
+						auth ->
+								auth.requestMatchers(HttpMethod.POST, "/api/auth/login")
+										.permitAll()
+										.requestMatchers(HttpMethod.POST, "/api/auth/register")
+										.permitAll()
+										.requestMatchers(HttpMethod.POST, "/api/auth/mfa/verify")
+										.permitAll()
+										.requestMatchers("/api/public/**")
+										.permitAll()
+										.requestMatchers("/api/health/ping")
+										.permitAll()
+										.requestMatchers(HttpMethod.POST, "/api/telemetry")
+										.permitAll()
+										.requestMatchers(HttpMethod.POST, "/api/webhooks/**")
+										.permitAll()
+										.requestMatchers("/api/health/**")
+										.permitAll()
+										.requestMatchers("/actuator/health")
+										.permitAll()
+										.requestMatchers("/actuator/prometheus")
+										.permitAll()
+										.requestMatchers("/swagger-ui/**", "/v3/api-docs/**")
+										.permitAll()
+										.anyRequest()
+										.authenticated())
+				.exceptionHandling(
+						ex ->
+								ex.authenticationEntryPoint(
+										(request, response, authException) -> {
+											response.setStatus(401);
+											response.setContentType("application/json");
+											response.getWriter()
+													.write(
+															"{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
+										}))
+				.addFilterBefore(
+						jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+		return http.build();
+	}
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
-    }
+	@Bean
+	public PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder(12);
+	}
 
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
+	@Bean
+	public AuthenticationManager authenticationManager(AuthenticationConfiguration config)
+			throws Exception {
+		return config.getAuthenticationManager();
+	}
 
-    @Bean
-    public RoleHierarchy roleHierarchy() {
-        return RoleHierarchyImpl.fromHierarchy(
-                "ROLE_ADMINISTRATOR > ROLE_OPERATOR\n" +
-                "ROLE_ADMINISTRATOR > ROLE_CUSTOMER");
-    }
+	@Bean
+	public RoleHierarchy roleHierarchy() {
+		return RoleHierarchyImpl.fromHierarchy(
+				"ROLE_ADMINISTRATOR > ROLE_OPERATOR\n" + "ROLE_ADMINISTRATOR > ROLE_CUSTOMER");
+	}
 
-    @Bean
-    static MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
-        DefaultMethodSecurityExpressionHandler handler = new DefaultMethodSecurityExpressionHandler();
-        handler.setRoleHierarchy(roleHierarchy);
-        return handler;
-    }
+	@Bean
+	static MethodSecurityExpressionHandler methodSecurityExpressionHandler(
+			RoleHierarchy roleHierarchy) {
+		DefaultMethodSecurityExpressionHandler handler =
+				new DefaultMethodSecurityExpressionHandler();
+		handler.setRoleHierarchy(roleHierarchy);
+		return handler;
+	}
 }

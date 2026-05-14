@@ -11,10 +11,9 @@ import lombok.NoArgsConstructor;
 @Builder
 public class AuthResponse {
 
-    private String token;
-    private String email;
-    private String name;
-    private String role;
-    @Builder.Default
-    private boolean mfaRequired = false;
+	private String token;
+	private String email;
+	private String name;
+	private String role;
+	@Builder.Default private boolean mfaRequired = false;
 }

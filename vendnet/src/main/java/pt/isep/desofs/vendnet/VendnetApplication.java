@@ -17,5 +17,4 @@ public class VendnetApplication {
 		log.info("  Ping:    http://localhost:8080/api/health/ping");
 		log.info("========================================");
 	}
-
 }

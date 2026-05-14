@@ -1,5 +1,6 @@
 package pt.isep.desofs.vendnet.api.controller;
 
+import java.util.Date;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,40 +13,39 @@ import pt.isep.desofs.vendnet.api.dto.ClaimsResponse;
 import pt.isep.desofs.vendnet.api.dto.UserResponse;
 import pt.isep.desofs.vendnet.application.service.AuthService;
 
-import java.util.Date;
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 public class UserController {
 
-    private final AuthService authService;
+	private final AuthService authService;
 
-    @GetMapping("/api/auth/me")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserResponse> me() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        UserResponse response = authService.getCurrentUser(auth.getName());
-        return ResponseEntity.ok(response);
-    }
+	@GetMapping("/api/auth/me")
+	@PreAuthorize("isAuthenticated()")
+	public ResponseEntity<UserResponse> me() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		UserResponse response = authService.getCurrentUser(auth.getName());
+		return ResponseEntity.ok(response);
+	}
 
-    @GetMapping("/api/auth/claims")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ClaimsResponse> claims() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+	@GetMapping("/api/auth/claims")
+	@PreAuthorize("isAuthenticated()")
+	public ResponseEntity<ClaimsResponse> claims() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        String role = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .findFirst()
-                .orElse("UNKNOWN");
+		String role =
+				auth.getAuthorities().stream()
+						.map(GrantedAuthority::getAuthority)
+						.findFirst()
+						.orElse("UNKNOWN");
 
-        ClaimsResponse response = ClaimsResponse.builder()
-                .subject(auth.getName())
-                .role(role)
-                .issuedAt(new Date())
-                .expiration(null)
-                .build();
+		ClaimsResponse response =
+				ClaimsResponse.builder()
+						.subject(auth.getName())
+						.role(role)
+						.issuedAt(new Date())
+						.expiration(null)
+						.build();
 
-        return ResponseEntity.ok(response);
-    }
+		return ResponseEntity.ok(response);
+	}
 }

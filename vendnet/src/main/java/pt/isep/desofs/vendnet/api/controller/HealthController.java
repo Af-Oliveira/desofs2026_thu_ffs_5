@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class HealthController {
 
-    @GetMapping
-    @PreAuthorize("permitAll()")
-    public ResponseEntity<String> health() {
-        return ResponseEntity.ok("UP");
-    }
+	@GetMapping
+	@PreAuthorize("permitAll()")
+	public ResponseEntity<String> health() {
+		return ResponseEntity.ok("UP");
+	}
 }

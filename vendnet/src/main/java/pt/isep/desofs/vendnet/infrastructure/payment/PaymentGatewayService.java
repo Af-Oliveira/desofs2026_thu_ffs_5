@@ -5,9 +5,9 @@ import java.util.Map;
 
 public interface PaymentGatewayService {
 
-    String initiatePayment(String saleId, BigDecimal amount, String currency);
+	String initiatePayment(String saleId, BigDecimal amount, String currency);
 
-    boolean verifyWebhookSignature(String rawBody, String signatureHeader);
+	boolean verifyWebhookSignature(String rawBody, String signatureHeader);
 
-    Map<String, String> parseWebhook(String rawBody);
+	Map<String, String> parseWebhook(String rawBody);
 }

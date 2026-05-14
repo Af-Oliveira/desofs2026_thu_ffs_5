@@ -19,26 +19,26 @@ import pt.isep.desofs.vendnet.application.service.AuthService;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
+	private final AuthService authService;
 
-    @PostMapping("/login")
-    @PreAuthorize("permitAll()")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
-    }
+	@PostMapping("/login")
+	@PreAuthorize("permitAll()")
+	public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+		AuthResponse response = authService.login(request);
+		return ResponseEntity.ok(response);
+	}
 
-    @PostMapping("/register")
-    @PreAuthorize("permitAll()")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
-        return ResponseEntity.ok(response);
-    }
+	@PostMapping("/register")
+	@PreAuthorize("permitAll()")
+	public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+		AuthResponse response = authService.register(request);
+		return ResponseEntity.ok(response);
+	}
 
-    @PostMapping("/mfa/verify")
-    @PreAuthorize("permitAll()")
-    public ResponseEntity<AuthResponse> verifyMfa(@Valid @RequestBody MfaVerifyRequest request) {
-        AuthResponse response = authService.verifyMfa(request);
-        return ResponseEntity.ok(response);
-    }
+	@PostMapping("/mfa/verify")
+	@PreAuthorize("permitAll()")
+	public ResponseEntity<AuthResponse> verifyMfa(@Valid @RequestBody MfaVerifyRequest request) {
+		AuthResponse response = authService.verifyMfa(request);
+		return ResponseEntity.ok(response);
+	}
 }

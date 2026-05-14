@@ -4,7 +4,7 @@ import java.nio.file.Path;
 
 public interface PathValidator {
 
-    boolean isValidPath(Path path, Path sandboxRoot);
+	boolean isValidPath(Path path, Path sandboxRoot);
 
-    boolean containsSymlink(Path path);
+	boolean containsSymlink(Path path);
 }
