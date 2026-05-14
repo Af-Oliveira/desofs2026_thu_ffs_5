@@ -40,6 +40,9 @@ public class Product {
     @Column(nullable = false, unique = true, length = 50)
     private String sku;
 
+    @Column(length = 500)
+    private String imageUrl;
+
     @Column(nullable = false)
     private boolean active;
 

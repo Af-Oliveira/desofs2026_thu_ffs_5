@@ -1,8 +1,10 @@
 package pt.isep.desofs.vendnet.config;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -14,7 +16,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import pt.isep.desofs.vendnet.infrastructure.security.CorrelationIdFilter;
 import pt.isep.desofs.vendnet.infrastructure.security.JwtAuthenticationFilter;
+import pt.isep.desofs.vendnet.infrastructure.security.X509MachineAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -23,6 +27,25 @@ import pt.isep.desofs.vendnet.infrastructure.security.JwtAuthenticationFilter;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CorrelationIdFilter correlationIdFilter;
+
+    @Bean
+    public FilterRegistrationBean<CorrelationIdFilter> correlationIdFilterRegistration() {
+        FilterRegistrationBean<CorrelationIdFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(correlationIdFilter);
+        registration.addUrlPatterns("/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<X509MachineAuthenticationFilter> x509FilterRegistration() {
+        FilterRegistrationBean<X509MachineAuthenticationFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(new X509MachineAuthenticationFilter());
+        registration.addUrlPatterns("/api/telemetry/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+        return registration;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -36,6 +59,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/telemetry").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/actuator/prometheus").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .anyRequest().authenticated()
             )
