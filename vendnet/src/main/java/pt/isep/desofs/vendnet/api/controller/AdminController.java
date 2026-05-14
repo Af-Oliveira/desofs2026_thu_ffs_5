@@ -13,29 +13,29 @@ import java.util.Map;
 public class AdminController {
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Map<String, String>> dashboard() {
         return ResponseEntity.ok(Map.of(
                 "message", "Welcome to the admin dashboard",
-                "auth", "hasRole('ADMIN') — single role"
+                "auth", "hasRole('ADMINISTRATOR') — single role"
         ));
     }
 
     @GetMapping("/users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Map<String, String>> listUsers() {
         return ResponseEntity.ok(Map.of(
                 "message", "Admin-only user list endpoint",
-                "auth", "hasRole('ADMIN')"
+                "auth", "hasRole('ADMINISTRATOR')"
         ));
     }
 
     @GetMapping("/reports")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Map<String, String>> reports() {
         return ResponseEntity.ok(Map.of(
                 "message", "Reports accessible by admin only",
-                "auth", "hasRole('ADMIN')"
+                "auth", "hasRole('ADMINISTRATOR')"
         ));
     }
 }

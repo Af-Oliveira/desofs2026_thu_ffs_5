@@ -43,7 +43,7 @@ class RbacIntegrationTest {
     void setUp() {
         customerToken = tokenForRole("rbac-customer@vendnet.com", Role.ROLE_CUSTOMER);
         operatorToken = tokenForRole("rbac-operator@vendnet.com", Role.ROLE_OPERATOR);
-        adminToken    = tokenForRole("rbac-admin@vendnet.com",    Role.ROLE_ADMIN);
+        adminToken    = tokenForRole("rbac-admin@vendnet.com",    Role.ROLE_ADMINISTRATOR);
     }
 
     // ── Admin endpoints ──────────────────────────────────────────────────────

@@ -33,6 +33,39 @@ services:
     networks:
       - vendnet
 
+  loki:
+    image: grafana/loki:3.2.2
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/loki-config.yml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    networks:
+      - vendnet
+
+  promtail:
+    image: grafana/promtail:3.2.2
+    volumes:
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml
+      - ./vendnet/logs:/var/log/vendnet:ro
+    command: -config.file=/etc/promtail/promtail-config.yml
+    networks:
+      - vendnet
+    depends_on:
+      - loki
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_OTLP_HTTP_PORT=4318
+    networks:
+      - vendnet
+
   grafana:
     image: grafana/grafana:11.3.1
     ports:
@@ -40,7 +73,6 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
     volumes:
       - grafana_data:/var/lib/grafana
       - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
@@ -49,22 +81,14 @@ services:
       - vendnet
     depends_on:
       - prometheus
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.117.0
-    ports:
-      - "4317:4317"
-      - "4318:4318"
-    volumes:
-      - ./docker/otel/otel-collector-config.yml:/etc/otel-collector-config.yml
-    command: ["--config=/etc/otel-collector-config.yml"]
-    networks:
-      - vendnet
+      - loki
+      - jaeger
 
 volumes:
   mysql_data:
   prometheus_data:
   grafana_data:
+  loki_data:
 
 networks:
   vendnet:

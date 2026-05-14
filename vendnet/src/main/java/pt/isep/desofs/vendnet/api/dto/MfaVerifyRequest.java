@@ -1,20 +1,20 @@
 package pt.isep.desofs.vendnet.api.dto;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class AuthResponse {
+public class MfaVerifyRequest {
 
-    private String token;
+    @NotBlank
+    @Email
     private String email;
-    private String name;
-    private String role;
-    @Builder.Default
-    private boolean mfaRequired = false;
+
+    @NotBlank
+    private String code;
 }

@@ -41,7 +41,7 @@ public class ProductController {
     }
 
     @PostMapping(consumes = {"multipart/form-data"})
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Product> createWithImage(
             @RequestParam("name") @NotBlank String name,
             @RequestParam("description") String description,

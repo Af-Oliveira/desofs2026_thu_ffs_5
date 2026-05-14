@@ -21,7 +21,7 @@ public class TelemetryService {
         return telemetryRepository.save(telemetry);
     }
 
-    @PreAuthorize("hasRole('OPERATOR')")
+    @PreAuthorize("hasAnyRole('OPERATOR', 'ADMINISTRATOR')")
     public List<MachineTelemetry> findByMachineId(Long machineId) {
         return telemetryRepository.findByMachineId(machineId);
     }

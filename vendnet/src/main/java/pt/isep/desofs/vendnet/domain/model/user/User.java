@@ -42,6 +42,11 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private AccountStatus accountStatus = AccountStatus.ACTIVE;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -57,4 +62,7 @@ public class User {
 
     @Column
     private LocalDateTime lastFailedAttemptTime;
+
+    @Column(length = 32)
+    private String totpSecret;
 }

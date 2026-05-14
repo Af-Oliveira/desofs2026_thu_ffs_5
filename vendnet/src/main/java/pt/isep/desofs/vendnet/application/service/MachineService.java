@@ -16,12 +16,12 @@ public class MachineService {
 
     private final VendingMachineRepository machineRepository;
 
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'OPERATOR', 'ADMINISTRATOR')")
     public List<VendingMachine> findAll() {
         return machineRepository.findAll();
     }
 
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'OPERATOR', 'ADMINISTRATOR')")
     public VendingMachine findByCode(String code) {
         return machineRepository.findByCode(code)
                 .orElseThrow(() -> new IllegalArgumentException("Machine not found: " + code));

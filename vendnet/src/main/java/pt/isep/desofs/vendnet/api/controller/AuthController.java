@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pt.isep.desofs.vendnet.api.dto.AuthResponse;
 import pt.isep.desofs.vendnet.api.dto.LoginRequest;
+import pt.isep.desofs.vendnet.api.dto.MfaVerifyRequest;
 import pt.isep.desofs.vendnet.api.dto.RegisterRequest;
 import pt.isep.desofs.vendnet.application.service.AuthService;
 
@@ -31,6 +32,13 @@ public class AuthController {
     @PreAuthorize("permitAll()")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/mfa/verify")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<AuthResponse> verifyMfa(@Valid @RequestBody MfaVerifyRequest request) {
+        AuthResponse response = authService.verifyMfa(request);
         return ResponseEntity.ok(response);
     }
 }

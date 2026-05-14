@@ -1,5 +1,6 @@
 .PHONY: help certs setup db-up db-down obs-up obs-down up down logs restart clean run stop \
-        build test verify coverage sast sca pipeline all swagger metrics api-test
+        build test verify coverage sast sca pipeline all swagger metrics api-test \
+        grafana prometheus jaeger
 
 MVN = ./mvnw
 DC = docker compose -f ../docker-compose.yml
@@ -9,31 +10,31 @@ APP_PORT = 8080
 help:
 	@echo "VendNet Makefile"
 	@echo ""
-	@echo "═══ SETUP ═══"
+	@echo "=== SETUP ==="
 	@echo "  make certs         Generate mTLS certificates (CA, server, machine client)"
 	@echo "  make setup         First-time setup: certs + Docker services"
 	@echo ""
-	@echo "═══ INFRA ═══"
+	@echo "=== INFRA ==="
 	@echo "  make db-up         Start MySQL only"
 	@echo "  make db-down       Stop MySQL only"
-	@echo "  make obs-up        Start observability stack (Prometheus + Grafana + OTEL)"
+	@echo "  make obs-up        Start observability (Prometheus+Grafana+Jaeger+Loki+Promtail)"
 	@echo "  make obs-down      Stop observability stack"
-	@echo "  make up            Start ALL Docker services (MySQL + Prometheus + Grafana + OTEL)"
+	@echo "  make up            Start ALL Docker services"
 	@echo "  make down          Stop ALL Docker services"
-	@echo "  make restart       Restart ALL Docker services"
 	@echo "  make logs          Tail all Docker logs"
 	@echo "  make db-logs       Tail MySQL logs"
-	@echo "  make metrics       Show Prometheus metrics endpoint"
 	@echo ""
-	@echo "═══ APP ═══"
-	@echo "  make run           Start docker services + run Spring Boot app"
+	@echo "=== APP ==="
+	@echo "  make run           Start Docker services + Spring Boot app"
 	@echo "  make stop          Stop app + Docker services"
 	@echo "  make swagger       Open Swagger UI (http://localhost:$(APP_PORT)/swagger-ui.html)"
 	@echo "  make grafana       Open Grafana (http://localhost:3000, admin/admin)"
 	@echo "  make prometheus    Open Prometheus (http://localhost:9090)"
+	@echo "  make jaeger        Open Jaeger (http://localhost:16686)"
+	@echo "  make metrics       Show Prometheus metrics endpoint"
 	@echo "  make api-test      Quick smoke test of all API endpoints"
 	@echo ""
-	@echo "═══ CI/CD ═══"
+	@echo "=== CI/CD ==="
 	@echo "  make build         Compile project"
 	@echo "  make test          Run tests (H2 in-memory)"
 	@echo "  make verify        verify phase (build + test + coverage)"
@@ -43,7 +44,7 @@ help:
 	@echo "  make pipeline      Full CI pipeline: clean + sast + sca + verify"
 	@echo "  make all           pipeline + docker-up"
 	@echo ""
-	@echo "═══ UTILS ═══"
+	@echo "=== UTILS ==="
 	@echo "  make clean         mvn clean (removes target/)"
 
 ## ===== SETUP =====
@@ -66,13 +67,16 @@ db-down:
 	$(DC) down mysql
 
 obs-up:
-	$(DC) up -d prometheus grafana otel-collector
+	$(DC) up -d prometheus grafana jaeger loki promtail
+	@echo ""
 	@echo "Observability stack ready:"
 	@echo "  Prometheus : http://localhost:9090"
 	@echo "  Grafana    : http://localhost:3000 (admin/admin)"
+	@echo "  Jaeger     : http://localhost:16686"
+	@echo "  Loki       : http://localhost:3100"
 
 obs-down:
-	$(DC) down prometheus grafana otel-collector
+	$(DC) down prometheus grafana jaeger loki promtail
 
 up: db-up obs-up
 	@echo ""
@@ -81,8 +85,6 @@ up: db-up obs-up
 down:
 	$(DC) down
 
-restart: down up
-
 logs:
 	$(DC) logs -f
 
@@ -90,7 +92,7 @@ db-logs:
 	$(DC) logs -f mysql
 
 metrics:
-	@curl -s http://localhost:$(APP_PORT)/actuator/prometheus 2>/dev/null || echo "App not running. Start with 'make run'."
+	@curl -s http://localhost:$(APP_PORT)/actuator/prometheus 2>/dev/null | head -20 || echo "App not running. Start with 'make run'."
 
 ## ===== APP =====
 run: db-up
@@ -112,42 +114,50 @@ grafana:
 prometheus:
 	@open http://localhost:9090 2>/dev/null || echo "Open http://localhost:9090"
 
-api-test: up
+jaeger:
+	@open http://localhost:16686 2>/dev/null || echo "Open http://localhost:16686"
+
+api-test:
 	@echo "=== VendNet API Smoke Test ==="
 	@echo ""
 	@echo "--- 1. Public endpoint (no auth) ---"
-	@curl -sf http://localhost:$(APP_PORT)/api/public/info | python3 -m json.tool
+	@curl -sf http://localhost:$(APP_PORT)/api/public/info | python3 -m json.tool 2>/dev/null || echo "App not running"
 	@echo ""
 	@echo "--- 2. Register user ---"
 	@curl -sf -X POST http://localhost:$(APP_PORT)/api/auth/register \
 		-H "Content-Type: application/json" \
-		-d '{"email":"test@vendnet.io","password":"secret123","name":"Test User"}' | python3 -m json.tool
+		-d '{"email":"test@vendnet.io","password":"secret123","name":"Test User"}' | python3 -m json.tool 2>/dev/null || echo "Registration failed"
 	@echo ""
 	@echo "--- 3. Login ---"
 	@TOKEN=$$(curl -s -X POST http://localhost:$(APP_PORT)/api/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"test@vendnet.io","password":"secret123"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])"); \
-	echo "Token: $${TOKEN:0:30}..."; \
+		-d '{"email":"test@vendnet.io","password":"secret123"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null); \
+	if [ -n "$$TOKEN" ]; then \
+		echo "Token obtained: $${TOKEN:0:40}..."; \
+		echo ""; \
+		echo "--- 4. /me (isAuthenticated) ---"; \
+		curl -sf http://localhost:$(APP_PORT)/api/auth/me -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool 2>/dev/null; \
+		echo ""; \
+		echo "--- 5. /claims (isAuthenticated) ---"; \
+		curl -sf http://localhost:$(APP_PORT)/api/auth/claims -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool 2>/dev/null; \
+		echo ""; \
+		echo "--- 6. /products (isAuthenticated) ---"; \
+		curl -sf http://localhost:$(APP_PORT)/api/products -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool 2>/dev/null; \
+		echo ""; \
+		echo "--- 7. /machines (hasRole USER/ADMIN) ---"; \
+		curl -sf http://localhost:$(APP_PORT)/api/machines -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool 2>/dev/null; \
+		echo ""; \
+		echo "--- 8. /admin/dashboard (hasRole ADMIN, expect 403) ---"; \
+		HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$(APP_PORT)/api/admin/dashboard -H "Authorization: Bearer $$TOKEN"); \
+		if [ "$$HTTP_CODE" = "403" ]; then echo "Correctly denied (403) for ROLE_USER"; else echo "Unexpected response: $$HTTP_CODE"; fi; \
+		echo ""; \
+		echo "--- 9. Health check ---"; \
+		curl -sf http://localhost:$(APP_PORT)/actuator/health | python3 -m json.tool 2>/dev/null; \
+	else \
+		echo "Login failed - app may not be running"; \
+	fi; \
 	echo ""; \
-	echo "--- 4. /me (isAuthenticated) ---"; \
-	curl -sf http://localhost:$(APP_PORT)/api/auth/me -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool; \
-	echo ""; \
-	echo "--- 5. /claims (isAuthenticated) ---"; \
-	curl -sf http://localhost:$(APP_PORT)/api/auth/claims -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool; \
-	echo ""; \
-	echo "--- 6. /products (isAuthenticated) ---"; \
-	curl -sf http://localhost:$(APP_PORT)/api/products -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool; \
-	echo ""; \
-	echo "--- 7. /machines (hasRole USER/ADMIN) ---"; \
-	curl -sf http://localhost:$(APP_PORT)/api/machines -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool; \
-	echo ""; \
-	echo "--- 8. /admin/dashboard (hasRole ADMIN -- should 403) ---"; \
-	curl -s http://localhost:$(APP_PORT)/api/admin/dashboard -H "Authorization: Bearer $$TOKEN" | python3 -m json.tool; \
-	echo ""; \
-	echo "--- 9. Health check ---"; \
-	curl -sf http://localhost:$(APP_PORT)/actuator/health | python3 -m json.tool; \
-	echo ""; \
-	echo "=== Smoke test complete ==="
+	echo "=== Done ==="
 
 ## ===== CI/CD =====
 build:

@@ -18,7 +18,7 @@ public class SaleService {
     private final SaleRepository saleRepository;
     private final PaymentGatewayService paymentGatewayService;
 
-    @PreAuthorize("hasRole('OPERATOR')")
+    @PreAuthorize("hasAnyRole('OPERATOR', 'ADMINISTRATOR')")
     public List<Sale> findByMachineId(Long machineId) {
         return saleRepository.findByMachineId(machineId);
     }

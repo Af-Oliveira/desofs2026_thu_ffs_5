@@ -21,18 +21,18 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final FileStorageService fileStorageService;
 
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'OPERATOR', 'ADMINISTRATOR')")
     public List<Product> findAllActive() {
         return productRepository.findAllByActiveTrue();
     }
 
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'OPERATOR', 'ADMINISTRATOR')")
     public Product findBySku(String sku) {
         return productRepository.findBySku(sku)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + sku));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public Product createProduct(String name, String description, BigDecimal price,
                                   String sku, MultipartFile image) {
         String imageUrl = null;

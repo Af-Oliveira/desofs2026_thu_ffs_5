@@ -20,14 +20,14 @@ public class OperationsController {
     private final ReportDirectoryService reportDirectoryService;
 
     @PostMapping("/backup")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Map<String, String>> triggerBackup() {
         backupService.generateBackup();
         return ResponseEntity.ok(Map.of("status", "backup initiated"));
     }
 
     @PostMapping("/reports/sales")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Map<String, String>> generateSalesReport() {
         String path = reportDirectoryService.createReportDirectory("sales");
         return ResponseEntity.ok(Map.of("status", "report generated", "path", path));

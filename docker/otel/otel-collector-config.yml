@@ -13,17 +13,21 @@ processors:
 
 exporters:
   debug:
-    verbosity: detailed
+    verbosity: basic
   prometheus:
     endpoint: 0.0.0.0:8889
     namespace: vendnet
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [debug, otlp/jaeger]
     metrics:
       receivers: [otlp]
       processors: [batch]

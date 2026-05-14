@@ -20,13 +20,13 @@ public class MachineController {
     private final MachineService machineService;
 
     @GetMapping
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'OPERATOR', 'ADMINISTRATOR')")
     public ResponseEntity<List<VendingMachine>> findAll() {
         return ResponseEntity.ok(machineService.findAll());
     }
 
     @GetMapping("/{code}")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'OPERATOR', 'ADMINISTRATOR')")
     public ResponseEntity<VendingMachine> findByCode(@PathVariable String code) {
         return ResponseEntity.ok(machineService.findByCode(code));
     }

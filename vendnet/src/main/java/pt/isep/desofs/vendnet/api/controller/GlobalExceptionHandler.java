@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import pt.isep.desofs.vendnet.api.view.ApiError;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
+import pt.isep.desofs.vendnet.domain.exception.DisabledException;
 import pt.isep.desofs.vendnet.domain.exception.UnauthorizedException;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Slf4j
 @RestControllerAdvice
@@ -21,9 +21,14 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(AuthorizationDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAuthorizationDenied(AuthorizationDeniedException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("status", 403, "error", "Forbidden", "message", "Access Denied"));
+    public ResponseEntity<ApiError> handleAuthorizationDenied(AuthorizationDeniedException ex) {
+        ApiError error = ApiError.builder()
+                .status(HttpStatus.FORBIDDEN.value())
+                .error("Forbidden")
+                .message("Access Denied")
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
@@ -42,6 +47,17 @@ public class GlobalExceptionHandler {
         ApiError error = ApiError.builder()
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error("Account Locked")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiError> handleDisabled(DisabledException ex) {
+        ApiError error = ApiError.builder()
+                .status(HttpStatus.UNAUTHORIZED.value())
+                .error("Account Disabled")
                 .message(ex.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();

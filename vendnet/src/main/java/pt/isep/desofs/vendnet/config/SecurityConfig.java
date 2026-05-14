@@ -59,6 +59,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/mfa/verify").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/telemetry").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
@@ -92,7 +93,9 @@ public class SecurityConfig {
 
     @Bean
     public RoleHierarchy roleHierarchy() {
-        return RoleHierarchyImpl.fromHierarchy("ROLE_ADMIN > ROLE_OPERATOR > ROLE_CUSTOMER");
+        return RoleHierarchyImpl.fromHierarchy(
+                "ROLE_ADMINISTRATOR > ROLE_OPERATOR\n" +
+                "ROLE_ADMINISTRATOR > ROLE_CUSTOMER");
     }
 
     @Bean
