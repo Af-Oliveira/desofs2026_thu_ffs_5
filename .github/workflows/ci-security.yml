@@ -42,7 +42,7 @@ on:
 permissions:
   contents: read           # Checkout source
   security-events: write   # Upload SARIF results to GitHub Security tab
-  actions: read            # Read workflow runs
+  actions: write           # Read/write workflow runs + upload artifacts
   pull-requests: read      # Gitleaks PR diff scanning
   issues: write            # ZAP DAST issue reporting
 
