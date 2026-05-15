@@ -44,6 +44,7 @@ permissions:
   security-events: write   # Upload SARIF results to GitHub Security tab
   actions: read            # Read workflow runs
   pull-requests: read      # Gitleaks PR diff scanning
+  issues: write            # ZAP DAST issue reporting
 
 jobs:
   # ===========================================================================
@@ -332,11 +333,13 @@ jobs:
             -config api.disablekey=true
 
       - name: ZAP Authenticated Scan - Protected Endpoints
-        uses: zaproxy/action-api-scan@v0.9.0
+        uses: zaproxy/action-api-scan@v0.10.0
         with:
-          target: 'http://localhost:8080'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://localhost:8080/v3/api-docs'
           format: 'openapi'
-          api_spec_url: 'http://localhost:8080/v3/api-docs'
+          rules_file_name: '.zap/rules.tsv'
+          allow_issue_writing: false
 
   # ===========================================================================
   # STAGE 8 — Artifact & Container Scan
