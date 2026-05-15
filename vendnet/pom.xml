@@ -27,9 +27,9 @@
 		<archunit.version>1.3.0</archunit.version>
 		<tika.version>2.9.2</tika.version>
 		<logstash-logback.version>7.4</logstash-logback.version>
-		<checkstyle.version>3.6.0</checkstyle.version>
-		<pmd.version>3.26.0</pmd.version>
-		<spotless.version>2.43.0</spotless.version>
+		<cyclonedx.version>2.9.1</cyclonedx.version>
+		<maven-enforcer.version>3.5.0</maven-enforcer.version>
+		<sonar.version>5.0.0.4638</sonar.version>
 	</properties>
 
 	<dependencies>
@@ -238,6 +238,11 @@
 				<version>${dependency-check.version}</version>
 				<configuration>
 					<failBuildOnCVSS>7</failBuildOnCVSS>
+					<suppressionFile>dependency-check-suppressions.xml</suppressionFile>
+					<formats>
+						<format>HTML</format>
+						<format>JSON</format>
+					</formats>
 				</configuration>
 			</plugin>
 
@@ -263,59 +268,127 @@
 
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-checkstyle-plugin</artifactId>
-				<version>${checkstyle.version}</version>
-				<configuration>
-					<configLocation>checkstyle.xml</configLocation>
-					<includeTestSourceDirectory>true</includeTestSourceDirectory>
-					<violationSeverity>warning</violationSeverity>
-					<failOnViolation>false</failOnViolation>
-				</configuration>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<version>${maven-enforcer.version}</version>
 				<executions>
 					<execution>
-						<goals><goal>check</goal></goals>
+						<id>enforce-versions</id>
+						<goals>
+							<goal>enforce</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<requireJavaVersion>
+									<version>[17,)</version>
+								</requireJavaVersion>
+								<requireReleaseDeps>
+									<message>All dependencies must use explicit pinned release versions. No SNAPSHOT or version ranges allowed (SR-34).</message>
+								</requireReleaseDeps>
+								<dependencyConvergence/>
+							</rules>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
 
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-pmd-plugin</artifactId>
-				<version>${pmd.version}</version>
-				<configuration>
-					<rulesets>
-						<ruleset>pmd-ruleset.xml</ruleset>
-					</rulesets>
-					<includeTests>true</includeTests>
-					<failOnViolation>false</failOnViolation>
-					<printFailingErrors>true</printFailingErrors>
-				</configuration>
+				<groupId>org.cyclonedx</groupId>
+				<artifactId>cyclonedx-maven-plugin</artifactId>
+				<version>${cyclonedx.version}</version>
 				<executions>
 					<execution>
-						<goals><goal>check</goal></goals>
+						<phase>package</phase>
+						<goals>
+							<goal>makeAggregateBom</goal>
+						</goals>
+						<configuration>
+							<projectType>application</projectType>
+							<schemaVersion>1.5</schemaVersion>
+							<includeBomSerialNumber>true</includeBomSerialNumber>
+							<includeCompileScope>true</includeCompileScope>
+							<includeRuntimeScope>true</includeRuntimeScope>
+							<outputFormat>json</outputFormat>
+							<outputName>vendnet-sbom</outputName>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
 
 			<plugin>
-				<groupId>com.diffplug.spotless</groupId>
-				<artifactId>spotless-maven-plugin</artifactId>
-				<version>${spotless.version}</version>
-				<configuration>
-					<java>
-						<removeUnusedImports/>
-						<googleJavaFormat>
-							<version>1.18.1</version>
-							<style>AOSP</style>
-						</googleJavaFormat>
-						<indent>
-							<tabs>true</tabs>
-							<spacesPerTab>4</spacesPerTab>
-						</indent>
-					</java>
-				</configuration>
+				<groupId>org.sonarsource.scanner.maven</groupId>
+				<artifactId>sonar-maven-plugin</artifactId>
+				<version>${sonar.version}</version>
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>ci-security</id>
+			<activation>
+				<property>
+					<name>ci</name>
+				</property>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.jacoco</groupId>
+						<artifactId>jacoco-maven-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>check</id>
+								<goals><goal>check</goal></goals>
+								<configuration>
+									<rules>
+										<rule>
+											<element>PACKAGE</element>
+											<includes>
+												<include>pt.isep.desofs.vendnet.domain.*</include>
+												<include>pt.isep.desofs.vendnet.application.*</include>
+											</includes>
+											<limits>
+												<limit>
+													<counter>LINE</counter>
+													<value>COVEREDRATIO</value>
+													<minimum>0.80</minimum>
+												</limit>
+											</limits>
+										</rule>
+									</rules>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
+			<id>integration-test</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<executions>
+							<execution>
+								<goals>
+									<goal>integration-test</goal>
+									<goal>verify</goal>
+								</goals>
+								<configuration>
+									<includes>
+										<include>**/*IT.java</include>
+										<include>**/*IntegrationTest.java</include>
+										<include>**/*AbuseCaseTest.java</include>
+									</includes>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>
