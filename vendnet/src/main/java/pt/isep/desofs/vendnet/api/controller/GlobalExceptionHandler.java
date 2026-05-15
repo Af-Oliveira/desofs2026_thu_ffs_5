@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pt.isep.desofs.vendnet.api.view.ApiError;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
 import pt.isep.desofs.vendnet.domain.exception.DisabledException;
+import pt.isep.desofs.vendnet.domain.exception.MachineOfflineException;
+import pt.isep.desofs.vendnet.domain.exception.OutOfStockException;
+import pt.isep.desofs.vendnet.domain.exception.PaymentDeclinedException;
 import pt.isep.desofs.vendnet.domain.exception.UnauthorizedException;
 
 @Slf4j
@@ -108,5 +111,41 @@ public class GlobalExceptionHandler {
 						.timestamp(LocalDateTime.now())
 						.build();
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+	}
+
+	@ExceptionHandler(OutOfStockException.class)
+	public ResponseEntity<ApiError> handleOutOfStock(OutOfStockException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.CONFLICT.value())
+						.error("Conflict")
+						.message(ex.getMessage())
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+	}
+
+	@ExceptionHandler(MachineOfflineException.class)
+	public ResponseEntity<ApiError> handleMachineOffline(MachineOfflineException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.CONFLICT.value())
+						.error("Conflict")
+						.message(ex.getMessage())
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+	}
+
+	@ExceptionHandler(PaymentDeclinedException.class)
+	public ResponseEntity<ApiError> handlePaymentDeclined(PaymentDeclinedException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.PAYMENT_REQUIRED.value())
+						.error("Payment Required")
+						.message(ex.getMessage())
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(error);
 	}
 }

@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.stream.Stream;
@@ -16,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import pt.isep.desofs.vendnet.domain.model.audit.AuditLog;
+import pt.isep.desofs.vendnet.domain.repository.AuditLogRepository;
 
 @Slf4j
 @Service
@@ -26,6 +29,7 @@ public class BackupServiceImpl implements BackupService {
 	private static final int GCM_TAG_LENGTH = 128;
 
 	private final PathValidator pathValidator;
+	private final AuditLogRepository auditLogRepository;
 
 	@Value("${app.storage.base-path:/var/vendnet}")
 	private String vendnetRoot;
@@ -38,6 +42,15 @@ public class BackupServiceImpl implements BackupService {
 		try {
 			Path sandbox = Paths.get(vendnetRoot).toRealPath();
 			if (!pathValidator.isValidPath(backupDir, sandbox)) {
+				auditLogRepository.save(
+						AuditLog.builder()
+								.eventType("SECURITY_VIOLATION")
+								.details("Path traversal attempt: " + backupDir)
+								.resource("Backup")
+								.action("CREATE")
+								.outcome("BLOCKED")
+								.timestamp(LocalDateTime.now())
+								.build());
 				throw new SecurityException("Backup path outside sandbox: " + backupDir);
 			}
 
@@ -52,6 +65,9 @@ public class BackupServiceImpl implements BackupService {
 							"-u",
 							"vendnet_user",
 							"--password=vendnet_pass",
+							"--single-transaction",
+							"--routines",
+							"--triggers",
 							"--databases",
 							"vendnet",
 							"--result-file=" + dumpFile.toAbsolutePath().toString());
@@ -67,6 +83,18 @@ public class BackupServiceImpl implements BackupService {
 			}
 
 			encryptFile(dumpFile);
+
+			auditLogRepository.save(
+					AuditLog.builder()
+							.eventType("BACKUP_CREATED")
+							.details("Backup generated: " + dumpFile.getFileName())
+							.resource("Backup")
+							.action("CREATE")
+							.outcome("SUCCESS")
+							.timestamp(LocalDateTime.now())
+							.build());
+
+			rotateBackups(30);
 
 			log.info("Backup generated and encrypted: {}", dumpFile);
 		} catch (Exception e) {

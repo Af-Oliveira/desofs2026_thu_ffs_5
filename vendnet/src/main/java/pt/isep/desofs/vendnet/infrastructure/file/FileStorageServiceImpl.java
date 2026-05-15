@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ public class FileStorageServiceImpl implements FileStorageService {
 
 	private final FileValidationService fileValidationService;
 	private final PathValidator pathValidator;
+	private final ExifStripper exifStripper;
 
 	@Value("${app.storage.base-path:/var/vendnet/uploads}")
 	private String basePath;
@@ -50,10 +52,22 @@ public class FileStorageServiceImpl implements FileStorageService {
 				throw new SecurityException("Symlink detected: " + targetFile);
 			}
 
-			Files.copy(file.getInputStream(), targetFile, StandardCopyOption.REPLACE_EXISTING);
+			FileValidationServiceImpl validator = (FileValidationServiceImpl) fileValidationService;
+			byte[] originalBytes = file.getBytes();
+
+			String detectedFormat = extension.replace(".", "");
+			if ("jpg".equalsIgnoreCase(detectedFormat)) {
+				detectedFormat = "jpeg";
+			}
+			byte[] strippedBytes = exifStripper.stripExif(originalBytes, detectedFormat);
+
+			String checksum = validator.computeChecksum(strippedBytes);
+			log.info("Image checksum (SHA-256): {}", checksum);
+
+			Files.write(targetFile, strippedBytes, StandardOpenOption.CREATE_NEW);
 
 			String relativePath = Path.of(basePath).relativize(targetFile).toString();
-			log.info("File stored: {}", relativePath);
+			log.info("File stored: {} (checksum: {})", relativePath, checksum);
 
 			return relativePath;
 		} catch (IOException e) {

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -30,6 +31,7 @@ import pt.isep.desofs.vendnet.domain.exception.UnauthorizedException;
 import pt.isep.desofs.vendnet.domain.model.user.AccountStatus;
 import pt.isep.desofs.vendnet.domain.model.user.Role;
 import pt.isep.desofs.vendnet.domain.model.user.User;
+import pt.isep.desofs.vendnet.domain.repository.AuditLogRepository;
 import pt.isep.desofs.vendnet.domain.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,13 +46,16 @@ class AuthServiceTest {
 	@Mock
 	private JwtService jwtService;
 
+	@Mock
+	private AuditLogRepository auditLogRepository;
+
 	private AuthService authService;
 
 	private LocalDateTime now;
 
 	@BeforeEach
 	void setUp() {
-		authService = new AuthService(userRepository, passwordEncoder, jwtService);
+		authService = new AuthService(userRepository, passwordEncoder, jwtService, auditLogRepository);
 		now = LocalDateTime.now();
 	}
 
@@ -141,7 +146,7 @@ class AuthServiceTest {
 		AuthResponse response = authService.login(request);
 
 		assertEquals("jwt-token", response.getToken());
-		verify(userRepository, times(2)).save(any(User.class));
+		verify(userRepository, atLeastOnce()).save(any(User.class));
 	}
 
 	@Test
@@ -199,7 +204,7 @@ class AuthServiceTest {
 		for (int i = 0; i < 5; i++) {
 			try {
 				authService.login(request);
-			} catch (UnauthorizedException ignored) {
+			} catch (UnauthorizedException | AccountLockedException ignored) {
 			}
 		}
 

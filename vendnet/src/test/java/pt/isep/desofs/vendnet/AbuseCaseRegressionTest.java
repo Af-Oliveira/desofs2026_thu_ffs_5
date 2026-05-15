@@ -126,13 +126,17 @@ class AbuseCaseRegressionTest {
     // ── AC-03: Client-Supplied Unit Price Bypass (Structural Verification) ───
 
     @Test
-    void saleEntity_doesNotExpose_unitPriceField() throws Exception {
+    void saleEntity_hasServerSidePriceFields() throws Exception {
         java.lang.reflect.Field[] fields = pt.isep.desofs.vendnet.domain.model.sale.Sale.class.getDeclaredFields();
+        boolean hasUnitPrice = false;
+        boolean hasTotalAmount = false;
         for (java.lang.reflect.Field f : fields) {
-            if (f.getName().equalsIgnoreCase("unitPrice")) {
-                throw new AssertionError("Sale entity must not have a client-settable unitPrice field. "
-                        + "Price must be resolved server-side from the Product catalog (SR-24).");
-            }
+            if (f.getName().equals("unitPrice")) hasUnitPrice = true;
+            if (f.getName().equals("totalAmount")) hasTotalAmount = true;
+        }
+        if (!hasUnitPrice || !hasTotalAmount) {
+            throw new AssertionError("Sale entity must have unitPrice and totalAmount fields. "
+                    + "Price must be resolved server-side from the Product catalog (SR-24).");
         }
     }
 

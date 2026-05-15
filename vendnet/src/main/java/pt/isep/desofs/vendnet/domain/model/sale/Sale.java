@@ -1,6 +1,7 @@
 package pt.isep.desofs.vendnet.domain.model.sale;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -17,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
+import pt.isep.desofs.vendnet.domain.model.product.PaymentInfo;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 
 @Entity
@@ -40,11 +42,23 @@ public class Sale {
 	@JoinColumn(name = "product_id", nullable = false)
 	private Product product;
 
+	@Column(name = "user_id")
+	private Long userId;
+
 	@Column(nullable = false, precision = 10, scale = 2)
 	private BigDecimal price;
 
 	@Column(nullable = false)
 	private int quantity;
+
+	@Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
+	private BigDecimal totalAmount;
+
+	@Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
+	private BigDecimal unitPrice;
+
+	@Embedded
+	private PaymentInfo paymentInfo;
 
 	@Column(nullable = false)
 	private LocalDateTime saleDate;

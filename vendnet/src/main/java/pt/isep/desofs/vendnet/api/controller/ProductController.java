@@ -1,5 +1,6 @@
 package pt.isep.desofs.vendnet.api.controller;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -10,10 +11,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import pt.isep.desofs.vendnet.api.dto.UpdateProductRequest;
 import pt.isep.desofs.vendnet.application.service.ProductService;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 
@@ -47,5 +51,28 @@ public class ProductController {
 
 		Product product = productService.createProduct(name, description, price, sku, image);
 		return ResponseEntity.ok(product);
+	}
+
+	@PutMapping("/{id}")
+	@PreAuthorize("hasRole('ADMINISTRATOR')")
+	public ResponseEntity<Product> update(
+			@PathVariable Long id,
+			@Valid @RequestBody UpdateProductRequest request) {
+
+		Product updated = new Product();
+		if (request.getName() != null) {
+			updated.setName(request.getName());
+		}
+		if (request.getDescription() != null) {
+			updated.setDescription(request.getDescription());
+		}
+		if (request.getPrice() != null) {
+			updated.setPrice(request.getPrice());
+		}
+		if (request.getActive() != null) {
+			updated.setActive(request.getActive());
+		}
+
+		return ResponseEntity.ok(productService.updateProduct(id, updated));
 	}
 }

@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,7 +41,10 @@ public class Slot {
 	@Column(nullable = false)
 	private int currentStock;
 
-	@ManyToOne(fetch = FetchType.LAZY)
+	@Version
+	private Long version;
+
+	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "machine_id", nullable = false)
 	private VendingMachine machine;
 
@@ -53,4 +57,29 @@ public class Slot {
 
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	public void reserveUnit() {
+		if (this.currentStock <= 0) {
+			throw new IllegalStateException("Slot is empty, cannot reserve");
+		}
+		this.currentStock--;
+	}
+
+	public void releaseReservation() {
+		if (this.currentStock < this.capacity) {
+			this.currentStock++;
+		}
+	}
+
+	public void addStock(int quantity) {
+		if (quantity <= 0) {
+			throw new IllegalArgumentException("Quantity must be positive");
+		}
+		int newStock = this.currentStock + quantity;
+		if (newStock > this.capacity) {
+			throw new IllegalArgumentException(
+					"Exceeds slot capacity: " + newStock + " > " + this.capacity);
+		}
+		this.currentStock = newStock;
+	}
 }

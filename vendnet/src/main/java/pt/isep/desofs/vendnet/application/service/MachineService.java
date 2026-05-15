@@ -1,5 +1,6 @@
 package pt.isep.desofs.vendnet.application.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,5 +26,44 @@ public class MachineService {
 		return machineRepository
 				.findByCode(code)
 				.orElseThrow(() -> new IllegalArgumentException("Machine not found: " + code));
+	}
+
+	@PreAuthorize("hasRole('ADMINISTRATOR')")
+	public VendingMachine createMachine(String code, String location) {
+		if (machineRepository.findByCode(code).isPresent()) {
+			throw new IllegalArgumentException("Machine with code '" + code + "' already exists");
+		}
+
+		LocalDateTime now = LocalDateTime.now();
+		VendingMachine machine =
+				VendingMachine.builder()
+						.code(code)
+						.location(location)
+						.active(true)
+						.createdAt(now)
+						.updatedAt(now)
+						.build();
+
+		return machineRepository.save(machine);
+	}
+
+	@PreAuthorize("hasRole('ADMINISTRATOR')")
+	public VendingMachine updateMachine(Long id, VendingMachine updated) {
+		VendingMachine existing =
+				machineRepository
+						.findById(id)
+						.orElseThrow(
+								() -> new IllegalArgumentException("Machine not found: " + id));
+
+		if (updated.getCode() != null) {
+			existing.setCode(updated.getCode());
+		}
+		if (updated.getLocation() != null) {
+			existing.setLocation(updated.getLocation());
+		}
+		existing.setActive(updated.isActive());
+		existing.setUpdatedAt(LocalDateTime.now());
+
+		return machineRepository.save(existing);
 	}
 }

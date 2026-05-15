@@ -5,6 +5,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Optional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
@@ -19,18 +20,17 @@ import pt.isep.desofs.vendnet.api.dto.UserResponse;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
 import pt.isep.desofs.vendnet.domain.exception.DisabledException;
 import pt.isep.desofs.vendnet.domain.exception.UnauthorizedException;
+import pt.isep.desofs.vendnet.domain.model.audit.AuditLog;
 import pt.isep.desofs.vendnet.domain.model.user.AccountStatus;
 import pt.isep.desofs.vendnet.domain.model.user.Role;
 import pt.isep.desofs.vendnet.domain.model.user.User;
+import pt.isep.desofs.vendnet.domain.repository.AuditLogRepository;
 import pt.isep.desofs.vendnet.domain.repository.UserRepository;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-	private static final int MAX_FAILED_ATTEMPTS = 5;
-	private static final int LOCK_DURATION_MINUTES = 30;
-	private static final int LOCK_WINDOW_MINUTES = 15;
 	private static final int TOTP_PERIOD = 30;
 	private static final int TOTP_DIGITS = 6;
 	private static final String TOTP_ALGORITHM = "HmacSHA1";
@@ -38,6 +38,7 @@ public class AuthService {
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final JwtService jwtService;
+	private final AuditLogRepository auditLogRepository;
 
 	@PreAuthorize("permitAll()")
 	public AuthResponse register(RegisterRequest request) {
@@ -62,6 +63,17 @@ public class AuthService {
 
 		String token = jwtService.generateToken(user.getEmail());
 
+		auditLogRepository.save(
+				AuditLog.builder()
+						.eventType("REGISTER")
+						.principal(user.getEmail())
+						.details("User registered: " + user.getEmail())
+						.resource("User")
+						.action("REGISTER")
+						.outcome("SUCCESS")
+						.timestamp(now)
+						.build());
+
 		return AuthResponse.builder()
 				.token(token)
 				.email(user.getEmail())
@@ -73,28 +85,78 @@ public class AuthService {
 
 	@PreAuthorize("permitAll()")
 	public AuthResponse login(LoginRequest request) {
-		User user =
-				userRepository
-						.findByEmail(request.getEmail())
-						.orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
+		Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
 
-		if (isAccountSuspended(user)) {
-			throw new DisabledException("Account is suspended");
-		}
-
-		if (isAccountLocked(user)) {
-			throw new AccountLockedException(
-					"Account is temporarily locked. Try again in "
-							+ LOCK_DURATION_MINUTES
-							+ " minutes.");
-		}
-
-		if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-			handleFailedLogin(user);
+		if (userOpt.isEmpty()) {
+			passwordEncoder.encode("dummy-password-for-timing-attack-protection");
 			throw new UnauthorizedException("Invalid email or password");
 		}
 
-		resetLockout(user);
+		User user = userOpt.get();
+
+		try {
+			user.checkAccountStatus();
+		} catch (DisabledException e) {
+			auditLogRepository.save(
+					AuditLog.builder()
+							.eventType("LOGIN_DENIED_INACTIVE")
+							.principal(user.getEmail())
+							.details("Account is suspended")
+							.resource("User")
+							.action("LOGIN")
+							.outcome("DENIED")
+							.timestamp(LocalDateTime.now())
+							.build());
+			throw e;
+		} catch (AccountLockedException e) {
+			throw e;
+		}
+
+		if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+			user.incrementFailedAttempts();
+			userRepository.save(user);
+
+			if (user.getAccountStatus() == AccountStatus.LOCKED) {
+				auditLogRepository.save(
+						AuditLog.builder()
+								.eventType("ACCOUNT_LOCKED")
+								.principal(user.getEmail())
+								.details("Account locked after " + user.getFailedAttempts() + " failed attempts")
+								.resource("User")
+								.action("LOCK")
+								.outcome("LOCKED")
+								.timestamp(LocalDateTime.now())
+								.build());
+				throw new AccountLockedException(
+						"Account is temporarily locked. Try again in 30 minutes.");
+			}
+
+			auditLogRepository.save(
+					AuditLog.builder()
+							.eventType("LOGIN_FAILED")
+							.principal(user.getEmail())
+							.details("Invalid password")
+							.resource("User")
+							.action("LOGIN")
+							.outcome("FAILED")
+							.timestamp(LocalDateTime.now())
+							.build());
+			throw new UnauthorizedException("Invalid email or password");
+		}
+
+		user.resetFailedAttempts();
+		userRepository.save(user);
+
+		auditLogRepository.save(
+				AuditLog.builder()
+						.eventType("LOGIN_SUCCESS")
+						.principal(user.getEmail())
+						.details("User logged in successfully")
+						.resource("User")
+						.action("LOGIN")
+						.outcome("SUCCESS")
+						.timestamp(LocalDateTime.now())
+						.build());
 
 		if (user.getRole() == Role.ROLE_ADMINISTRATOR && user.getTotpSecret() != null) {
 			return AuthResponse.builder()
@@ -166,47 +228,6 @@ public class AuthService {
 				.role(user.getRole().name())
 				.createdAt(user.getCreatedAt())
 				.build();
-	}
-
-	private boolean isAccountSuspended(User user) {
-		return user.getAccountStatus() == AccountStatus.SUSPENDED;
-	}
-
-	private boolean isAccountLocked(User user) {
-		if (user.getAccountStatus() == AccountStatus.LOCKED) {
-			if (user.getLockTime() != null
-					&& user.getLockTime()
-							.plusMinutes(LOCK_DURATION_MINUTES)
-							.isBefore(LocalDateTime.now())) {
-				resetLockout(user);
-				return false;
-			}
-			return true;
-		}
-		return false;
-	}
-
-	private void handleFailedLogin(User user) {
-		LocalDateTime now = LocalDateTime.now();
-		if (user.getLastFailedAttemptTime() != null
-				&& user.getLastFailedAttemptTime().plusMinutes(LOCK_WINDOW_MINUTES).isBefore(now)) {
-			user.setFailedAttempts(0);
-		}
-		user.setFailedAttempts(user.getFailedAttempts() + 1);
-		user.setLastFailedAttemptTime(now);
-		if (user.getFailedAttempts() >= MAX_FAILED_ATTEMPTS) {
-			user.setAccountStatus(AccountStatus.LOCKED);
-			user.setLockTime(now);
-		}
-		userRepository.save(user);
-	}
-
-	private void resetLockout(User user) {
-		user.setFailedAttempts(0);
-		user.setAccountStatus(AccountStatus.ACTIVE);
-		user.setLockTime(null);
-		user.setLastFailedAttemptTime(null);
-		userRepository.save(user);
 	}
 
 	private boolean verifyTotp(String encodedSecret, String code) {

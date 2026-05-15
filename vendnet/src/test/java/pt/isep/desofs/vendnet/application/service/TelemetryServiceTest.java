@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.telemetry.MachineTelemetry;
+import pt.isep.desofs.vendnet.domain.repository.AuditLogRepository;
 import pt.isep.desofs.vendnet.domain.repository.TelemetryRepository;
 import pt.isep.desofs.vendnet.domain.repository.VendingMachineRepository;
 
@@ -29,11 +30,14 @@ class TelemetryServiceTest {
 	@Mock
 	private VendingMachineRepository machineRepository;
 
+	@Mock
+	private AuditLogRepository auditLogRepository;
+
 	private TelemetryService telemetryService;
 
 	@BeforeEach
 	void setUp() {
-		telemetryService = new TelemetryService(telemetryRepository, machineRepository);
+		telemetryService = new TelemetryService(telemetryRepository, machineRepository, auditLogRepository);
 	}
 
 	@Test
@@ -49,7 +53,7 @@ class TelemetryServiceTest {
 				.build();
 		when(telemetryRepository.save(any(MachineTelemetry.class))).thenReturn(telemetry);
 
-		MachineTelemetry result = telemetryService.save(telemetry);
+		MachineTelemetry result = telemetryService.save(telemetry, null);
 
 		assertEquals(new BigDecimal("45.5"), result.getCpuUsage());
 		assertEquals("ONLINE", result.getStatus());

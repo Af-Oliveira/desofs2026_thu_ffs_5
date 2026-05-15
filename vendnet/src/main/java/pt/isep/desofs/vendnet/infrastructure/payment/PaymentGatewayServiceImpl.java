@@ -22,9 +22,12 @@ public class PaymentGatewayServiceImpl implements PaymentGatewayService {
 	private String webhookSecret;
 
 	@Override
-	public String initiatePayment(String saleId, BigDecimal amount, String currency) {
-		log.info("Payment initiated: saleId={}, amount={} {}", saleId, amount, currency);
-		return "TXN_" + saleId + "_" + System.currentTimeMillis();
+	public void authorizePayment(String paymentToken, BigDecimal amount) {
+		if (paymentToken == null || paymentToken.isBlank()) {
+			log.warn("Payment authorization failed: invalid token");
+			throw new RuntimeException("Invalid payment token");
+		}
+		log.info("Payment authorized: token={}, amount={} EUR", paymentToken, amount);
 	}
 
 	@Override
@@ -32,7 +35,8 @@ public class PaymentGatewayServiceImpl implements PaymentGatewayService {
 		try {
 			Mac hmac = Mac.getInstance("HmacSHA256");
 			SecretKeySpec keySpec =
-					new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+					new SecretKeySpec(
+							webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
 			hmac.init(keySpec);
 
 			byte[] computedHash = hmac.doFinal(rawBody.getBytes(StandardCharsets.UTF_8));

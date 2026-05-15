@@ -10,4 +10,6 @@ public interface JpaSaleRepository
 		extends JpaRepository<Sale, Long>, pt.isep.desofs.vendnet.domain.repository.SaleRepository {
 
 	List<Sale> findByMachineId(Long machineId);
+
+	List<Sale> findByUserId(Long userId);
 }

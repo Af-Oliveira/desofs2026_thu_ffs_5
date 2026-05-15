@@ -115,7 +115,7 @@ class UserTest {
 		LocalDateTime now = LocalDateTime.now();
 
 		User user = new User(
-				3L, "ops@vendnet.com", "pass", "Operator", Role.ROLE_OPERATOR,
+				3L, "ops_vendnet", "ops@vendnet.com", "pass", "Operator", Role.ROLE_OPERATOR,
 				AccountStatus.LOCKED, now, now, 3, now, now, "totp123");
 
 		assertEquals(3L, user.getId());

@@ -1,6 +1,7 @@
 package pt.isep.desofs.vendnet.api.controller;
 
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,8 +23,9 @@ public class MachineTelemetryController {
 	@PostMapping
 	@PreAuthorize("permitAll()")
 	public ResponseEntity<Map<String, String>> ingest(
-			@Valid @RequestBody MachineTelemetry telemetry) {
-		telemetryService.save(telemetry);
+			@Valid @RequestBody MachineTelemetry telemetry, HttpServletRequest request) {
+		String certificateCn = (String) request.getAttribute("X509_CN");
+		telemetryService.save(telemetry, certificateCn);
 		return ResponseEntity.ok(Map.of("status", "telemetry ingested"));
 	}
 }

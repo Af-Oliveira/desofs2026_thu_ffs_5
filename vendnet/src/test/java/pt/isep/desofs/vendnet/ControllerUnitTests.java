@@ -40,6 +40,7 @@ import pt.isep.desofs.vendnet.application.service.AuthService;
 import pt.isep.desofs.vendnet.application.service.MachineService;
 import pt.isep.desofs.vendnet.application.service.ProductService;
 import pt.isep.desofs.vendnet.application.service.SaleService;
+import pt.isep.desofs.vendnet.application.service.UserManagementService;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.sale.Sale;
@@ -152,6 +153,9 @@ class ControllerUnitTests {
     @DisplayName("AdminController")
     class AdminControllerUnitTests {
 
+        @Mock
+        private UserManagementService userManagementService;
+
         @InjectMocks
         private AdminController adminController;
 
@@ -165,27 +169,34 @@ class ControllerUnitTests {
         void dashboard_returnsWelcomeMessage() throws Exception {
             // SUT: AdminController.dashboard()
             // Unit Test / White Box
-            // AAA: Arrange — no dependencies (controller returns static map)
+            // AAA: Arrange
+            when(userManagementService.getDashboard()).thenReturn(
+                    java.util.Map.of("message", "Welcome to the admin dashboard",
+                            "totalUsers", 3, "activeUsers", 2, "lockedUsers", 1, "suspendedUsers", 0));
             // AAA: Act — GET /api/admin/dashboard
             // AAA: Assert
             mockMvc.perform(get("/api/admin/dashboard"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Welcome to the admin dashboard"))
-                    .andExpect(jsonPath("$.auth").value("hasRole('ADMINISTRATOR') — single role"));
+                    .andExpect(jsonPath("$.totalUsers").value(3));
         }
 
         @Test
-        @DisplayName("GET /api/admin/users — returns admin-only user list")
+        @DisplayName("GET /api/admin/users — returns user list")
         void listUsers_returnsAdminUserList() throws Exception {
             // SUT: AdminController.listUsers()
             // Unit Test / White Box
-            // AAA: Arrange — none needed
+            // AAA: Arrange
+            UserResponse user = UserResponse.builder()
+                    .id(1L).email("admin@vendnet.io").name("Admin")
+                    .role("ROLE_ADMINISTRATOR").createdAt(LocalDateTime.now()).build();
+            when(userManagementService.listUsers()).thenReturn(java.util.List.of(user));
             // AAA: Act
             // AAA: Assert
             mockMvc.perform(get("/api/admin/users"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").value("Admin-only user list endpoint"))
-                    .andExpect(jsonPath("$.auth").value("hasRole('ADMINISTRATOR')"));
+                    .andExpect(jsonPath("$[0].email").value("admin@vendnet.io"))
+                    .andExpect(jsonPath("$[0].role").value("ROLE_ADMINISTRATOR"));
         }
 
         @Test
@@ -346,6 +357,9 @@ class ControllerUnitTests {
         @Mock
         private SaleService saleService;
 
+        @Mock
+        private AuthService authService;
+
         @InjectMocks
         private SaleController saleController;
 
@@ -357,21 +371,16 @@ class ControllerUnitTests {
         @Test
         @DisplayName("GET /api/sales/machine/{id} — returns sales list")
         void findByMachine_returnsSalesList() throws Exception {
-            // SUT: SaleController.findByMachine(Long)
-            // Unit Test / White Box
-            // AAA: Arrange
             VendingMachine vm = VendingMachine.builder().id(1L).code("VM-LIS-001").location("Lisbon")
                     .active(true).createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
             Product p = Product.builder().id(1L).name("Cola").sku("DRK-001")
                     .price(new BigDecimal("1.50")).active(true)
                     .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
             Sale sale = Sale.builder().id(1L).machine(vm).product(p)
-                    .price(new BigDecimal("1.50")).quantity(2)
+                    .price(new BigDecimal("1.50")).quantity(2).totalAmount(new BigDecimal("3.00")).unitPrice(new BigDecimal("1.50"))
                     .saleDate(LocalDateTime.now()).createdAt(LocalDateTime.now()).build();
             when(saleService.findByMachineId(1L)).thenReturn(List.of(sale));
 
-            // AAA: Act
-            // AAA: Assert
             mockMvc.perform(get("/api/sales/machine/1"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].price").value(1.50))
@@ -381,13 +390,8 @@ class ControllerUnitTests {
         @Test
         @DisplayName("GET /api/sales/machine/{id} — empty list returns 200")
         void findByMachine_emptyList_returns200() throws Exception {
-            // SUT: SaleController.findByMachine(Long)
-            // Unit Test / White Box
-            // AAA: Arrange
             when(saleService.findByMachineId(999L)).thenReturn(Collections.emptyList());
 
-            // AAA: Act
-            // AAA: Assert
             mockMvc.perform(get("/api/sales/machine/999"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray())

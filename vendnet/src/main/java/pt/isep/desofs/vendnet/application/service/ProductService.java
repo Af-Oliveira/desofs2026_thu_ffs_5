@@ -55,4 +55,33 @@ public class ProductService {
 
 		return productRepository.save(product);
 	}
+
+	@PreAuthorize("hasRole('ADMINISTRATOR')")
+	public Product updateProduct(Long id, Product updated) {
+		Product existing =
+				productRepository
+						.findById(id)
+						.orElseThrow(
+								() -> new IllegalArgumentException("Product not found: " + id));
+
+		if (updated.getName() != null) {
+			existing.setName(updated.getName());
+		}
+		if (updated.getDescription() != null) {
+			existing.setDescription(updated.getDescription());
+		}
+		if (updated.getPrice() != null) {
+			existing.setPrice(updated.getPrice());
+		}
+		if (updated.getSku() != null) {
+			existing.setSku(updated.getSku());
+		}
+		if (updated.getImageUrl() != null) {
+			existing.setImageUrl(updated.getImageUrl());
+		}
+		existing.setActive(updated.isActive());
+
+		existing.setUpdatedAt(LocalDateTime.now());
+		return productRepository.save(existing);
+	}
 }

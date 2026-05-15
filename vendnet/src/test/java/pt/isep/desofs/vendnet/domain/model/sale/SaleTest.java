@@ -81,7 +81,8 @@ class SaleTest {
 		Product product = Product.builder().id(1L).sku("SKU-001").build();
 
 		Sale sale = new Sale(
-				3L, machine, product, new BigDecimal("1.00"), 1, now, now);
+				3L, machine, product, null, new BigDecimal("1.00"), 1,
+				new BigDecimal("1.00"), new BigDecimal("1.00"), null, now, now);
 
 		assertEquals(3L, sale.getId());
 		assertEquals(machine, sale.getMachine());

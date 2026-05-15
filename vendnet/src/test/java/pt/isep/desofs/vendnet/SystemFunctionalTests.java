@@ -142,8 +142,7 @@ class SystemFunctionalTests {
             // AAA: Act & Assert — user list
             mockMvc.perform(get("/api/admin/users")
                             .header("Authorization", "Bearer " + token))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").exists());
+                    .andExpect(status().isOk());
 
             // AAA: Act & Assert — reports
             mockMvc.perform(get("/api/admin/reports")

@@ -69,7 +69,9 @@ class VendingMachineTest {
 		LocalDateTime now = LocalDateTime.now();
 
 		VendingMachine machine = new VendingMachine(
-				3L, "VM-003", "Aveiro - Floor 3", true, now, now);
+				3L, "VM-003", "Aveiro - Floor 3", true,
+				pt.isep.desofs.vendnet.domain.model.machine.MachineStatus.OFFLINE,
+				null, now, now);
 
 		assertEquals(3L, machine.getId());
 		assertEquals("VM-003", machine.getCode());

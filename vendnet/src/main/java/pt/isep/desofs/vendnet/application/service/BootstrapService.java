@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import pt.isep.desofs.vendnet.domain.model.machine.MachineStatus;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.sale.Sale;
@@ -143,6 +144,7 @@ public class BootstrapService {
 				.code(code)
 				.location(location)
 				.active(true)
+				.status(MachineStatus.ONLINE)
 				.createdAt(now)
 				.updatedAt(now)
 				.build();
@@ -172,8 +174,10 @@ public class BootstrapService {
 		Sale sale = Sale.builder()
 				.machine(machine)
 				.product(product)
-				.price(price)
+				.price(price.multiply(BigDecimal.valueOf(quantity)))
 				.quantity(quantity)
+				.totalAmount(price.multiply(BigDecimal.valueOf(quantity)))
+				.unitPrice(price)
 				.saleDate(saleDate)
 				.createdAt(saleDate)
 				.build();

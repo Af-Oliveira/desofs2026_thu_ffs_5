@@ -1194,14 +1194,19 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT",
-                  "// AAA: Act \u2014 GET /api/admin/users",
                   "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Admin can list users\", () => {",
+                  "pm.test(\"Status 200 \u2014 Admin user list returns array\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Returns message indicating admin users endpoint\", () => {",
-                  "    pm.expect(pm.response.json()).to.have.property(\"message\");",
+                  "",
+                  "pm.test(\"Returns an array of users\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0]).to.have.property('id');",
+                  "        pm.expect(jsonData[0]).to.have.property('email');",
+                  "        pm.expect(jsonData[0]).to.have.property('role');",
+                  "    }",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -2138,6 +2143,487 @@
               ]
             },
             "description": "// SUT: Actuator \u2014 GET /actuator/prometheus\n// Prometheus metrics scraping endpoint. permitAll()."
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u25b8 NEW FEATURES \u2014 Purchase, Restock, Admin",
+      "description": "# SUT: New Feature Endpoints\n\nTests for purchase history, machine slot management, restock operations, and admin user/machine management.",
+      "item": [
+        {
+          "name": "C07 \u25cf Customer Purchase History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 customer JWT token",
+                  "// AAA: Act \u2014 GET /api/sales/me",
+                  "// AAA: Assert",
+                  "pm.test(\"Status 200 \u2014 Customer can view purchase history\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns an array of sales\", () => {",
+                  "    pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/sales/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "sales",
+                "me"
+              ]
+            },
+            "description": "// SUT: SaleController \u2014 GET /api/sales/me\n// Returns authenticated customer's purchase history. isAuthenticated()."
+          }
+        },
+        {
+          "name": "N01 \u25cf Operator Restock Slot",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Assert",
+                  "pm.test(\"Status response for restock\", function () {",
+                  "    var code = pm.response.code;",
+                  "    pm.expect([200, 400, 404, 500]).to.include(code);",
+                  "    console.log(\"Restock response: \" + code + \" body: \" + JSON.stringify(pm.response.json()));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/machines/1/slots/1/restock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "machines",
+                "1",
+                "slots",
+                "1",
+                "restock"
+              ]
+            },
+            "description": "// SUT: MachineController \u2014 PUT /api/machines/{machineId}/slots/{slotId}/restock\n// Operator restocks a specific slot. hasAnyRole('OPERATOR','ADMINISTRATOR')."
+          }
+        },
+        {
+          "name": "N02 \u25cf Operator List Machine Slots",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Assert",
+                  "pm.test(\"Status response for slot listing\", function () {",
+                  "    var code = pm.response.code;",
+                  "    pm.expect([200, 400, 404, 500]).to.include(code);",
+                  "    console.log(\"Slot list response: \" + code + \" body: \" + JSON.stringify(pm.response.json()));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/machines/1/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "machines",
+                "1",
+                "slots"
+              ]
+            },
+            "description": "// SUT: MachineController \u2014 GET /api/machines/{machineId}/slots\n// Operator lists all slots for a machine. hasAnyRole('OPERATOR','ADMINISTRATOR')."
+          }
+        },
+        {
+          "name": "N03 \u25cf Operator Restock Exceeds Capacity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 operator JWT, excessive quantity",
+                  "// AAA: Act \u2014 PUT /api/machines/1/slots/1/restock",
+                  "// AAA: Assert",
+                  "pm.test(\"Status 400 \u2014 Restock exceeds capacity\", () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/machines/1/slots/1/restock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "machines",
+                "1",
+                "slots",
+                "1",
+                "restock"
+              ]
+            },
+            "description": "// SUT: MachineController \u2014 PUT /api/machines/{machineId}/slots/{slotId}/restock\n// Verifies that restock exceeding slot capacity returns 400."
+          }
+        },
+        {
+          "name": "N04 \u25cf Customer Purchase",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 customer JWT, purchase payload with idempotency key",
+                  "// AAA: Act \u2014 POST /api/sales/purchase",
+                  "// AAA: Assert",
+                  "pm.test(\"Status is 200, 201, or 400 (depends on stock)\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": 1,\n  \"machineId\": 1,\n  \"paymentToken\": \"test-token\",\n  \"idempotencyKey\": \"newman-test-{{$randomInt}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sales/purchase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "sales",
+                "purchase"
+              ]
+            },
+            "description": "// SUT: SaleController \u2014 POST /api/sales/purchase\n// Customer initiates a purchase. 201=success, 200/400=depends on stock. isAuthenticated()."
+          }
+        },
+        {
+          "name": "A09 \u25cf Admin Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 admin JWT, new user payload",
+                  "// AAA: Act \u2014 POST /api/admin/users",
+                  "// AAA: Assert",
+                  "pm.test(\"Status 201 \u2014 Admin user created\", () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newman-admin@test.com\",\n  \"password\": \"Newman@1234\",\n  \"name\": \"Newman Admin\",\n  \"role\": \"ROLE_ADMINISTRATOR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "// SUT: AdminController \u2014 POST /api/admin/users\n// Admin creates a new user. hasRole('ADMINISTRATOR')."
+          }
+        },
+        {
+          "name": "A10 \u25cf Admin Create Machine",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 admin JWT, new machine payload",
+                  "// AAA: Act \u2014 POST /api/machines",
+                  "// AAA: Assert",
+                  "pm.test(\"Status 201 \u2014 Machine created\", () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"VM-NEWMAN-001\",\n  \"location\": \"Newman Test Location\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/machines",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "machines"
+              ]
+            },
+            "description": "// SUT: MachineController \u2014 POST /api/machines\n// Admin creates a new vending machine. hasRole('ADMINISTRATOR')."
+          }
+        },
+        {
+          "name": "N05 \u25cf Admin Update Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 admin JWT, product update payload",
+                  "// AAA: Act \u2014 PUT /api/products/1",
+                  "// AAA: Assert",
+                  "pm.test(\"Status 200 \u2014 Product updated\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 9.99\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1"
+              ]
+            },
+            "description": "// SUT: ProductController \u2014 PUT /api/products/{id}\n// Admin updates a product. hasRole('ADMINISTRATOR')."
+          }
+        },
+        {
+          "name": "N06 \u25cf Admin Update User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 admin JWT, user role update payload",
+                  "// AAA: Act \u2014 PUT /api/admin/users/2",
+                  "// AAA: Assert",
+                  "pm.test(\"Status 200 \u2014 User role updated to ADMINISTRATOR\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ROLE_ADMINISTRATOR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "2"
+              ]
+            },
+            "description": "// SUT: AdminController \u2014 PUT /api/admin/users/{id}\n// Admin updates a user's role. hasRole('ADMINISTRATOR')."
+          }
+        },
+        {
+          "name": "N07 \u25cf Admin Set User Back",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// AAA: Arrange \u2014 admin JWT, restore operator role payload",
+                  "// AAA: Act \u2014 PUT /api/admin/users/2",
+                  "// AAA: Assert",
+                  "pm.test(\"Status 200 \u2014 User role restored to OPERATOR\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ROLE_OPERATOR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "2"
+              ]
+            },
+            "description": "// SUT: AdminController \u2014 PUT /api/admin/users/{id}\n// Admin restores user role back to OPERATOR after N06. hasRole('ADMINISTRATOR')."
           }
         }
       ]

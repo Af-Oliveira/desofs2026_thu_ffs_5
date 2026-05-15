@@ -1,7 +1,13 @@
 package pt.isep.desofs.vendnet.infrastructure.file;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Set;
+import javax.imageio.ImageIO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
@@ -38,6 +44,13 @@ public class FileValidationServiceImpl implements FileValidationService {
 		if (!hasValidMagicBytes(file)) {
 			throw new IllegalArgumentException("File content does not match declared MIME type");
 		}
+		if (!crossCheckMagicBytesWithExtension(file)) {
+			throw new IllegalArgumentException(
+					"File content does not match file extension. Possible disguised file.");
+		}
+		if (!isDecodableImage(file)) {
+			throw new IllegalArgumentException("File is corrupt or not a valid image");
+		}
 	}
 
 	@Override
@@ -72,5 +85,52 @@ public class FileValidationServiceImpl implements FileValidationService {
 		}
 		String lower = filename.toLowerCase();
 		return ALLOWED_EXTENSIONS.stream().anyMatch(lower::endsWith);
+	}
+
+	private boolean crossCheckMagicBytesWithExtension(MultipartFile file) {
+		try {
+			byte[] firstBytes = file.getInputStream().readNBytes(16);
+			file.getInputStream().reset();
+
+			String magicMime = tika.detect(new ByteArrayInputStream(firstBytes));
+			String ext = file.getOriginalFilename();
+			if (ext == null) {
+				return false;
+			}
+			ext = ext.toLowerCase();
+
+			if (ext.endsWith(".jpg") || ext.endsWith(".jpeg")) {
+				return "image/jpeg".equals(magicMime);
+			} else if (ext.endsWith(".png")) {
+				return "image/png".equals(magicMime);
+			} else if (ext.endsWith(".webp")) {
+				return "image/webp".equals(magicMime);
+			}
+			return false;
+		} catch (IOException e) {
+			log.warn("Cross-check failed", e);
+			return false;
+		}
+	}
+
+	private boolean isDecodableImage(MultipartFile file) {
+		try {
+			byte[] bytes = file.getBytes();
+			BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
+			return image != null;
+		} catch (IOException e) {
+			log.warn("Image decode check failed", e);
+			return false;
+		}
+	}
+
+	public String computeChecksum(byte[] data) {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			byte[] hash = digest.digest(data);
+			return HexFormat.of().formatHex(hash);
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException("SHA-256 not available", e);
+		}
 	}
 }
