@@ -327,10 +327,6 @@ jobs:
         with:
           target: 'http://localhost:8080'
           rules_file_name: '.zap/rules.tsv'
-          cmd_options: >-
-            -config api.addrs.addr.name=.*
-            -config api.addrs.addr.regex=true
-            -config api.disablekey=true
 
       - name: ZAP Authenticated Scan - Protected Endpoints
         uses: zaproxy/action-api-scan@v0.10.0
