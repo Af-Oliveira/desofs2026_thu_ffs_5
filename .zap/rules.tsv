@@ -1,0 +1,35 @@
+# ZAP Baseline Scan Rules
+# Format: <id>  <threshold>  <action>
+# Rules marked IGNORE are documented false positives with justification
+
+# Active scan rules
+10099  IGNORE  (Timestamp Disclosure - Unix: not exploitable in our JSON responses)
+10096  FAIL    (Server Side Include)
+10095  FAIL    (Backup File Disclosure)
+10094  FAIL    (Cross-Domain Misconfiguration)
+10054  WARN    (Cookie without SameSite Attribute)
+10049  FAIL    (Non-Storable Content)
+10045  FAIL    (Fingerprinting)
+10040  WARN    (X-Backend-Server Header)
+10038  FAIL    (Content Security Policy Header Not Set)
+10037  FAIL    (Server Leaks Information via X-Powered-By Header)
+10036  FAIL    (Server Leaks Version Information)
+10035  FAIL    (Strict-Transport-Security Header Not Set)
+10034  FAIL    (Heartbleed OpenSSL Vulnerability)
+10032  FAIL    (Viewstate without MAC Signature)
+10030  FAIL    (User Controllable Charset)
+10028  FAIL    (Open Redirect)
+10024  FAIL    (Information Disclosure - Sensitive Information in URL)
+10023  FAIL    (Information Disclosure - Debug Error Messages)
+10020  FAIL    (Anti-CSRF Tokens Check)
+10017  FAIL    (Cross-Domain JavaScript Source File Inclusion)
+10010  FAIL    (Cookie No HttpOnly Flag)
+10009  FAIL    (In Page Banner Information Leak)
+2      WARN    (Private IP Disclosure)
+0      WARN    (Directory Browsing)
+
+# Passive scan rules
+10105  FAIL    (Weak Authentication Method)
+10104  FAIL    (User Agent Fuzzer)
+10003  FAIL    (Vulnerable JS Library)
+10062  FAIL    (PII Disclosure)

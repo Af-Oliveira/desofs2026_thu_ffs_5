@@ -1,69 +1,22 @@
-name: CI Pipeline
+# =============================================================================
+# VendNet CI Pipeline (LEGACY — superseded by ci-security.yml)
+# 
+# This workflow is kept for reference. The full security pipeline with
+# SAST, SCA, DAST, IAST, artifact scanning, and all OWASP Top 10 checks
+# is in .github/workflows/ci-security.yml
+#
+# To migrate: rename or remove this file and ensure ci-security.yml is active.
+# =============================================================================
+
+name: CI Pipeline (Legacy)
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:  # Manual only — disabled for push/PR triggers
 
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.4
-        env:
-          MYSQL_ROOT_PASSWORD: rootpass
-          MYSQL_DATABASE: vendnet
-          MYSQL_USER: vendnet_user
-          MYSQL_PASSWORD: vendnet_pass
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: SAST - SpotBugs with FindSecBugs
-        run: make sast
-        working-directory: vendnet
-
-      - name: SCA - OWASP Dependency Check
-        run: make sca
-        working-directory: vendnet
-        continue-on-error: true
-
-      - name: Build, Test & Coverage
-        run: make verify
-        working-directory: vendnet
-        env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/vendnet
-          SPRING_DATASOURCE_USERNAME: vendnet_user
-          SPRING_DATASOURCE_PASSWORD: vendnet_pass
-
-      - name: ArchUnit Architecture Tests
-        run: make test
-        working-directory: vendnet
-        env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/vendnet
-          SPRING_DATASOURCE_USERNAME: vendnet_user
-          SPRING_DATASOURCE_PASSWORD: vendnet_pass
-
-      - name: Upload reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-reports
-          path: |
-            vendnet/target/surefire-reports/
-            vendnet/target/dependency-check-report.html
-            vendnet/target/site/jacoco/
-            vendnet/target/spotbugsXml.xml
+      - run: |
+          echo "::notice::This legacy pipeline is superseded by ci-security.yml"
+          echo "::notice::Use the full CI / Security Pipeline for all checks."

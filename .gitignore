@@ -85,3 +85,7 @@ vendnet/logs/
 *.jks
 !docker/certs/*.p12
 !docker/certs/*.jks
+
+## Others ##
+Doc/
+Desofs/

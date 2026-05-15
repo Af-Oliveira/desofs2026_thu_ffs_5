@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!--
+        Suppressions require PR review + documented justification.
+        Add suppressions here only after team review.
+
+        Format:
+        <suppress>
+            <notes>Justification with PR link</notes>
+            <cve>CVE-XXXX-YYYYY</cve>
+        </suppress>
+
+        Currently empty: all High/Critical CVEs must be resolved or documented.
+    -->
+</suppressions>

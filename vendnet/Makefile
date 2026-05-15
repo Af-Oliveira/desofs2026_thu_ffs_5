@@ -8,7 +8,9 @@
         api-test api-test-full \
         build test verify coverage sast sca pipeline all \
         db-reset db-shell \
-        clean kill
+        clean kill \
+        archunit abuse-tests integration-test \
+        sbom enforcer docker-build docker-scan secret-scan
 
 MVN = ./mvnw
 DC = docker compose -f ../docker-compose.yml
@@ -95,6 +97,14 @@ help:
 	@printf "  $(C_GREEN)make sca$(C_RESET)            OWASP Dependency Check\n"
 	@printf "  $(C_GREEN)make pipeline$(C_RESET)       Full CI: clean + sast + sca + verify\n"
 	@printf "  $(C_GREEN)make all$(C_RESET)            up + pipeline\n"
+	@printf "  $(C_GREEN)make archunit$(C_RESET)       Run ArchUnit architecture tests\n"
+	@printf "  $(C_GREEN)make abuse-tests$(C_RESET)    Run abuse case regression tests\n"
+	@printf "  $(C_GREEN)make integration-test$(C_RESET) Run integration tests (Testcontainers)\n"
+	@printf "  $(C_GREEN)make sbom$(C_RESET)           Generate CycloneDX SBOM\n"
+	@printf "  $(C_GREEN)make enforcer$(C_RESET)       Check Maven dependency version rules\n"
+	@printf "  $(C_GREEN)make docker-build$(C_RESET)   Build Docker image\n"
+	@printf "  $(C_GREEN)make docker-scan$(C_RESET)    Build and scan Docker image with Trivy\n"
+	@printf "  $(C_GREEN)make secret-scan$(C_RESET)    Scan for secrets with gitleaks\n"
 	@printf "\n"
 	@printf "$(C_BOLD)═══ UTILS ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make clean$(C_RESET)          mvn clean\n"
@@ -212,12 +222,12 @@ urls:
 ##  APP
 ## ======================================================================
 run: db-up
-	@mkdir -p ../vendnet/logs ../vendnet/data
+	@mkdir -p logs data
 	@printf "$(C_ARROW) Starting VendNet on http://localhost:$(APP_PORT)...\n"
 	@$(MVN) spring-boot:run -Dspring-boot.run.profiles=dev
 
 debug: db-up
-	@mkdir -p ../vendnet/logs ../vendnet/data
+	@mkdir -p logs data
 	@printf "$(C_ARROW) Starting VendNet (debug port 5005)...\n"
 	@$(MVN) spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
 
@@ -316,6 +326,10 @@ format-check:
 lint-fix: format
 	@make lint
 	@printf "\n$(C_OK) Format applied + lint checked.\n"
+
+## ======================================================================
+##  CI/CD
+## ======================================================================
 build:
 	@$(MVN) compile -q && printf "$(C_OK) Build OK\n"
 
@@ -340,6 +354,39 @@ pipeline: clean sast sca verify
 
 all: up pipeline
 	@printf "\n$(C_OK) Full pipeline + Docker completed.\n"
+
+archunit:
+	@$(MVN) test -Dtest="*ArchitectureTest,*ArchTest"
+	@printf "$(C_OK) ArchUnit architecture tests completed.\n"
+
+abuse-tests:
+	@$(MVN) test -Dtest="*AbuseCase*"
+	@printf "$(C_OK) Abuse case regression tests completed.\n"
+
+integration-test:
+	@$(MVN) verify -P integration-test
+	@printf "$(C_OK) Integration tests completed.\n"
+
+sbom:
+	@$(MVN) package -DskipTests
+	@printf "$(C_OK) SBOM generated: target/vendnet-sbom.json\n"
+
+enforcer:
+	@$(MVN) validate
+	@printf "$(C_OK) Maven enforcer rules checked.\n"
+
+docker-build:
+	docker build -t vendnet:latest .
+	@printf "$(C_OK) Docker image built: vendnet:latest\n"
+
+docker-scan:
+	docker build -t vendnet:latest .
+	trivy image --severity CRITICAL,HIGH vendnet:latest
+	@printf "$(C_OK) Docker image scan completed.\n"
+
+secret-scan:
+	gitleaks detect --verbose
+	@printf "$(C_OK) Secret scan completed.\n"
 
 ## ======================================================================
 ##  UTILS
