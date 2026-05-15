@@ -62,6 +62,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/mfa/verify").permitAll()
+                .requestMatchers("/api/health/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/telemetry").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()

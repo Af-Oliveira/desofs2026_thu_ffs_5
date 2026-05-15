@@ -96,7 +96,7 @@ public class AuthService {
 
 		resetLockout(user);
 
-		if (user.getRole() == Role.ROLE_ADMINISTRATOR) {
+		if (user.getRole() == Role.ROLE_ADMINISTRATOR && user.getTotpSecret() != null) {
 			return AuthResponse.builder()
 					.email(user.getEmail())
 					.name(user.getName())

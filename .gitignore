@@ -80,6 +80,9 @@ logs/
 vendnet/logs/
 /var/vendnet/
 
+### E2E Reports ###
+vendnet/e2e/reports/
+
 ### Security ###
 *.p12
 *.jks
@@ -88,4 +91,4 @@ vendnet/logs/
 
 ## Others ##
 Doc/
-Desofs/
+/Desofs/

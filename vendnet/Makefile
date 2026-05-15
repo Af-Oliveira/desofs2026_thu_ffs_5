@@ -1,17 +1,18 @@
 .PHONY: help certs setup \
         db-up db-down obs-up obs-down up down restart \
         logs db-logs app-logs loki-logs obs-logs \
-        run stop debug ping \
+        run stop debug ping bootstrap \
         lint format format-check lint-fix \
         swagger grafana prometheus jaeger \
         metrics traces status urls \
         api-test api-test-full \
         build test verify coverage sast sca pipeline all \
-        db-reset db-shell \
+        db-reset db-clean db-shell \
         clean kill \
         archunit abuse-tests integration-test \
         sbom enforcer docker-build docker-scan secret-scan \
-        ci-local ci-local-build ci-local-pipeline
+        ci-local ci-local-build ci-local-pipeline \
+        e2e e2e-install e2e-ci
 
 MVN = ./mvnw
 DC = docker compose -f ../docker-compose.yml
@@ -43,7 +44,8 @@ help:
 	@printf "  $(C_GREEN)make certs$(C_RESET)          Generate mTLS certificates\n"
 	@printf "  $(C_GREEN)make setup$(C_RESET)          First-time: certs + MySQL\n"
 	@printf "  $(C_GREEN)make db-reset$(C_RESET)       Drop + recreate vendnet database\n"
-	@printf "  $(C_GREEN)make db-shell$(C_RESET)       Open MySQL shell\n"
+	@printf "  $(C_GREEN)make db-clean$(C_RESET)      Truncate all tables (keep schema)\n"
+	@printf "  $(C_GREEN)make db-shell$(C_RESET)      Open MySQL shell\n"
 	@printf "\n"
 	@printf "$(C_BOLD)═══ INFRA ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make up$(C_RESET)             Start ALL services (MySQL + obs stack)\n"
@@ -56,6 +58,7 @@ help:
 	@printf "$(C_BOLD)═══ APP ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make run$(C_RESET)            Start MySQL + Spring Boot (foreground)\n"
 	@printf "  $(C_GREEN)make debug$(C_RESET)          Start app with debug port 5005\n"
+	@printf "  $(C_GREEN)make bootstrap$(C_RESET)      Start app + seed test data (dev + bootstrap profiles)\n"
 	@printf "  $(C_GREEN)make ping$(C_RESET)           Ping the health endpoint (no auth)\n"
 	@printf "  $(C_GREEN)make stop$(C_RESET)           Kill app + stop all Docker\n"
 	@printf "  $(C_GREEN)make kill$(C_RESET)           Force-kill port $(APP_PORT)\n"
@@ -82,6 +85,9 @@ help:
 	@printf "$(C_BOLD)═══ TEST ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make api-test$(C_RESET)       Smoke test: register + login + all endpoints\n"
 	@printf "  $(C_GREEN)make api-test-full$(C_RESET)  Full test: 50 requests for traffic gen\n"
+	@printf "  $(C_GREEN)make e2e$(C_RESET)            End-to-end tests (H2 in-memory — starts/stops app automatically)\n"
+	@printf "  $(C_GREEN)make e2e-install$(C_RESET)    Install Newman CLI (npm install -g newman)\n"
+	@printf "  $(C_GREEN)make e2e-ci$(C_RESET)         Run E2E in CI mode (JUnit XML output, no colors)\n"
 	@printf "\n"
 	@printf "$(C_BOLD)═══ LINT ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make lint$(C_RESET)           Run Checkstyle + PMD (warnings & errors)\n"
@@ -127,6 +133,11 @@ setup: certs db-up
 db-reset:
 	@$(DC) exec mysql mysql -u vendnet_user -pvendnet_pass -e "DROP DATABASE IF EXISTS vendnet; CREATE DATABASE vendnet;" 2>/dev/null
 	@printf "$(C_OK) Database reset\n"
+
+db-clean:
+	@$(DC) exec mysql mysql -u vendnet_user -pvendnet_pass vendnet \
+		-e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE TABLE machine_telemetry; TRUNCATE TABLE sales; TRUNCATE TABLE slots; TRUNCATE TABLE vending_machines; TRUNCATE TABLE products; TRUNCATE TABLE users; TRUNCATE TABLE audit_logs; SET FOREIGN_KEY_CHECKS=1;" 2>/dev/null
+	@printf "$(C_OK) Database cleaned (all tables truncated)\n"
 
 db-shell:
 	@$(DC) exec mysql mysql -u vendnet_user -pvendnet_pass vendnet
@@ -233,6 +244,11 @@ debug: db-up
 	@mkdir -p logs data
 	@printf "$(C_ARROW) Starting VendNet (debug port 5005)...\n"
 	@$(MVN) spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+
+bootstrap: db-up
+	@mkdir -p logs data
+	@printf "$(C_ARROW) Starting VendNet with bootstrap profile (seeds test data)...\n"
+	@$(MVN) spring-boot:run -Dspring-boot.run.profiles=dev,bootstrap
 
 stop:
 	@lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true
@@ -421,6 +437,60 @@ ci-local-pipeline:
 		--platform ubuntu-latest=catthehacker/ubuntu:full-latest \
 		--container-architecture linux/amd64
 	@printf "\n$(C_OK) CI pipeline jobs complete.\n"
+
+## ======================================================================
+##  E2E (Newman / Postman End-to-End Tests)
+## ======================================================================
+e2e-install:
+	@printf "$(C_ARROW) Installing newman and reporters...\n"
+	@npm install -g newman newman-reporter-htmlextra newman-reporter-junitfull 2>&1
+	@printf "$(C_OK) Newman installed.\n"
+
+e2e:
+	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ VendNet E2E Tests (H2 in-memory, fully automatic) ═══$(C_RESET)\n\n"
+	@printf "$(C_ARROW) Stopping any existing app on port $(APP_PORT)...\n"
+	@lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true
+	@sleep 1
+	@printf "$(C_ARROW) Packaging (skip tests)...\n"
+	@$(MVN) package -DskipTests -q 2>/dev/null
+	@printf "$(C_OK) Packaged.\n"
+	@printf "$(C_ARROW) Starting VendNet with H2 + bootstrap...\n"
+	@mkdir -p logs data
+	@java -Dspring.profiles.active=dev,bootstrap,e2e -jar target/vendnet-0.0.1-SNAPSHOT.jar > /tmp/vendnet-e2e.log 2>&1 &
+	@printf "$(C_ARROW) Waiting for app "
+	@for i in $$(seq 1 45); do \
+		if curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; then \
+			printf " $(C_OK) ready ($$((i * 2))s)\n"; break; \
+		fi; \
+		printf "."; sleep 2; \
+	done
+	@if ! curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; then \
+		printf "\n$(C_FAIL) App failed to start. Check /tmp/vendnet-e2e.log\n"; \
+		lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true; \
+		exit 1; \
+	fi
+	@printf "\n$(C_ARROW) Running E2E tests...\n"
+	@./e2e/run-e2e.sh --no-check; \
+	EXIT_CODE=$$?; \
+	printf "\n$(C_ARROW) Stopping app...\n"; \
+	lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true; \
+	if [ $$EXIT_CODE -eq 0 ]; then \
+		printf "$(C_OK) All E2E tests passed.\n"; \
+	else \
+		printf "$(C_FAIL) E2E tests failed (exit $$EXIT_CODE).\n"; \
+	fi; \
+	exit $$EXIT_CODE
+
+e2e-ci:
+	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ VendNet E2E Tests — CI Mode ═══$(C_RESET)\n\n"
+	@mkdir -p e2e/reports
+	@newman run e2e/VendNet_E2E_Tests.postman_collection.json \
+		--environment e2e/vendnet-local.postman_environment.json \
+		--reporters cli,junitfull \
+		--reporter-junitfull-export e2e/reports/e2e-junit.xml \
+		--no-color \
+		--bail
+	@printf "\n$(C_OK) E2E CI run complete.\n"
 
 ## ======================================================================
 ##  UTILS
