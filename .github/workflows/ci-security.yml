@@ -414,6 +414,8 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required for gitleaks commit-range diff
 
       - name: Gitleaks Scan
         uses: gitleaks/gitleaks-action@v2
