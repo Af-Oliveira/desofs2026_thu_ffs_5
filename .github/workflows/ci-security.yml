@@ -262,7 +262,7 @@ jobs:
           cache: 'maven'
 
       - name: SonarQube Scan
-        run: ./mvnw -B verify sonar:sonar -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+        run: ./mvnw -B verify sonar:sonar -Dsonar.token=${{ secrets.SONAR_TOKEN }} -Dsonar.organization=project_vendnet
         working-directory: vendnet
 
   # ===========================================================================
@@ -327,6 +327,8 @@ jobs:
         with:
           target: 'http://localhost:8080'
           rules_file_name: '.zap/rules.tsv'
+          artifact_name: 'zap-baseline-report'
+          allow_issue_writing: false
 
       - name: ZAP Authenticated Scan - Protected Endpoints
         uses: zaproxy/action-api-scan@v0.10.0
