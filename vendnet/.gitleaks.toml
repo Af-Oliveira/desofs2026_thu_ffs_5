@@ -1,15 +1,11 @@
-title: VendNet Gitleaks Configuration
+title = "VendNet Gitleaks Configuration"
 
 [allowlist]
 description = "Allowlisted patterns that are not secrets"
-
-[[rules]]
-id = "generic-api-key"
-[rules.allowlist]
-description = "Placeholder values for development"
 regexes = [
     "webhook-secret-placeholder",
     "MUDA_ISTO_PARA_SEGREDO_FORTE",
+    "test_secret_key_for_testing",
     "ci_test_secret_key_min_32_characters_long",
     "ci-webhook-secret-placeholder",
 ]
