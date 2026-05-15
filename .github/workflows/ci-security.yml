@@ -129,11 +129,7 @@ jobs:
       - name: Semgrep Scan
         uses: returntocorp/semgrep-action@v1
         with:
-          config: >-
-            p/java         # Java language rules
-            p/spring       # Spring framework rules
-            p/secrets      # Secret detection rules
-            .semgrep/      # Custom VendNet rules (JWT, SQLi, PreAuthorize)
+          config: p/java p/spring p/secrets .semgrep/
 
       - name: Check Semgrep SARIF exists
         id: semgrep-sarif
