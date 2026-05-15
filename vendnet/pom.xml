@@ -15,6 +15,7 @@
 	<description>VendNet - Vending Machine Network</description>
 
 	<properties>
+	
 		<java.version>17</java.version>
 		<tomcat.version>10.1.55</tomcat.version>
 		<spotbugs.version>4.8.6.4</spotbugs.version>
@@ -34,6 +35,8 @@
 		<cyclonedx.version>2.9.1</cyclonedx.version>
 		<maven-enforcer.version>3.5.0</maven-enforcer.version>
 		<sonar.version>5.1.0.4751</sonar.version>
+		<sonar.organization>project-vendnet</sonar.organization>
+		<sonar.projectKey>project-vendnet_vendnet</sonar.projectKey>
 	</properties>
 
 	<dependencies>
