@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.telemetry.MachineTelemetry;
 import pt.isep.desofs.vendnet.domain.repository.TelemetryRepository;
+import pt.isep.desofs.vendnet.domain.repository.VendingMachineRepository;
 
 @ExtendWith(MockitoExtension.class)
 class TelemetryServiceTest {
@@ -25,11 +26,14 @@ class TelemetryServiceTest {
 	@Mock
 	private TelemetryRepository telemetryRepository;
 
+	@Mock
+	private VendingMachineRepository machineRepository;
+
 	private TelemetryService telemetryService;
 
 	@BeforeEach
 	void setUp() {
-		telemetryService = new TelemetryService(telemetryRepository);
+		telemetryService = new TelemetryService(telemetryRepository, machineRepository);
 	}
 
 	@Test

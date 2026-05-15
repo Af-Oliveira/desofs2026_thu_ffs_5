@@ -1,6 +1,7 @@
 package pt.isep.desofs.vendnet.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -155,9 +156,10 @@ class AuthServiceTest {
 	}
 
 	@Test
-	void login_adminShouldRequireMfa() {
+	void login_adminShouldRequireMfa_whenTotpSecretSet() {
 		LoginRequest request = new LoginRequest("admin@vendnet.com", "correctPass");
 		User user = buildUser("admin@vendnet.com", "hashedPass", Role.ROLE_ADMINISTRATOR, AccountStatus.ACTIVE);
+		user.setTotpSecret("test-totp-secret-for-mfa");
 
 		when(userRepository.findByEmail("admin@vendnet.com")).thenReturn(Optional.of(user));
 		when(passwordEncoder.matches("correctPass", "hashedPass")).thenReturn(true);
@@ -167,6 +169,21 @@ class AuthServiceTest {
 		assertTrue(response.isMfaRequired());
 		assertEquals("admin@vendnet.com", response.getEmail());
 		assertEquals("ROLE_ADMINISTRATOR", response.getRole());
+	}
+
+	@Test
+	void login_adminWithoutTotpSecret_shouldNotRequireMfa() {
+		LoginRequest request = new LoginRequest("admin@vendnet.com", "correctPass");
+		User user = buildUser("admin@vendnet.com", "hashedPass", Role.ROLE_ADMINISTRATOR, AccountStatus.ACTIVE);
+
+		when(userRepository.findByEmail("admin@vendnet.com")).thenReturn(Optional.of(user));
+		when(passwordEncoder.matches("correctPass", "hashedPass")).thenReturn(true);
+		when(jwtService.generateToken("admin@vendnet.com")).thenReturn("jwt-token");
+
+		AuthResponse response = authService.login(request);
+
+		assertFalse(response.isMfaRequired());
+		assertEquals("jwt-token", response.getToken());
 	}
 
 	// ── Account lockout ─────────────────────────────────────────────────────
