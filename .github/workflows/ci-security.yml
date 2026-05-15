@@ -360,7 +360,6 @@ jobs:
         with:
           target: 'http://localhost:8080'
           rules_file_name: '.zap/rules.tsv'
-          artifact_name: 'zap-baseline-report'
           allow_issue_writing: false
 
       - name: ZAP Authenticated Scan - Protected Endpoints

@@ -96,3 +96,4 @@ Doc/
 ### ZAP DAST reports (generated) ###
 .zap/reports/
 .zap/tokens/
+.zap/zap.yaml
