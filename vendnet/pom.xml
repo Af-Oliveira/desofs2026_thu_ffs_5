@@ -35,8 +35,7 @@
 		<cyclonedx.version>2.9.1</cyclonedx.version>
 		<maven-enforcer.version>3.5.0</maven-enforcer.version>
 		<sonar.version>5.1.0.4751</sonar.version>
-		<sonar.organization>project-vendnet</sonar.organization>
-		<sonar.projectKey>project-vendnet_vendnet</sonar.projectKey>
+
 	</properties>
 
 	<dependencies>
