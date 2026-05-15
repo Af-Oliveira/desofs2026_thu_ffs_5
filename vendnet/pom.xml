@@ -238,6 +238,10 @@
 				<version>${dependency-check.version}</version>
 				<configuration>
 					<failBuildOnCVSS>7</failBuildOnCVSS>
+					<dataDirectory>${user.home}/.dependency-check/data</dataDirectory>
+					<suppressionFiles>
+						<suppressionFile>owasp-suppressions.xml</suppressionFile>
+					</suppressionFiles>
 				</configuration>
 			</plugin>
 

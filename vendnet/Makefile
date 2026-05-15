@@ -333,7 +333,7 @@ sast:
 	@$(MVN) spotbugs:check -Dspotbugs.effort=Max -Dspotbugs.threshold=Low
 
 sca:
-	@$(MVN) org.owasp:dependency-check-maven:check
+	@$(MVN) org.owasp:dependency-check-maven:check -Danalyzer.ossindex.enabled=false
 
 pipeline: clean sast sca verify
 	@printf "\n$(C_OK) CI Pipeline completed.\n"

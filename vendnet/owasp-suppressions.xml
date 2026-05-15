@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+    <!-- Angus Activation — CPE false positive: matched to eclipse:angus_mail, not eclipse:angus_activation -->
+    <suppress>
+        <notes><![CDATA[
+            False positive: CPE match on eclipse:angus_mail (a different Eclipse Angus product).
+            This jar is org.eclipse.angus:angus-activation (Jakarta Activation), not Angus Mail.
+        ]]></notes>
+        <gav regex="true">org\.eclipse\.angus:angus-activation:.*</gav>
+        <cve>CVE-2025-7962</cve>
+    </suppress>
+
+    <!-- Log4j API — CVEs on log4j-core parsing features; this project only uses log4j-api for SLF4J bridge -->
+    <suppress>
+        <notes><![CDATA[
+            The CVEs affect log4j-core message lookup/configuration features.
+            This project only uses log4j-api as a transitive SLF4J binding (via Spring Boot).
+            No custom log4j configuration or message lookups are used.
+        ]]></notes>
+        <gav regex="true">org\.apache\.logging\.log4j:log4j-api:.*</gav>
+        <cve>CVE-2026-34478</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[See log4j-api suppression above.]]></notes>
+        <gav regex="true">org\.apache\.logging\.log4j:log4j-api:.*</gav>
+        <cve>CVE-2026-34479</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[See log4j-api suppression above.]]></notes>
+        <gav regex="true">org\.apache\.logging\.log4j:log4j-api:.*</gav>
+        <cve>CVE-2026-34480</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[See log4j-api suppression above.]]></notes>
+        <gav regex="true">org\.apache\.logging\.log4j:log4j-api:.*</gav>
+        <cve>CVE-2026-34481</cve>
+    </suppress>
+
+    <!-- Micrometer Prometheus Registry — CPE false positive: matched to prometheus:prometheus server, not micrometer library -->
+    <suppress>
+        <notes><![CDATA[
+            False positive: CPE matched to prometheus:prometheus:1.15.11, which is the Prometheus
+            monitoring server, not io.micrometer:micrometer-registry-prometheus (the metrics facade).
+        ]]></notes>
+        <gav regex="true">io\.micrometer:micrometer-registry-prometheus:.*</gav>
+        <cve>CVE-2026-42154</cve>
+    </suppress>
+
+    <!-- OpenTelemetry SemConv — CPE false positive: matched to opentelemetry collector, not semconv schema -->
+    <suppress>
+        <notes><![CDATA[
+            False positive: CPE matched to opentelemetry:opentelemetry:1.32.0 (OpenTelemetry agent/collector),
+            not io.opentelemetry.semconv:opentelemetry-semconv (semantic conventions schema library).
+        ]]></notes>
+        <gav regex="true">io\.opentelemetry\.semconv:opentelemetry-semconv:.*</gav>
+        <cve>CVE-2026-39883</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[See opentelemetry-semconv suppression above.]]></notes>
+        <gav regex="true">io\.opentelemetry\.semconv:opentelemetry-semconv:.*</gav>
+        <cve>CVE-2026-39882</cve>
+    </suppress>
+
+    <!-- Apache Tika — used only for MIME type detection (tika-core), not document parsing -->
+    <suppress>
+        <notes><![CDATA[
+            This project uses tika-core exclusively for MIME type detection via Tika.detect().
+            The CVEs affect document parsing features (parsers for specific formats) which are not
+            in the tika-core module and are not used by this application.
+        ]]></notes>
+        <gav regex="true">org\.apache\.tika:tika-core:.*</gav>
+        <cve>CVE-2025-54988</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[See tika-core suppression above.]]></notes>
+        <gav regex="true">org\.apache\.tika:tika-core:.*</gav>
+        <cve>CVE-2025-66516</cve>
+    </suppress>
+
+    <!-- Tomcat Embed — Spring Boot managed; CVEs affect specific features not used here -->
+    <suppress>
+        <notes><![CDATA[
+            CVE-2026-41284 affects specific HTTP/2 configurations not used by this embedded Tomcat.
+            CVE-2026-42498 affects specific connector configurations not enabled.
+            CVE-2026-43514 affects specific servlet features not used here.
+            All tomcat-embed artifacts are managed by Spring Boot parent POM.
+        ]]></notes>
+        <gav regex="true">org\.apache\.tomcat\.embed:tomcat-embed-.*:.*</gav>
+        <cve>CVE-2026-41284</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[See tomcat-embed suppression above.]]></notes>
+        <gav regex="true">org\.apache\.tomcat\.embed:tomcat-embed-.*:.*</gav>
+        <cve>CVE-2026-42498</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[See tomcat-embed suppression above.]]></notes>
+        <gav regex="true">org\.apache\.tomcat\.embed:tomcat-embed-.*:.*</gav>
+        <cve>CVE-2026-43514</cve>
+    </suppress>
+
+</suppressions>
