@@ -242,6 +242,7 @@
 				<configuration>
 					<failBuildOnCVSS>7</failBuildOnCVSS>
 					<dataDirectory>${user.home}/.dependency-check/data</dataDirectory>
+					<nvdApiKey>${env.NVD_API_KEY}</nvdApiKey>
 					<suppressionFiles>
 						<suppressionFile>owasp-suppressions.xml</suppressionFile>
 						<suppressionFile>dependency-check-suppressions.xml</suppressionFile>

@@ -180,6 +180,8 @@ jobs:
       - name: OWASP Dependency Check
         run: ./mvnw -B org.owasp:dependency-check-maven:check -Danalyzer.ossindex.enabled=false
         working-directory: vendnet
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
       - name: Upload Dependency Check Report
         uses: actions/upload-artifact@v4
