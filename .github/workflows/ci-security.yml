@@ -134,9 +134,17 @@ jobs:
             p/secrets      # Secret detection rules
             .semgrep/      # Custom VendNet rules (JWT, SQLi, PreAuthorize)
 
-      - name: Upload Semgrep SARIF
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Debug SARIF file location
         if: always()
+        run: |
+          echo "=== SARIF files ==="
+          find . -name "*.sarif" -type f 2>/dev/null || echo "No SARIF files found"
+          echo "=== Semgrep output ==="
+          ls -la semgrep.sarif 2>/dev/null || echo "semgrep.sarif not in root"
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('semgrep.sarif') != ''
         with:
           sarif_file: semgrep.sarif
 
@@ -362,7 +370,7 @@ jobs:
           output: 'trivy-jar-results.sarif'
 
       - name: Upload Trivy JAR Results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-jar-results.sarif
@@ -381,7 +389,7 @@ jobs:
           output: 'trivy-image-results.sarif'
 
       - name: Upload Trivy Image Results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-image-results.sarif
