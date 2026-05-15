@@ -49,6 +49,7 @@ Stage 9: Secret Detection    — Gitleaks backup check
 | Secret | Purpose |
 |--------|---------|
 | `SONAR_TOKEN` | SonarQube Cloud authentication |
+| `NVD_API_KEY` | NVD API key for Dependency-Check (free from nvd.nist.gov, eliminates long NVD download) |
 | `DOCKER_HUB_TOKEN` | Docker Hub registry push (optional) |
 
 ## Environment Variables (CI)

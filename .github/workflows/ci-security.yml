@@ -144,6 +144,10 @@ jobs:
   # STAGE 3 — SCA: Software Composition Analysis
   # Covers: US-PIPE-002 (Maven Enforcer), US-SCA-001 (Dependency-Check)
   # Acceptance: zero High/Critical CVEs, pinned versions only
+  #
+  # Performance: NVD database is cached (~20 MB compressed). First run downloads
+  # the full NVD feed (~20 min). Subsequent runs use cached data (~30 sec).
+  # Set NVD_API_KEY secret for faster updates (free from nvd.nist.gov).
   # ===========================================================================
   sca:
     name: SCA - Dependency Check + Maven Enforcer
@@ -158,12 +162,21 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Restore NVD Cache
+        id: nvd-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check/data
+          key: nvd-cache-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            nvd-cache-${{ runner.os }}-
+
       - name: Maven Enforcer (pinned versions, no ranges)
         run: ./mvnw -B validate
         working-directory: vendnet
 
       - name: OWASP Dependency Check
-        run: ./mvnw -B org.owasp:dependency-check-maven:check
+        run: ./mvnw -B org.owasp:dependency-check-maven:check -DnvdApiKey=${{ secrets.NVD_API_KEY || '' }}
         working-directory: vendnet
 
       - name: Upload Dependency Check Report
