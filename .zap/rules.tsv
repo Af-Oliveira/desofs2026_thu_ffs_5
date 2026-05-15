@@ -29,6 +29,7 @@
 0      WARN    (Directory Browsing)
 
 # Passive scan rules
+40042  IGNORE  (Spring Actuator Information Leak - /actuator/health intentionally public for monitoring)
 10105  FAIL    (Weak Authentication Method)
 10104  FAIL    (User Agent Fuzzer)
 10003  FAIL    (Vulnerable JS Library)
