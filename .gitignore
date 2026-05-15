@@ -92,3 +92,7 @@ vendnet/e2e/reports/
 ## Others ##
 Doc/
 /Desofs/
+
+### ZAP DAST reports (generated) ###
+.zap/reports/
+.zap/tokens/

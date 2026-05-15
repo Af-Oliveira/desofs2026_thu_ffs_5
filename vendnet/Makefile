@@ -12,11 +12,17 @@
         archunit abuse-tests integration-test \
         sbom enforcer docker-build docker-scan secret-scan \
         ci-local ci-local-build ci-local-pipeline \
-        e2e e2e-install e2e-ci
+		e2e e2e-install e2e-ci \
+		zap-seed zap-baseline zap-api-scan zap-full
 
 MVN = ./mvnw
 DC = docker compose -f ../docker-compose.yml
 APP_PORT = 8080
+
+# --- ZAP DAST ---
+ZAP_DIR = ../.zap
+ZAP_TOKENS = $(ZAP_DIR)/tokens
+ZAP_REPORTS = $(ZAP_DIR)/reports
 
 # --- Colors ---
 C_RESET = \033[0m
@@ -88,6 +94,12 @@ help:
 	@printf "  $(C_GREEN)make e2e$(C_RESET)            End-to-end tests (H2 in-memory — starts/stops app automatically)\n"
 	@printf "  $(C_GREEN)make e2e-install$(C_RESET)    Install Newman CLI (npm install -g newman)\n"
 	@printf "  $(C_GREEN)make e2e-ci$(C_RESET)         Run E2E in CI mode (JUnit XML output, no colors)\n"
+	@printf "\n"
+	@printf "$(C_BOLD)═══ ZAP DAST ═══$(C_RESET)\n"
+	@printf "  $(C_GREEN)make zap-seed$(C_RESET)       Obtain JWT tokens from running app for ZAP auth\n"
+	@printf "  $(C_GREEN)make zap-baseline$(C_RESET)   OWASP ZAP baseline scan (public surface)\n"
+	@printf "  $(C_GREEN)make zap-api-scan$(C_RESET)   OWASP ZAP authenticated API scan (OpenAPI)\n"
+	@printf "  $(C_GREEN)make zap-full$(C_RESET)       Full DAST: seed + baseline + api-scan\n"
 	@printf "\n"
 	@printf "$(C_BOLD)═══ LINT ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make lint$(C_RESET)           Run Checkstyle + PMD (warnings & errors)\n"
@@ -491,6 +503,158 @@ e2e-ci:
 		--no-color \
 		--bail
 	@printf "\n$(C_OK) E2E CI run complete.\n"
+
+## ======================================================================
+##  ZAP DAST (Dynamic Application Security Testing)
+##  H2 in-memory + bootstrap — fully automatic, just like make e2e.
+##  Requires: Docker (OWASP ZAP image). Works offline, no MySQL needed.
+## ======================================================================
+ZAP_DOCKER = docker run --rm \
+	-v "$(shell pwd)/../.zap":/zap/wrk \
+	zaproxy/zap-stable
+
+zap-seed:
+	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ ZAP: Obtain RBAC Tokens ═══$(C_RESET)\n\n"
+	@if ! curl -sf http://localhost:$(APP_PORT)/actuator/health > /dev/null 2>&1; then \
+		printf "$(C_FAIL) App is not running on port $(APP_PORT). Run 'make zap-bootstrap' first.\n"; \
+		exit 1; \
+	fi
+	@mkdir -p $(ZAP_TOKENS)
+	@chmod +x $(ZAP_DIR)/seed-data.sh
+	@$(ZAP_DIR)/seed-data.sh "http://localhost:$(APP_PORT)" "$(ZAP_TOKENS)"
+	@printf "\n$(C_OK) Tokens saved to $(ZAP_TOKENS)/\n"
+
+zap-baseline:
+	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ VendNet ZAP Baseline Scan (H2, fully auto) ═══$(C_RESET)\n\n"
+	@printf "$(C_ARROW) Stopping any existing app on port $(APP_PORT)...\n"
+	@lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true
+	@sleep 1
+	@printf "$(C_ARROW) Packaging (skip tests)...\n"
+	@$(MVN) package -DskipTests -q 2>/dev/null
+	@printf "$(C_OK) Packaged.\n"
+	@printf "$(C_ARROW) Starting VendNet with H2 + bootstrap...\n"
+	@mkdir -p logs data
+	@java -Dspring.profiles.active=dev,bootstrap,e2e -jar target/vendnet-0.0.1-SNAPSHOT.jar > /tmp/vendnet-zap.log 2>&1 &
+	@printf "$(C_ARROW) Waiting for app "
+	@for i in $$(seq 1 45); do \
+		if curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; then \
+			printf " $(C_OK) ready ($$((i * 2))s)\n"; break; \
+		fi; \
+		printf "."; sleep 2; \
+	done
+	@if ! curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; then \
+		printf "\n$(C_FAIL) App failed to start. Check /tmp/vendnet-zap.log\n"; \
+		lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true; \
+		exit 1; \
+	fi
+	@printf "\n$(C_ARROW) Running ZAP baseline scan (public surface)...\n"
+	@mkdir -p $(ZAP_REPORTS)
+	@$(ZAP_DOCKER) zap-baseline.py \
+		-t http://host.docker.internal:$(APP_PORT) \
+		-c rules.tsv \
+		-r reports/zap-baseline-report.html \
+		-w reports/zap-baseline-report.md \
+		-x reports/zap-baseline-report.xml; \
+	ZAP_EXIT=$$?; \
+	printf "\n$(C_ARROW) Stopping app...\n"; \
+	lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true; \
+	if [ $$ZAP_EXIT -eq 0 ]; then \
+		printf "$(C_OK) ZAP baseline scan passed.\n"; \
+	else \
+		printf "$(C_FAIL) ZAP baseline scan found alerts (see report).\n"; \
+	fi; \
+	exit $$ZAP_EXIT
+
+zap-api-scan:
+	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ VendNet ZAP API Scan — Authenticated (H2, fully auto) ═══$(C_RESET)\n\n"
+	@printf "$(C_ARROW) Stopping any existing app on port $(APP_PORT)...\n"
+	@lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true
+	@sleep 1
+	@printf "$(C_ARROW) Packaging (skip tests)...\n"
+	@$(MVN) package -DskipTests -q 2>/dev/null
+	@printf "$(C_OK) Packaged.\n"
+	@printf "$(C_ARROW) Starting VendNet with H2 + bootstrap...\n"
+	@mkdir -p logs data
+	@java -Dspring.profiles.active=dev,bootstrap,e2e -jar target/vendnet-0.0.1-SNAPSHOT.jar > /tmp/vendnet-zap.log 2>&1 &
+	@printf "$(C_ARROW) Waiting for app "
+	@for i in $$(seq 1 45); do \
+		if curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; then \
+			printf " $(C_OK) ready ($$((i * 2))s)\n"; break; \
+		fi; \
+		printf "."; sleep 2; \
+	done
+	@if ! curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; then \
+		printf "\n$(C_FAIL) App failed to start. Check /tmp/vendnet-zap.log\n"; \
+		lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true; \
+		exit 1; \
+	fi
+	@printf "\n$(C_ARROW) Obtaining admin JWT from bootstrap user...\n"
+	@mkdir -p $(ZAP_TOKENS)
+	@chmod +x $(ZAP_DIR)/seed-data.sh
+	@$(ZAP_DIR)/seed-data.sh "http://localhost:$(APP_PORT)" "$(ZAP_TOKENS)"
+	@printf "\n$(C_ARROW) Running ZAP authenticated API scan...\n"
+	@mkdir -p $(ZAP_REPORTS)
+	@ADMIN_TOKEN=$$(cat $(ZAP_TOKENS)/admin.jwt); \
+	$(ZAP_DOCKER) zap-api-scan.py \
+		-t http://host.docker.internal:$(APP_PORT)/v3/api-docs \
+		-f openapi \
+		-c rules.tsv \
+		-r reports/zap-api-scan-report.html \
+		-w reports/zap-api-scan-report.md \
+		-x reports/zap-api-scan-report.xml \
+		-z "-config replacer.full_list[0].description=admin_auth \
+		    -config replacer.full_list[0].enabled=true \
+		    -config replacer.full_list[0].matchtype=REQ_HEADER \
+		    -config replacer.full_list[0].matchstr=Authorization \
+		    -config replacer.full_list[0].regex=false \
+		    -config 'replacer.full_list[0].replacement=Bearer $$ADMIN_TOKEN'"; \
+	ZAP_EXIT=$$?; \
+	printf "\n$(C_ARROW) Stopping app...\n"; \
+	lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true; \
+	if [ $$ZAP_EXIT -eq 0 ]; then \
+		printf "$(C_OK) ZAP API scan passed.\n"; \
+	else \
+		printf "$(C_FAIL) ZAP API scan found alerts (see report).\n"; \
+	fi; \
+	exit $$ZAP_EXIT
+
+zap-full: zap-baseline
+	@printf "\n$(C_ARROW) Full ZAP DAST: starting authenticated API scan...\n"
+	@printf "\n$(C_ARROW) Starting VendNet again for API scan...\n"
+	@java -Dspring.profiles.active=dev,bootstrap,e2e -jar target/vendnet-0.0.1-SNAPSHOT.jar > /tmp/vendnet-zap.log 2>&1 &
+	@for i in $$(seq 1 45); do \
+		if curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; then \
+			printf " $(C_OK) ready ($$((i * 2))s)\n"; break; \
+		fi; \
+		printf "."; sleep 2; \
+	done
+	@mkdir -p $(ZAP_TOKENS)
+	@chmod +x $(ZAP_DIR)/seed-data.sh
+	@$(ZAP_DIR)/seed-data.sh "http://localhost:$(APP_PORT)" "$(ZAP_TOKENS)"
+	@mkdir -p $(ZAP_REPORTS)
+	@ADMIN_TOKEN=$$(cat $(ZAP_TOKENS)/admin.jwt); \
+	$(ZAP_DOCKER) zap-api-scan.py \
+		-t http://host.docker.internal:$(APP_PORT)/v3/api-docs \
+		-f openapi \
+		-c rules.tsv \
+		-r reports/zap-api-scan-report.html \
+		-w reports/zap-api-scan-report.md \
+		-x reports/zap-api-scan-report.xml \
+		-z "-config replacer.full_list[0].description=admin_auth \
+		    -config replacer.full_list[0].enabled=true \
+		    -config replacer.full_list[0].matchtype=REQ_HEADER \
+		    -config replacer.full_list[0].matchstr=Authorization \
+		    -config replacer.full_list[0].regex=false \
+		    -config 'replacer.full_list[0].replacement=Bearer $$ADMIN_TOKEN'"; \
+	ZAP_EXIT=$$?; \
+	printf "\n$(C_ARROW) Stopping app...\n"; \
+	lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true; \
+	if [ $$ZAP_EXIT -eq 0 ]; then \
+		printf "$(C_OK) ZAP full scan passed.\n"; \
+	else \
+		printf "$(C_FAIL) ZAP scan found alerts (see report).\n"; \
+	fi; \
+	exit $$ZAP_EXIT
 
 ## ======================================================================
 ##  UTILS

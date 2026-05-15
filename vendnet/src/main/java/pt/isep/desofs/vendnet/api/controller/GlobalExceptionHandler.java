@@ -82,6 +82,19 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.badRequest().body(error);
 	}
 
+	@ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+	public ResponseEntity<ApiError> handleMessageNotReadable(
+			org.springframework.http.converter.HttpMessageNotReadableException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.BAD_REQUEST.value())
+						.error("Bad Request")
+						.message("Invalid request body")
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.badRequest().body(error);
+	}
+
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex) {
 		String message =

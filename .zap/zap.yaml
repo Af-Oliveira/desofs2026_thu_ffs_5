@@ -1,0 +1,146 @@
+env:
+  contexts:
+  - excludePaths: []
+    name: baseline
+    urls:
+    - http://host.docker.internal:8080
+  parameters:
+    failOnError: true
+    progressToStdout: false
+jobs:
+- parameters:
+    enableTags: false
+    maxAlertsPerRule: 10
+  type: passiveScan-config
+- parameters:
+    maxDuration: 1
+    url: http://host.docker.internal:8080
+  type: spider
+- parameters:
+    maxDuration: 0
+  type: passiveScan-wait
+- parameters:
+    format: Long
+    summaryFile: /home/zap/zap_out.json
+  rules:
+  - action: IGNORE
+    customMessage: ''
+    id: 10099
+  - action: FAIL
+    customMessage: ''
+    id: 10096
+  - action: FAIL
+    customMessage: ''
+    id: 10095
+  - action: FAIL
+    customMessage: ''
+    id: 10094
+  - action: WARN
+    customMessage: ''
+    id: 10054
+  - action: IGNORE
+    customMessage: ''
+    id: 10049
+  - action: FAIL
+    customMessage: ''
+    id: 10023
+  - action: IGNORE
+    customMessage: ''
+    id: 100000
+  - action: IGNORE
+    customMessage: ''
+    id: 100001
+  - action: IGNORE
+    customMessage: ''
+    id: 90004
+  - action: IGNORE
+    customMessage: ''
+    id: 90022
+  - action: FAIL
+    customMessage: ''
+    id: 10045
+  - action: WARN
+    customMessage: ''
+    id: 10040
+  - action: FAIL
+    customMessage: ''
+    id: 10038
+  - action: FAIL
+    customMessage: ''
+    id: 10037
+  - action: FAIL
+    customMessage: ''
+    id: 10036
+  - action: FAIL
+    customMessage: ''
+    id: 10035
+  - action: FAIL
+    customMessage: ''
+    id: 10034
+  - action: FAIL
+    customMessage: ''
+    id: 10032
+  - action: FAIL
+    customMessage: ''
+    id: 10030
+  - action: FAIL
+    customMessage: ''
+    id: 10028
+  - action: FAIL
+    customMessage: ''
+    id: 10024
+  - action: FAIL
+    customMessage: ''
+    id: 10020
+  - action: FAIL
+    customMessage: ''
+    id: 10017
+  - action: FAIL
+    customMessage: ''
+    id: 10010
+  - action: FAIL
+    customMessage: ''
+    id: 10009
+  - action: WARN
+    customMessage: ''
+    id: 2
+  - action: WARN
+    customMessage: ''
+    id: 0
+  - action: IGNORE
+    customMessage: ''
+    id: 40042
+  - action: FAIL
+    customMessage: ''
+    id: 10105
+  - action: FAIL
+    customMessage: ''
+    id: 10104
+  - action: FAIL
+    customMessage: ''
+    id: 10003
+  - action: FAIL
+    customMessage: ''
+    id: 10062
+  type: outputSummary
+- parameters:
+    reportDescription: ''
+    reportDir: /zap/wrk/
+    reportFile: reports/zap-baseline-report.html
+    reportTitle: ZAP Scanning Report
+    template: traditional-html
+  type: report
+- parameters:
+    reportDescription: ''
+    reportDir: /zap/wrk/
+    reportFile: reports/zap-baseline-report.md
+    reportTitle: ZAP Scanning Report
+    template: traditional-md
+  type: report
+- parameters:
+    reportDescription: ''
+    reportDir: /zap/wrk/
+    reportFile: reports/zap-baseline-report.xml
+    reportTitle: ZAP Scanning Report
+    template: traditional-xml
+  type: report

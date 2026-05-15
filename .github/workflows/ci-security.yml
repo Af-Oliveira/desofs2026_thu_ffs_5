@@ -299,10 +299,11 @@ jobs:
           fi
 
   # ===========================================================================
-  # STAGE 7 — DAST: OWASP ZAP
-  # Covers: US-DAST-001 (Baseline), US-DAST-002 (Authenticated)
-  # Acceptance: no High/Critical alerts, cross-role returns 403
-  # ===========================================================================
+   # STAGE 7 — DAST: OWASP ZAP
+   # Covers: US-DAST-001 (Baseline), US-DAST-002 (Authenticated)
+   # Acceptance: no High/Critical alerts, cross-role returns 403
+   # H2 in-memory + bootstrap profile — self-contained, no MySQL needed.
+   # ===========================================================================
   dast:
     name: DAST - OWASP ZAP Baseline + Authenticated
     runs-on: ubuntu-latest
@@ -316,25 +317,17 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Start MySQL
+      - name: Start Spring Boot (H2 + bootstrap, no MySQL)
         run: |
-          docker run -d --name mysql \
-            -e MYSQL_ROOT_PASSWORD=rootpass \
-            -e MYSQL_DATABASE=vendnet \
-            -e MYSQL_USER=vendnet_user \
-            -e MYSQL_PASSWORD=vendnet_pass \
-            -p 3306:3306 \
-            mysql:8.4
-          until docker exec mysql mysqladmin ping -h localhost --silent; do sleep 1; done
-
-      - name: Start Spring Boot App
-        run: |
-          ./mvnw spring-boot:run -Dspring-boot.run.profiles=ci &
+          ./mvnw spring-boot:run -Dspring-boot.run.profiles=ci,bootstrap &
         working-directory: vendnet
         env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/vendnet
-          SPRING_DATASOURCE_USERNAME: vendnet_user
-          SPRING_DATASOURCE_PASSWORD: vendnet_pass
+          SPRING_DATASOURCE_URL: jdbc:h2:mem:vendnet_zap;DB_CLOSE_DELAY=-1;MODE=MySQL
+          SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+          SPRING_DATASOURCE_USERNAME: sa
+          SPRING_DATASOURCE_PASSWORD: ""
+          SPRING_JPA_HIBERNATE_DDL_AUTO: create
+          SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.H2Dialect
 
       - name: Wait for App Health
         run: |
@@ -348,10 +341,19 @@ jobs:
           echo "App failed to start within 60s"
           exit 1
 
-      - name: Seed ZAP Test Data (RBAC users)
+      - name: Obtain Admin JWT for Authenticated Scan
+        id: login
         run: |
-          chmod +x .zap/seed-data.sh
-          ./.zap/seed-data.sh "http://localhost:8080" ".zap/tokens"
+          TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@vendnet.io","password":"Admin@1234"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "None" ]; then
+            echo "ERROR: Could not login as admin"
+            exit 1
+          fi
+          echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
+          echo "Admin JWT obtained: ${TOKEN:0:20}..."
 
       - name: ZAP Baseline Scan - Public Surface
         uses: zaproxy/action-baseline@v0.12.0
@@ -369,6 +371,7 @@ jobs:
           format: 'openapi'
           rules_file_name: '.zap/rules.tsv'
           allow_issue_writing: false
+          cmd_options: '-z "-config replacer.full_list[0].description=admin_auth -config replacer.full_list[0].enabled=true -config replacer.full_list[0].matchtype=REQ_HEADER -config replacer.full_list[0].matchstr=Authorization -config replacer.full_list[0].regex=false -config replacer.full_list[0].replacement=Bearer ${{ env.ADMIN_JWT }}"'
 
   # ===========================================================================
   # STAGE 8 — Artifact & Container Scan
