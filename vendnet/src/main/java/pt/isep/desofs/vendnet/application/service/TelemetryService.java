@@ -5,8 +5,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.telemetry.MachineTelemetry;
 import pt.isep.desofs.vendnet.domain.repository.TelemetryRepository;
+import pt.isep.desofs.vendnet.domain.repository.VendingMachineRepository;
 
 @Slf4j
 @Service
@@ -14,9 +16,16 @@ import pt.isep.desofs.vendnet.domain.repository.TelemetryRepository;
 public class TelemetryService {
 
 	private final TelemetryRepository telemetryRepository;
+	private final VendingMachineRepository machineRepository;
 
 	@PreAuthorize("permitAll()")
 	public MachineTelemetry save(MachineTelemetry telemetry) {
+		if (telemetry.getMachine() != null && telemetry.getMachine().getId() == null) {
+			VendingMachine machine = machineRepository.findByCode(telemetry.getMachine().getCode())
+					.orElseThrow(() -> new IllegalArgumentException(
+							"Machine not found: " + telemetry.getMachine().getCode()));
+			telemetry.setMachine(machine);
+		}
 		return telemetryRepository.save(telemetry);
 	}
 
