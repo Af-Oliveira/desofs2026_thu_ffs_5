@@ -10,7 +10,8 @@
         db-reset db-shell \
         clean kill \
         archunit abuse-tests integration-test \
-        sbom enforcer docker-build docker-scan secret-scan
+        sbom enforcer docker-build docker-scan secret-scan \
+        ci-local ci-local-build ci-local-pipeline
 
 MVN = ./mvnw
 DC = docker compose -f ../docker-compose.yml
@@ -104,7 +105,9 @@ help:
 	@printf "  $(C_GREEN)make enforcer$(C_RESET)       Check Maven dependency version rules\n"
 	@printf "  $(C_GREEN)make docker-build$(C_RESET)   Build Docker image\n"
 	@printf "  $(C_GREEN)make docker-scan$(C_RESET)    Build and scan Docker image with Trivy\n"
-	@printf "  $(C_GREEN)make secret-scan$(C_RESET)    Scan for secrets with gitleaks\n"
+	@printf "  $(C_GREEN)make secret-scan$(C_RESET)   Scan for secrets with gitleaks\n"
+	@printf "  $(C_GREEN)make ci-local$(C_RESET)      Run GitHub Actions CI locally (act)\n"
+	@printf "  $(C_GREEN)make ci-local-pipeline$(C_RESET) Run CI pipeline jobs locally\n"
 	@printf "\n"
 	@printf "$(C_BOLD)═══ UTILS ═══$(C_RESET)\n"
 	@printf "  $(C_GREEN)make clean$(C_RESET)          mvn clean\n"
@@ -387,6 +390,37 @@ docker-scan:
 secret-scan:
 	gitleaks detect --verbose
 	@printf "$(C_OK) Secret scan completed.\n"
+
+## ======================================================================
+##  CI LOCAL (GitHub Actions via act)
+## ======================================================================
+ci-local:
+	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ GitHub Actions CI (Local) ═══$(C_RESET)\n\n"
+	@printf "$(C_ARROW) Running ci-security.yml via act...\n"
+	@mkdir -p /tmp/act-artifacts
+	@cd .. && act push -W .github/workflows/ci-security.yml \
+		--artifact-server-path /tmp/act-artifacts \
+		--platform ubuntu-latest=catthehacker/ubuntu:full-latest \
+		--container-architecture linux/amd64 2>&1 || \
+		printf "\n$(C_FAIL) CI failed. Review output above.\n"
+	@printf "\n$(C_OK) CI local run complete.\n"
+
+ci-local-build:
+	@printf "\n$(C_ARROW) Running build job locally...\n"
+	@mkdir -p /tmp/act-artifacts
+	@cd .. && act -j build -W .github/workflows/ci-security.yml \
+		--artifact-server-path /tmp/act-artifacts \
+		--platform ubuntu-latest=catthehacker/ubuntu:full-latest \
+		--container-architecture linux/amd64
+
+ci-local-pipeline:
+	@printf "\n$(C_ARROW) Running build + sast + sca + archunit jobs...\n"
+	@mkdir -p /tmp/act-artifacts
+	@cd .. && act -j build -j sast -j sca -j archunit -W .github/workflows/ci-security.yml \
+		--artifact-server-path /tmp/act-artifacts \
+		--platform ubuntu-latest=catthehacker/ubuntu:full-latest \
+		--container-architecture linux/amd64
+	@printf "\n$(C_OK) CI pipeline jobs complete.\n"
 
 ## ======================================================================
 ##  UTILS
