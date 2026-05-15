@@ -1,0 +1,163 @@
+rules:
+  - id: vendnet-jwt-alg-none-rejection
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $PARSER.requireAlgorithm(...)
+          - pattern: |
+              Jwts.parser(...)
+    message: >
+      JWT parser must explicitly reject alg:none by checking the header
+      or requiring a specific algorithm (SR-03, mitigates T-28).
+    severity: ERROR
+    languages:
+      - java
+    paths:
+      include:
+        - "**/*.java"
+
+  - id: vendnet-jwt-secret-minimum-length
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.jwt.secret=$VALUE
+          - pattern: |
+              Keys.hmacShaKeyFor(...)
+    message: >
+      JWT secret must be at least 256 bits (32 characters) to prevent
+      HMAC key brute-force attacks (SR-04, mitigates T-29).
+    severity: ERROR
+    languages:
+      - java
+    paths:
+      include:
+        - "**/*.java"
+        - "**/*.properties"
+        - "**/*.yml"
+
+  - id: vendnet-native-query-string-concatenation
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $EM.createNativeQuery($STR + ...)
+          - pattern: |
+              $EM.createNativeQuery(String.format(...))
+          - pattern: |
+              $EM.createNativeQuery($STR.concat(...))
+    message: >
+      Native SQL queries must use parameterized queries, never string
+      concatenation (SR-09, mitigates T-39 SQL injection).
+    severity: ERROR
+    languages:
+      - java
+    paths:
+        include:
+        - "**/*.java"
+
+  - id: vendnet-missing-preauthorize-on-controller
+    patterns:
+      - pattern: |
+          @$ANNOTATION
+          ...
+          @RequestMapping(...)
+          public $RET $METHOD(...) { ... }
+    message: >
+      Controller methods must have @PreAuthorize, @Secured, or @RolesAllowed
+      annotation (SR-06, mitigates T-11 and T-36).
+    severity: WARNING
+    languages:
+      - java
+    paths:
+      include:
+        - "**/controller/**/*.java"
+
+  - id: vendnet-scheduled-method-sql-concatenation
+    patterns:
+      - pattern: |
+          @Scheduled(...)
+          ...
+          $RET $METHOD($PARAMS) {
+            ...
+            $SQL_CONCATENATION
+            ...
+          }
+    message: >
+      @Scheduled background jobs must use parameterized queries, not
+      string SQL concatenation (SR-10, mitigates T-110).
+    severity: ERROR
+    languages:
+      - java
+    paths:
+      include:
+        - "**/*.java"
+
+  - id: vendnet-hardcoded-credentials
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $X = "$Y" // $Z
+          - pattern: |
+              String $VAR = "password"
+          - pattern: |
+              String $VAR = "secret"
+    message: >
+      Hardcoded credentials detected. Use environment variables or
+      GitHub Secrets instead (SR-11, NFR-19, mitigates T-70).
+    severity: ERROR
+    languages:
+      - java
+    paths:
+      include:
+        - "**/*.java"
+        - "**/*.properties"
+        - "**/*.yml"
+
+  - id: vendnet-maven-version-range
+    patterns:
+      - pattern-either:
+          - pattern: |
+              <version>[</version>
+          - pattern: |
+              <version>(</version>
+    message: >
+      Maven version ranges are forbidden (e.g., [1.0,), (1.0,2.0]).
+      All dependency versions must be explicit pinned literals (SR-34, US-PIPE-002).
+    severity: ERROR
+    languages:
+      - xml
+    paths:
+      include:
+        - "pom.xml"
+
+  - id: vendnet-spring-security-debug-enabled
+    patterns:
+      - pattern: |
+          spring.security.debug=$VALUE
+    message: >
+      Spring Security debug mode must be disabled in production.
+      Enabling debug exposes internal security filter chain details (SR-46, mitigates T-75).
+    severity: WARNING
+    languages:
+      - generic
+    paths:
+      include:
+        - "**/application*.properties"
+        - "**/application*.yml"
+
+  - id: vendnet-stacktrace-in-response
+    patterns:
+      - pattern-either:
+          - pattern: |
+              server.error.include-stacktrace=$VALUE
+          - pattern: |
+              server.error.include-exception=$VALUE
+    message: >
+      Error details (stacktrace, exception class) must not be included in
+      HTTP responses. Use 'never' or 'false' (SR-46, mitigates T-75).
+    severity: ERROR
+    languages:
+      - generic
+    paths:
+      include:
+        - "**/application*.properties"
+        - "**/application*.yml"
