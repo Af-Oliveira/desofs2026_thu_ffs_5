@@ -262,7 +262,7 @@ jobs:
           cache: 'maven'
 
       - name: SonarQube Scan
-        run: ./mvnw -B verify sonar:sonar -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+        run: ./mvnw -B verify sonar:sonar -Dsonar.token=${{ secrets.SONAR_TOKEN }} -Dsonar.organization=project_vendnet
         working-directory: vendnet
 
   # ===========================================================================
