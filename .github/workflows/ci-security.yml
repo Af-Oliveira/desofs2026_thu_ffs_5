@@ -349,7 +349,7 @@ jobs:
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://localhost:8080 \
-            -c .zap/rules.tsv \
+            -c rules.tsv \
             -r reports/zap-baseline.html \
             -w reports/zap-baseline.md \
             -x reports/zap-baseline.xml
@@ -370,7 +370,7 @@ jobs:
             zap-api-scan.py \
             -t http://localhost:8080/v3/api-docs \
             -f openapi \
-            -c .zap/rules.tsv \
+            -c rules.tsv \
             -r reports/zap-api-auth.html \
             -w reports/zap-api-auth.md \
             -x reports/zap-api-auth.xml \
