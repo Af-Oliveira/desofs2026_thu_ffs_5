@@ -213,7 +213,7 @@ jobs:
           "${JAVA_HOME}/bin/keytool" -importcert -keystore /tmp/cacerts -storepass changeit -file /tmp/vsgate.crt -noprompt
 
       - name: SonarQube Scan + Quality Gate
-        run: ./mvnw -B compile sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.login=admin -Dsonar.password='@admin' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300 -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
+        run: ./mvnw -B test sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.login=admin -Dsonar.password='@admin' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300 -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
         working-directory: vendnet
 
   # ===========================================================================
