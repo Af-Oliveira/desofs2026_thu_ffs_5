@@ -226,14 +226,15 @@ jobs:
 
       - name: Restore target structure
         run: |
+          SRC=vendnet/target-download/vendnet/target
           mkdir -p vendnet/target
-          [ -d vendnet/target-download/classes ] && cp -r vendnet/target-download/classes vendnet/target/
-          [ -d vendnet/target-download/test-classes ] && cp -r vendnet/target-download/test-classes vendnet/target/
-          [ -d vendnet/target-download/site ] && cp -r vendnet/target-download/site vendnet/target/
-          [ -d vendnet/target-download/surefire-reports ] && cp -r vendnet/target-download/surefire-reports vendnet/target/
-          [ -d vendnet/target-download/failsafe-reports ] && cp -r vendnet/target-download/failsafe-reports vendnet/target/
-          cp vendnet/target-download/pom.xml vendnet/ 2>/dev/null || true
-          cp vendnet/target-download/sonar-project.properties vendnet/ 2>/dev/null || true
+          [ -d "$SRC/classes" ] && cp -r "$SRC/classes" vendnet/target/
+          [ -d "$SRC/test-classes" ] && cp -r "$SRC/test-classes" vendnet/target/
+          [ -d "$SRC/site" ] && cp -r "$SRC/site" vendnet/target/
+          [ -d "$SRC/surefire-reports" ] && cp -r "$SRC/surefire-reports" vendnet/target/
+          [ -d "$SRC/failsafe-reports" ] && cp -r "$SRC/failsafe-reports" vendnet/target/
+          [ -f vendnet/target-download/vendnet/pom.xml ] && cp vendnet/target-download/vendnet/pom.xml vendnet/
+          [ -f vendnet/target-download/vendnet/sonar-project.properties ] && cp vendnet/target-download/vendnet/sonar-project.properties vendnet/
           rm -rf vendnet/target-download
 
       - name: Import vs-gate SSL certificate
