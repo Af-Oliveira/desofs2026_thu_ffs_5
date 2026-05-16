@@ -312,15 +312,8 @@ jobs:
 
       - name: Start Spring Boot (H2 + bootstrap, no MySQL)
         run: |
-          ./mvnw spring-boot:run -Dspring-boot.run.profiles=ci,bootstrap &
+          ./mvnw spring-boot:run -Dspring-boot.run.profiles=zap,bootstrap &
         working-directory: vendnet
-        env:
-          SPRING_DATASOURCE_URL: jdbc:h2:mem:vendnet_zap;DB_CLOSE_DELAY=-1;MODE=MySQL
-          SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
-          SPRING_DATASOURCE_USERNAME: sa
-          SPRING_DATASOURCE_PASSWORD: ""
-          SPRING_JPA_HIBERNATE_DDL_AUTO: create
-          SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.H2Dialect
 
       - name: Wait for App Health (bootstrap seeding completes)
         run: |
