@@ -35,6 +35,7 @@ class SaleTest {
 		assertEquals(3, sale.getQuantity());
 		assertEquals(now, sale.getSaleDate());
 		assertEquals(now, sale.getCreatedAt());
+		assertNull(sale.getCustomerEmail());
 	}
 
 	@Test
@@ -72,6 +73,7 @@ class SaleTest {
 		assertEquals(0, sale.getQuantity());
 		assertNull(sale.getSaleDate());
 		assertNull(sale.getCreatedAt());
+		assertNull(sale.getCustomerEmail());
 	}
 
 	@Test
@@ -81,14 +83,19 @@ class SaleTest {
 		Product product = Product.builder().id(1L).sku("SKU-001").build();
 
 		Sale sale = new Sale(
+<<<<<<< Updated upstream
 				3L, machine, product, null, new BigDecimal("1.00"), 1,
 				new BigDecimal("1.00"), new BigDecimal("1.00"), null, now, now);
+=======
+				3L, machine, product, new BigDecimal("1.00"), 1, "buyer@vendnet.test", now, now);
+>>>>>>> Stashed changes
 
 		assertEquals(3L, sale.getId());
 		assertEquals(machine, sale.getMachine());
 		assertEquals(product, sale.getProduct());
 		assertEquals(new BigDecimal("1.00"), sale.getPrice());
 		assertEquals(1, sale.getQuantity());
+		assertEquals("buyer@vendnet.test", sale.getCustomerEmail());
 		assertEquals(now, sale.getSaleDate());
 		assertEquals(now, sale.getCreatedAt());
 	}

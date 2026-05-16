@@ -17,6 +17,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.PaymentInfo;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
@@ -28,6 +29,7 @@ import pt.isep.desofs.vendnet.domain.model.product.Product;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Sale {
 
 	@Id
@@ -51,6 +53,7 @@ public class Sale {
 	@Column(nullable = false)
 	private int quantity;
 
+<<<<<<< Updated upstream
 	@Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
 	private BigDecimal totalAmount;
 
@@ -59,6 +62,10 @@ public class Sale {
 
 	@Embedded
 	private PaymentInfo paymentInfo;
+=======
+	@Column(name = "customer_email", length = 255)
+	private String customerEmail;
+>>>>>>> Stashed changes
 
 	@Column(nullable = false)
 	private LocalDateTime saleDate;

@@ -13,6 +13,7 @@
 | `make archunit` | Run ArchUnit layered architecture tests |
 | `make abuse-tests` | Run abuse case regression tests |
 | `make integration-test` | Integration tests with Maven Failsafe |
+| `./mvnw verify -Pe2e` (from `vendnet/`) | E2E + black-box HTTP tests (`*E2ETest`); preconditions & seeding: `e2e/README.md` |
 | `make sbom` | Generate CycloneDX SBOM |
 | `make enforcer` | Check Maven dependency version rules |
 | `make docker-build` | Build Docker image (non-root, jre-alpine) |
