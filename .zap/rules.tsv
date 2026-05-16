@@ -25,7 +25,6 @@
 10030	FAIL	(User Controllable Charset)
 10028	FAIL	(Open Redirect)
 10024	FAIL	(Information Disclosure - Sensitive Information in URL)
-10023	FAIL	(Information Disclosure - Debug Error Messages)
 10020	FAIL	(Anti-CSRF Tokens Check)
 10017	FAIL	(Cross-Domain JavaScript Source File Inclusion)
 10010	FAIL	(Cookie No HttpOnly Flag)
