@@ -545,7 +545,6 @@ jobs:
           REMOTE_HOST: ${{ vars.REMOTE_HOST || 'vs427.dei.isep.ipp.pt' }}
           REMOTE_PORT: ${{ vars.REMOTE_PORT || '2222' }}
           APP_PORT: ${{ vars.APP_PORT || '2226' }}
-          BUILD_TAG: develop-${{ github.sha::7 }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
