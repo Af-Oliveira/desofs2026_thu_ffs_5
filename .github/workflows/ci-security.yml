@@ -213,7 +213,7 @@ jobs:
           "${JAVA_HOME}/bin/keytool" -importcert -keystore /tmp/cacerts -storepass changeit -file /tmp/vsgate.crt -noprompt
 
       - name: SonarQube Scan + Quality Gate
-        run: ./mvnw -B test sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.login=admin -Dsonar.password='@admin' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300 -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
+        run: ./mvnw -B test jacoco:report sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.login=admin -Dsonar.password='@admin' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300 -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
         working-directory: vendnet
 
   # ===========================================================================
@@ -299,15 +299,15 @@ jobs:
           echo "App failed to start"
           exit 1
 
-      - name: Obtain Admin JWT
+      - name: Obtain Operator JWT (no MFA required)
         id: login
         run: |
           TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"email":"admin@vendnet.io","password":"Admin@1234"}' | \
+            -d '{"email":"operator@vendnet.io","password":"Operator@1234"}' | \
             python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "None" ]; then
-            echo "::error::Admin login failed"
+            echo "::error::Operator login failed (check if MFA was enabled for operator)"
             exit 1
           fi
           echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
