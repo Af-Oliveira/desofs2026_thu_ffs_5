@@ -264,6 +264,7 @@ jobs:
       - name: Import vs-gate SSL certificate
         run: |
           cp "${JAVA_HOME}/lib/security/cacerts" /tmp/cacerts
+          chmod u+w /tmp/cacerts
           echo | openssl s_client -connect vs-gate.dei.isep.ipp.pt:10427 -servername vs-gate.dei.isep.ipp.pt 2>/dev/null | openssl x509 -out /tmp/vsgate.crt
           "${JAVA_HOME}/bin/keytool" -importcert -keystore /tmp/cacerts -storepass changeit -file /tmp/vsgate.crt -noprompt
 
