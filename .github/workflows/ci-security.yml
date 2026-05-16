@@ -338,6 +338,7 @@ jobs:
       - name: ZAP Baseline Scan - Public Surface
         run: |
           mkdir -p .zap/reports
+          chmod -R a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -358,6 +359,7 @@ jobs:
       - name: ZAP Authenticated Scan - Protected Endpoints
         run: |
           mkdir -p .zap/reports
+          chmod -R a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
