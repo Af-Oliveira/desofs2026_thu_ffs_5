@@ -349,24 +349,47 @@ jobs:
           echo "Admin JWT obtained: ${TOKEN:0:20}..."
 
       - name: ZAP Baseline Scan - Public Surface
-        uses: zaproxy/action-baseline@v0.12.0
+        run: |
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/.zap:/zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://localhost:8080 \
+            -c .zap/rules.tsv \
+            -r reports/zap-baseline.html \
+            -w reports/zap-baseline.md \
+            -x reports/zap-baseline.xml || true
+
+      - name: Upload ZAP Baseline Report
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          target: 'http://localhost:8080'
-          rules_file_name: '.zap/rules.tsv'
-          artifact_name: 'zap-baseline'
-          allow_issue_writing: false
+          name: zap-baseline
+          path: .zap/reports/zap-baseline.*
 
       - name: ZAP Authenticated Scan - Protected Endpoints
-        uses: zaproxy/action-api-scan@v0.10.0
+        run: |
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/.zap:/zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+            -t http://localhost:8080/v3/api-docs \
+            -f openapi \
+            -c .zap/rules.tsv \
+            -r reports/zap-api-auth.html \
+            -w reports/zap-api-auth.md \
+            -x reports/zap-api-auth.xml \
+            -z "-config replacer.full_list[0].description=admin_auth \
+                -config replacer.full_list[0].enabled=true \
+                -config replacer.full_list[0].matchtype=REQ_HEADER \
+                -config replacer.full_list[0].matchstr=Authorization \
+                -config replacer.full_list[0].regex=false \
+                -config 'replacer.full_list[0].replacement=Bearer ${{ env.ADMIN_JWT }}'" || true
+
+      - name: Upload ZAP API Scan Report
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          target: 'http://localhost:8080/v3/api-docs'
-          format: 'openapi'
-          rules_file_name: '.zap/rules.tsv'
-          artifact_name: 'zap-api-auth'
-          allow_issue_writing: false
-          cmd_options: '-z "-config replacer.full_list[0].description=admin_auth -config replacer.full_list[0].enabled=true -config replacer.full_list[0].matchtype=REQ_HEADER -config replacer.full_list[0].matchstr=Authorization -config replacer.full_list[0].regex=false -config replacer.full_list[0].replacement=Bearer ${{ env.ADMIN_JWT }}"'
+          name: zap-api-auth
+          path: .zap/reports/zap-api-auth.*
 
   # ===========================================================================
   # STAGE 8 — Artifact & Container Scan
