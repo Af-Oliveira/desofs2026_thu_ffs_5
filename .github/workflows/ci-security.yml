@@ -284,19 +284,20 @@ jobs:
 
       - name: Start Spring Boot (H2 + bootstrap)
         run: |
-          ./mvnw spring-boot:run -Dspring-boot.run.profiles=zap,bootstrap &
+          ./mvnw -B package -DskipTests -q
+          java -Dspring.profiles.active=zap,bootstrap -jar target/*.jar &
         working-directory: vendnet
 
       - name: Wait for App Health
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if curl -s http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
               echo "App healthy after $((i * 2))s"
               exit 0
             fi
             sleep 2
           done
-          echo "App failed to start"
+          echo "App failed to start after 120s"
           exit 1
 
       - name: Obtain Admin JWT
