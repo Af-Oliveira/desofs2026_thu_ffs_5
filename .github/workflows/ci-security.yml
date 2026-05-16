@@ -90,19 +90,6 @@ jobs:
         run: ./mvnw -B verify -P integration-test -Dspring.profiles.active=test
         working-directory: vendnet
 
-      - name: Upload Compiled Target (for SonarQube reuse)
-        uses: actions/upload-artifact@v4
-        with:
-          name: compiled-target
-          path: |
-            vendnet/target/classes/
-            vendnet/target/test-classes/
-            vendnet/target/site/jacoco/
-            vendnet/target/surefire-reports/
-            vendnet/target/failsafe-reports/
-            vendnet/pom.xml
-            vendnet/sonar-project.properties
-
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
@@ -218,25 +205,6 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Download Compiled Target
-        uses: actions/download-artifact@v4
-        with:
-          name: compiled-target
-          path: vendnet/target-download
-
-      - name: Restore target structure
-        run: |
-          SRC=vendnet/target-download/vendnet/target
-          mkdir -p vendnet/target
-          [ -d "$SRC/classes" ] && cp -r "$SRC/classes" vendnet/target/
-          [ -d "$SRC/test-classes" ] && cp -r "$SRC/test-classes" vendnet/target/
-          [ -d "$SRC/site" ] && cp -r "$SRC/site" vendnet/target/
-          [ -d "$SRC/surefire-reports" ] && cp -r "$SRC/surefire-reports" vendnet/target/
-          [ -d "$SRC/failsafe-reports" ] && cp -r "$SRC/failsafe-reports" vendnet/target/
-          [ -f vendnet/target-download/vendnet/pom.xml ] && cp vendnet/target-download/vendnet/pom.xml vendnet/
-          [ -f vendnet/target-download/vendnet/sonar-project.properties ] && cp vendnet/target-download/vendnet/sonar-project.properties vendnet/
-          rm -rf vendnet/target-download
-
       - name: Import vs-gate SSL certificate
         run: |
           cp "${JAVA_HOME}/lib/security/cacerts" /tmp/cacerts
@@ -244,8 +212,8 @@ jobs:
           echo | openssl s_client -connect vs-gate.dei.isep.ipp.pt:10427 -servername vs-gate.dei.isep.ipp.pt 2>/dev/null | openssl x509 -out /tmp/vsgate.crt
           "${JAVA_HOME}/bin/keytool" -importcert -keystore /tmp/cacerts -storepass changeit -file /tmp/vsgate.crt -noprompt
 
-      - name: SonarQube Scan + Quality Gate (no recompilation)
-        run: ./mvnw -B sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.login=admin -Dsonar.password='@admin' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300 -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
+      - name: SonarQube Scan + Quality Gate
+        run: ./mvnw -B compile sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.login=admin -Dsonar.password='@admin' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300 -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
         working-directory: vendnet
 
   # ===========================================================================
