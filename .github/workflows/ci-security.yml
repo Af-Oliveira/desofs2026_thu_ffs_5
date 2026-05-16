@@ -287,7 +287,7 @@ jobs:
           docker tag vendnet:${{ steps.meta.outputs.tag }} vendnet:${{ steps.meta.outputs.branch }}-latest
 
       - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'vendnet:${{ steps.meta.outputs.tag }}'
           scan-type: 'image'
@@ -507,7 +507,7 @@ jobs:
           name: sbom-nightly
           path: vendnet/target/vendnet-sbom.json
       - name: Trivy JAR Filesystem Scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: 'vendnet/target/'
