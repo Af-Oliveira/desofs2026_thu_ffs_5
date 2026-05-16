@@ -33,7 +33,7 @@
 		<pmd.version>3.26.0</pmd.version>
 		<spotless.version>2.43.0</spotless.version>
 		<cyclonedx.version>2.9.1</cyclonedx.version>
-		<maven-enforcer.version>3.5.0</maven-enforcer.version>
+		<maven-enforcer.version>3.6.2</maven-enforcer.version>
 		<sonar.version>5.1.0.4751</sonar.version>
 
 	</properties>
