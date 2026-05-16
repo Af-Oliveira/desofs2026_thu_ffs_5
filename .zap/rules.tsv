@@ -36,6 +36,6 @@
 # Passive scan rules
 40042	IGNORE	(Spring Actuator Information Leak - /actuator/health intentionally public for monitoring)
 10105	FAIL	(Weak Authentication Method)
-10104	FAIL	(User Agent Fuzzer)
+10104	IGNORE	(User Agent Fuzzer — triggers 401 on all endpoints, expected for API-only service)
 10003	FAIL	(Vulnerable JS Library)
 10062	FAIL	(PII Disclosure)

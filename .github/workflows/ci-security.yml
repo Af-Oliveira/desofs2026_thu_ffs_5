@@ -358,9 +358,9 @@ jobs:
             zap-baseline.py \
             -t http://localhost:8080 \
             -c rules.tsv \
-            -r reports/zap-baseline.html \
-            -w reports/zap-baseline.md \
-            -x reports/zap-baseline.xml
+            -r /zap/wrk/reports/zap-baseline.html \
+            -w /zap/wrk/reports/zap-baseline.md \
+            -x /zap/wrk/reports/zap-baseline.xml
 
       - name: Upload ZAP Baseline Report
         if: always()
@@ -379,9 +379,9 @@ jobs:
             -t http://localhost:8080/v3/api-docs \
             -f openapi \
             -c rules.tsv \
-            -r reports/zap-api-auth.html \
-            -w reports/zap-api-auth.md \
-            -x reports/zap-api-auth.xml \
+            -r /zap/wrk/reports/zap-api-auth.html \
+            -w /zap/wrk/reports/zap-api-auth.md \
+            -x /zap/wrk/reports/zap-api-auth.xml \
             -z "-config replacer.full_list[0].description=admin_auth \
                 -config replacer.full_list[0].enabled=true \
                 -config replacer.full_list[0].matchtype=REQ_HEADER \
