@@ -36,15 +36,15 @@ No secrets required. DEV uses H2 in-memory database and mock secrets.
 
 | Name | Type | Value |
 |------|------|-------|
-| `SSH_PRIVATE_KEY` | **Secret** | RSA private key for `root@vs427.dei.isep.ipp.pt` (see section 3) |
+| `SSH_PRIVATE_KEY` | **Secret** | Paste your full vs427 RSA key (from cloud interface) |
 | `REMOTE_HOST` | Variable | `vs427.dei.isep.ipp.pt` |
 | `REMOTE_PORT` | Variable | `2222` |
 | `APP_PORT` | Variable | `2226` |
 | `STAGE_DB_URL` | **Secret** | `jdbc:mysql://localhost:3307/vendnet_stage` |
 | `STAGE_DB_USER` | **Secret** | `vendnet_user` |
-| `STAGE_DB_PASS` | **Secret** | `stage_vendnet_pass` |
-| `STAGE_JWT_SECRET` | **Secret** | Generate: `openssl rand -base64 32` |
-| `STAGE_HMAC_SECRET` | **Secret** | Generate: `openssl rand -base64 32` |
+| `STAGE_DB_PASS` | **Secret** | `vendnet_stage_72616f9c70fe` |
+| `STAGE_JWT_SECRET` | **Secret** | `pnOFpPXFIpWwgysy9L+RL0zl5O6pN51bAC7c1rtfnnw=` |
+| `STAGE_HMAC_SECRET` | **Secret** | `WGAZrMiPTt7scYKRsZwsEDiTivoXrfEzhe6dS3GIjVI=` |
 
 ---
 
@@ -52,44 +52,28 @@ No secrets required. DEV uses H2 in-memory database and mock secrets.
 
 | Name | Type | Value |
 |------|------|-------|
-| `SSH_PRIVATE_KEY` | **Secret** | RSA private key for `root@vs427.dei.isep.ipp.pt` |
+| `SSH_PRIVATE_KEY` | **Secret** | Paste your full vs427 RSA key (from cloud interface) |
 | `REMOTE_HOST` | Variable | `vs427.dei.isep.ipp.pt` |
 | `REMOTE_PORT` | Variable | `2222` |
 | `APP_PORT` | Variable | `2226` |
-| `PROD_DB_URL` | **Secret** | Production MySQL JDBC URL |
-| `PROD_DB_USER` | **Secret** | Production MySQL username |
-| `PROD_DB_PASS` | **Secret** | Production MySQL password |
-| `PROD_JWT_SECRET` | **Secret** | Generate: `openssl rand -base64 64` |
-| `PROD_HMAC_SECRET` | **Secret** | Generate: `openssl rand -base64 64` |
+| `PROD_DB_URL` | **Secret** | `jdbc:mysql://localhost:3306/vendnet` |
+| `PROD_DB_USER` | **Secret** | `vendnet_user` |
+| `PROD_DB_PASS` | **Secret** | `vendnet_prod_fc31f96b9e612ab7` |
+| `PROD_JWT_SECRET` | **Secret** | `d1VhO2kkTEtBhil0kiv0CQoPj5L9Bc+wnSxgDNtJlwaMe1lLckjmLeSoalv5lxkC` |
+| `PROD_HMAC_SECRET` | **Secret** | `IA/2u2IhF9BoGHiqpKwghG+R0hxMbZdzpQEWCo1o3PBjrCcXntUaWFF4w/5lkYi0` |
 
 ---
 
-## 3. How to Generate Required Values
+## 3. SSH Private Key
 
-### JWT Secret (256-bit minimum for prod)
-
-```bash
-openssl rand -base64 32   # 256 bits — STAGING
-openssl rand -base64 64   # 512 bits — PROD
+The key from your DEI cloud vs427 server. Copy the **entire** content including:
+```
+-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----
 ```
 
-### HMAC Webhook Secret
-
-```bash
-openssl rand -base64 32
-```
-
-### SSH Private Key
-
-The key you already have for vs427. Copy the **entire** content including `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----`.
-
-If you don't have the key:
-```bash
-# On vs427, generate a dedicated CI key
-ssh-keygen -t rsa -b 4096 -f /root/.ssh/ci-deploy -N ""
-cat /root/.ssh/ci-deploy.pub >> /root/.ssh/authorized_keys
-cat /root/.ssh/ci-deploy    # Copy this to GitHub secret
-```
+If you don't have it, open the cloud interface → vs427 → SSH access → copy the RSA private key.
 
 ### Database URLs
 
