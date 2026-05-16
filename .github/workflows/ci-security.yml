@@ -263,8 +263,9 @@ jobs:
 
       - name: Import vs-gate SSL certificate
         run: |
+          cp "${JAVA_HOME}/lib/security/cacerts" /tmp/cacerts
           echo | openssl s_client -connect vs-gate.dei.isep.ipp.pt:10427 -servername vs-gate.dei.isep.ipp.pt 2>/dev/null | openssl x509 -out /tmp/vsgate.crt
-          keytool -importcert -keystore /tmp/cacerts -storepass changeit -file /tmp/vsgate.crt -noprompt
+          "${JAVA_HOME}/bin/keytool" -importcert -keystore /tmp/cacerts -storepass changeit -file /tmp/vsgate.crt -noprompt
 
       - name: SonarQube Scan
         run: ./mvnw -B verify sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.token=${{ secrets.SONAR_TOKEN }} -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
