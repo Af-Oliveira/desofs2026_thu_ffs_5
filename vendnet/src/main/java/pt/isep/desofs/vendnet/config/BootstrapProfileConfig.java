@@ -14,10 +14,12 @@ import pt.isep.desofs.vendnet.application.service.BootstrapService;
 public class BootstrapProfileConfig implements CommandLineRunner {
 
 	private final BootstrapService bootstrapService;
+	private final BootstrapReadyIndicator readyIndicator;
 
 	@Override
 	public void run(String... args) {
 		log.info("Bootstrap profile activated — seeding database...");
 		bootstrapService.seed();
+		readyIndicator.markReady();
 	}
 }

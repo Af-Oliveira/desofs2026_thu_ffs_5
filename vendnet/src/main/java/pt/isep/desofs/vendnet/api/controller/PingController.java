@@ -2,21 +2,29 @@ package pt.isep.desofs.vendnet.api.controller;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pt.isep.desofs.vendnet.config.BootstrapReadyIndicator;
 
 @Slf4j
 @RestController
-@RequiredArgsConstructor
 public class PingController {
+
+	@Autowired(required = false)
+	private BootstrapReadyIndicator bootstrapReady;
 
 	@GetMapping("/api/health/ping")
 	@PreAuthorize("permitAll()")
 	public ResponseEntity<Map<String, String>> ping() {
+		if (bootstrapReady != null && !bootstrapReady.isReady()) {
+			return ResponseEntity.status(503)
+					.body(Map.of("status", "seeding", "message", "Bootstrap in progress..."));
+		}
+
 		LocalDateTime now = LocalDateTime.now();
 
 		Map<String, String> response =

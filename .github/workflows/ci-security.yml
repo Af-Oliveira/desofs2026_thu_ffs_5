@@ -312,10 +312,10 @@ jobs:
           SPRING_JPA_HIBERNATE_DDL_AUTO: create
           SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.H2Dialect
 
-      - name: Wait for App Health
+      - name: Wait for App Health (bootstrap seeding completes)
         run: |
           for i in $(seq 1 30); do
-            if curl -s http://localhost:8080/actuator/health | grep -q UP; then
+            if curl -s http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
               echo "App is healthy after $((i * 2))s"
               exit 0
             fi
@@ -327,21 +327,16 @@ jobs:
       - name: Obtain Admin JWT for Authenticated Scan
         id: login
         run: |
-          for i in $(seq 1 15); do
-            TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
-              -H "Content-Type: application/json" \
-              -d '{"email":"admin@vendnet.io","password":"Admin@1234"}' \
-              | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
-            if [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ]; then
-              echo "Admin JWT obtained: ${TOKEN:0:20}..."
-              echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
-              exit 0
-            fi
-            echo "Waiting for bootstrap to seed... ($i/15)"
-            sleep 2
-          done
-          echo "ERROR: Could not login as admin after 30s"
-          exit 1
+          TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@vendnet.io","password":"Admin@1234"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "None" ]; then
+            echo "ERROR: Could not login as admin"
+            exit 1
+          fi
+          echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
+          echo "Admin JWT obtained: ${TOKEN:0:20}..."
 
       - name: ZAP Baseline Scan - Public Surface
         uses: zaproxy/action-baseline@v0.12.0
