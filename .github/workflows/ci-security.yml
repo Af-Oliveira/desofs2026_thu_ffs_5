@@ -300,19 +300,25 @@ jobs:
           echo "App failed to start after 120s"
           exit 1
 
-      - name: Obtain Admin JWT
+      - name: Obtain JWT (admin, fallback operator)
         id: login
         run: |
-          RESP=$(curl -s -X POST http://localhost:8080/api/auth/login \
-            -H "Content-Type: application/json" \
-            -d '{"email":"admin@vendnet.io","password":"Admin@1234"}')
-          echo "Login response: $RESP"
-          TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
-          if [ -z "$TOKEN" ] || [ "$TOKEN" = "None" ] || [ "$TOKEN" = "null" ]; then
-            echo "::error::Admin login failed (token empty). Full response above."
-            exit 1
-          fi
-          echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
+          for creds in "admin@vendnet.io:Admin@1234" "operator@vendnet.io:Operator@1234"; do
+            EMAIL="${creds%%:*}"
+            PASS="${creds##*:}"
+            RESP=$(curl -s -X POST http://localhost:8080/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASS}\"}")
+            TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+            if [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ] && [ "$TOKEN" != "null" ]; then
+              echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
+              echo "Logged in as ${EMAIL}"
+              exit 0
+            fi
+            echo "Login attempt as ${EMAIL}: $RESP"
+          done
+          echo "::error::No valid JWT obtained from any account"
+          exit 1
 
       - name: ZAP Baseline Scan - Public Surface
         run: |
