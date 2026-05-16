@@ -303,12 +303,13 @@ jobs:
       - name: Obtain Admin JWT
         id: login
         run: |
-          TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+          RESP=$(curl -s -X POST http://localhost:8080/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"email":"admin@vendnet.io","password":"Admin@1234"}' | \
-            python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+            -d '{"email":"admin@vendnet.io","password":"Admin@1234"}')
+          echo "Login response: $RESP"
+          TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "None" ] || [ "$TOKEN" = "null" ]; then
-            echo "::error::Admin login failed (token empty)"
+            echo "::error::Admin login failed (token empty). Full response above."
             exit 1
           fi
           echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
