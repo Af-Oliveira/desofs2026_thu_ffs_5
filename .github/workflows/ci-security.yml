@@ -262,19 +262,19 @@ jobs:
           cache: 'maven'
 
       - name: SonarQube Scan
-        run: ./mvnw -B verify sonar:sonar -Dsonar.host.url=http://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+        run: ./mvnw -B verify sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.token=${{ secrets.SONAR_TOKEN }} -Djavax.net.ssl.trustAll=true
         working-directory: vendnet
 
       - name: SonarQube Quality Gate
         run: |
           TASK_ID=$(grep ceTaskId vendnet/target/sonar/report-task.txt | cut -d= -f2)
           for i in $(seq 1 30); do
-            STATUS=$(curl -sS -u "${{ secrets.SONAR_TOKEN }}:" "http://vs-gate.dei.isep.ipp.pt:10427/api/ce/task?id=${TASK_ID}" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['status'])" 2>/dev/null || echo "PENDING")
+            STATUS=$(curl -skS -u "${{ secrets.SONAR_TOKEN }}:" "https://vs-gate.dei.isep.ipp.pt:10427/api/ce/task?id=${TASK_ID}" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['status'])" 2>/dev/null || echo "PENDING")
             if [ "$STATUS" = "SUCCESS" ]; then break; fi
             sleep 2
           done
-          ANALYSIS_ID=$(curl -sS -u "${{ secrets.SONAR_TOKEN }}:" "http://vs-gate.dei.isep.ipp.pt:10427/api/ce/task?id=${TASK_ID}" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['analysisId'])" 2>/dev/null)
-          QG_STATUS=$(curl -sS -u "${{ secrets.SONAR_TOKEN }}:" "http://vs-gate.dei.isep.ipp.pt:10427/api/qualitygates/project_status?analysisId=${ANALYSIS_ID}" | python3 -c "import sys,json; print(json.load(sys.stdin)['projectStatus']['status'])" 2>/dev/null || echo "ERROR")
+          ANALYSIS_ID=$(curl -skS -u "${{ secrets.SONAR_TOKEN }}:" "https://vs-gate.dei.isep.ipp.pt:10427/api/ce/task?id=${TASK_ID}" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['analysisId'])" 2>/dev/null)
+          QG_STATUS=$(curl -skS -u "${{ secrets.SONAR_TOKEN }}:" "https://vs-gate.dei.isep.ipp.pt:10427/api/qualitygates/project_status?analysisId=${ANALYSIS_ID}" | python3 -c "import sys,json; print(json.load(sys.stdin)['projectStatus']['status'])" 2>/dev/null || echo "ERROR")
           echo "Quality Gate: ${QG_STATUS}"
           if [ "$QG_STATUS" != "OK" ]; then
             echo "::error::Quality Gate FAILED: ${QG_STATUS}"
