@@ -299,15 +299,15 @@ jobs:
           echo "App failed to start"
           exit 1
 
-      - name: Obtain Operator JWT (no MFA required)
+      - name: Obtain Admin JWT
         id: login
         run: |
           TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"email":"operator@vendnet.io","password":"Operator@1234"}' | \
+            -d '{"email":"admin@vendnet.io","password":"Admin@1234"}' | \
             python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
-          if [ -z "$TOKEN" ] || [ "$TOKEN" = "None" ]; then
-            echo "::error::Operator login failed (check if MFA was enabled for operator)"
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "None" ] || [ "$TOKEN" = "null" ]; then
+            echo "::error::Admin login failed (token empty)"
             exit 1
           fi
           echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
