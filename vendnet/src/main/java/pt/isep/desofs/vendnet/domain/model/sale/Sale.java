@@ -53,7 +53,6 @@ public class Sale {
 	@Column(nullable = false)
 	private int quantity;
 
-<<<<<<< Updated upstream
 	@Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
 	private BigDecimal totalAmount;
 
@@ -62,10 +61,6 @@ public class Sale {
 
 	@Embedded
 	private PaymentInfo paymentInfo;
-=======
-	@Column(name = "customer_email", length = 255)
-	private String customerEmail;
->>>>>>> Stashed changes
 
 	@Column(nullable = false)
 	private LocalDateTime saleDate;

@@ -83,23 +83,14 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.badRequest().body(error);
 	}
 
-<<<<<<< Updated upstream
 	@ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
 	public ResponseEntity<ApiError> handleMessageNotReadable(
 			org.springframework.http.converter.HttpMessageNotReadableException ex) {
-=======
-	@ExceptionHandler(HttpMessageNotReadableException.class)
-	public ResponseEntity<ApiError> handleNotReadable(HttpMessageNotReadableException ex) {
->>>>>>> Stashed changes
 		ApiError error =
 				ApiError.builder()
 						.status(HttpStatus.BAD_REQUEST.value())
 						.error("Bad Request")
-<<<<<<< Updated upstream
 						.message("Invalid request body")
-=======
-						.message("Malformed or invalid JSON body")
->>>>>>> Stashed changes
 						.timestamp(LocalDateTime.now())
 						.build();
 		return ResponseEntity.badRequest().body(error);

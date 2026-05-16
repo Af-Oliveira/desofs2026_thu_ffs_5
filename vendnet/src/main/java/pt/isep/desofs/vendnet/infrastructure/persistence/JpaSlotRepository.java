@@ -2,10 +2,7 @@ package pt.isep.desofs.vendnet.infrastructure.persistence;
 
 import jakarta.persistence.LockModeType;
 import java.util.List;
-<<<<<<< Updated upstream
 import java.util.Optional;
-=======
->>>>>>> Stashed changes
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -17,7 +14,6 @@ import pt.isep.desofs.vendnet.domain.model.slot.Slot;
 public interface JpaSlotRepository
 		extends JpaRepository<Slot, Long>, pt.isep.desofs.vendnet.domain.repository.SlotRepository {
 
-<<<<<<< Updated upstream
 	@Query("SELECT s FROM Slot s WHERE s.machine.id = :machineId")
 	List<Slot> findByMachineId(@Param("machineId") Long machineId);
 
@@ -28,11 +24,9 @@ public interface JpaSlotRepository
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT s FROM Slot s WHERE s.machine.id = :machineId AND s.product.id = :productId")
 	Optional<Slot> findByMachineIdAndProductId(@Param("machineId") Long machineId, @Param("productId") Long productId);
-=======
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query(
-			"SELECT s FROM Slot s WHERE s.machine.id = :machineId AND s.product.sku = :productSku ORDER BY s.id")
+	@Query("SELECT s FROM Slot s WHERE s.machine.id = :machineId AND s.product.sku = :productSku ORDER BY s.id")
 	List<Slot> lockSlotsForPurchase(
 			@Param("machineId") Long machineId, @Param("productSku") String productSku);
->>>>>>> Stashed changes
 }
