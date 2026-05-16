@@ -93,7 +93,9 @@ vendnet/e2e/reports/
 Doc/
 /Desofs/
 
-### ZAP DAST reports (generated) ###
+### ZAP DAST artifacts (generated at runtime) ###
 .zap/reports/
 .zap/tokens/
 .zap/zap.yaml
+.zap/session/
+.zap/wrk/

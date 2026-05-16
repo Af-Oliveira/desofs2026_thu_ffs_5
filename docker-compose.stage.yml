@@ -1,0 +1,93 @@
+# =============================================================================
+# STAGING Environment — Production-like, MySQL, observability, QA/UAT
+# =============================================================================
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: vendnet-stage-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: stage_root_pass
+      MYSQL_DATABASE: vendnet_stage
+      MYSQL_USER: vendnet_user
+      MYSQL_PASSWORD: stage_vendnet_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - stage_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vendnet-stage
+
+  vendnet:
+    build:
+      context: ./vendnet
+      dockerfile: Dockerfile
+    container_name: vendnet-stage
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-8180}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: stage
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/vendnet_stage
+      SPRING_DATASOURCE_USERNAME: vendnet_user
+      SPRING_DATASOURCE_PASSWORD: stage_vendnet_pass
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      LOGGING_LEVEL_PT_ISEP_DESOFS_VENDNET: INFO
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE: health,metrics,prometheus
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      JWT_SECRET: "${JWT_SECRET:-stage-jwt-secret-change-me}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - ./vendnet/logs:/var/vendnet/logs
+    networks:
+      - vendnet-stage
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: vendnet-stage-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - stage_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - vendnet-stage
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: vendnet-stage-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - stage_grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - vendnet-stage
+
+volumes:
+  stage_mysql_data:
+  stage_prometheus_data:
+  stage_grafana_data:
+
+networks:
+  vendnet-stage:
+    driver: bridge

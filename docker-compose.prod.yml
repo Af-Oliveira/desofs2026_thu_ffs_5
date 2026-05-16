@@ -1,0 +1,86 @@
+# =============================================================================
+# PROD Environment — Hardened, monitored, real users
+# =============================================================================
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: vendnet-prod-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: vendnet
+      MYSQL_USER: "${MYSQL_USER}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+    ports:
+      - "3306:3306"
+    volumes:
+      - prod_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vendnet-prod
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  vendnet:
+    build:
+      context: ./vendnet
+      dockerfile: Dockerfile
+    container_name: vendnet-prod
+    restart: always
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: "${SPRING_DATASOURCE_URL}"
+      SPRING_DATASOURCE_USERNAME: "${SPRING_DATASOURCE_USERNAME}"
+      SPRING_DATASOURCE_PASSWORD: "${SPRING_DATASOURCE_PASSWORD}"
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_EXPIRATION_MS: "${JWT_EXPIRATION_MS:-3600000}"
+      PAYMENT_HMAC_SECRET: "${PAYMENT_HMAC_SECRET}"
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE: health
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: never
+      SERVER_ERROR_INCLUDE_MESSAGE: never
+      SERVER_ERROR_INCLUDE_STACKTRACE: never
+      LOGGING_LEVEL_PT_ISEP_DESOFS_VENDNET: WARN
+      LOGGING_LEVEL_ROOT: WARN
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./vendnet/logs:/var/vendnet/logs
+    networks:
+      - vendnet-prod
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+volumes:
+  prod_mysql_data:
+
+networks:
+  vendnet-prod:
+    driver: bridge

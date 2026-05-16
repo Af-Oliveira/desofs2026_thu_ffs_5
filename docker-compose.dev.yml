@@ -1,0 +1,28 @@
+# =============================================================================
+# DEV Environment — H2 in-memory, fast iteration, mock data
+# =============================================================================
+services:
+  vendnet:
+    build:
+      context: ./vendnet
+      dockerfile: Dockerfile
+    container_name: vendnet-dev
+    restart: "no"
+    ports:
+      - "${SERVER_PORT:-8280}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:vendnet_dev;DB_CLOSE_DELAY=-1
+      SPRING_DATASOURCE_DRIVER: org.h2.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+      SPRING_JPA_SHOW_SQL: "true"
+      LOGGING_LEVEL_PT_ISEP_DESOFS_VENDNET: DEBUG
+      JWT_SECRET: dev-secret-key-for-local-development-only
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ./vendnet/logs:/var/vendnet/logs
