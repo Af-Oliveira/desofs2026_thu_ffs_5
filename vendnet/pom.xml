@@ -268,6 +268,20 @@
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 				<version>${jacoco.version}</version>
+				<configuration>
+					<excludes>
+						<exclude>pt/isep/desofs/vendnet/api/dto/**</exclude>
+						<exclude>pt/isep/desofs/vendnet/api/view/**</exclude>
+						<exclude>pt/isep/desofs/vendnet/domain/exception/**</exclude>
+						<exclude>pt/isep/desofs/vendnet/domain/repository/**</exclude>
+						<exclude>pt/isep/desofs/vendnet/domain/model/user/Role.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/domain/model/user/AccountStatus.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/domain/model/machine/MachineStatus.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/domain/model/sale/PayStatus.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/config/**</exclude>
+						<exclude>pt/isep/desofs/vendnet/VendnetApplication.class</exclude>
+					</excludes>
+				</configuration>
 				<executions>
 					<execution>
 						<goals>
@@ -425,11 +439,7 @@
 								<configuration>
 									<rules>
 										<rule>
-											<element>PACKAGE</element>
-											<includes>
-												<include>pt.isep.desofs.vendnet.domain.*</include>
-												<include>pt.isep.desofs.vendnet.application.*</include>
-											</includes>
+											<element>BUNDLE</element>
 											<limits>
 												<limit>
 													<counter>LINE</counter>
