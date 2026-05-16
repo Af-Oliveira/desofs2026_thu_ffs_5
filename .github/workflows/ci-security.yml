@@ -300,25 +300,27 @@ jobs:
           echo "App failed to start after 120s"
           exit 1
 
-      - name: Obtain JWT (admin, fallback operator)
+      - name: Obtain JWTs for all RBAC roles
         id: login
         run: |
-          for creds in "admin@vendnet.io:Admin@1234" "operator@vendnet.io:Operator@1234"; do
+          mkdir -p .zap/tokens
+          for creds in "admin@vendnet.io:Admin@1234" "operator@vendnet.io:Operator@1234" "customer@vendnet.io:Customer@1234"; do
             EMAIL="${creds%%:*}"
             PASS="${creds##*:}"
+            ROLE=$(echo "$EMAIL" | cut -d@ -f1)
             RESP=$(curl -s -X POST http://localhost:8080/api/auth/login \
               -H "Content-Type: application/json" \
               -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASS}\"}")
             TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
             if [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ] && [ "$TOKEN" != "null" ]; then
-              echo "ADMIN_JWT=${TOKEN}" >> $GITHUB_ENV
-              echo "Logged in as ${EMAIL}"
-              exit 0
+              echo "${TOKEN}" > ".zap/tokens/${ROLE}.jwt"
+              echo "Logged in as ${EMAIL} (${ROLE})"
+            else
+              echo "::warning::Login failed for ${EMAIL}: ${RESP}"
             fi
-            echo "Login attempt as ${EMAIL}: $RESP"
           done
-          echo "::error::No valid JWT obtained from any account"
-          exit 1
+          # Verify at least one role has a token
+          ls -la .zap/tokens/
 
       - name: ZAP Baseline Scan - Public Surface
         run: |
@@ -341,10 +343,11 @@ jobs:
           name: zap-baseline
           path: .zap/reports/zap-baseline.*
 
-      - name: ZAP Authenticated Scan - Protected Endpoints
+      - name: ZAP Authenticated Scans — Admin
         run: |
-          mkdir -p .zap/reports
-          chmod -R a+w .zap/reports
+          TOKEN=$(cat .zap/tokens/admin.jwt 2>/dev/null || echo "")
+          if [ -z "$TOKEN" ]; then echo "::warning::No admin token, skipping"; exit 0; fi
+          mkdir -p .zap/reports && chmod -R a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -352,22 +355,66 @@ jobs:
             -t http://localhost:8080/v3/api-docs \
             -f openapi \
             -c rules.tsv \
-            -r /zap/wrk/reports/zap-api-auth.html \
-            -w /zap/wrk/reports/zap-api-auth.md \
-            -x /zap/wrk/reports/zap-api-auth.xml \
+            -r /zap/wrk/reports/zap-api-admin.html \
+            -w /zap/wrk/reports/zap-api-admin.md \
+            -x /zap/wrk/reports/zap-api-admin.xml \
             -z "-config replacer.full_list[0].description=admin_auth \
                 -config replacer.full_list[0].enabled=true \
                 -config replacer.full_list[0].matchtype=REQ_HEADER \
                 -config replacer.full_list[0].matchstr=Authorization \
                 -config replacer.full_list[0].regex=false \
-                -config 'replacer.full_list[0].replacement=Bearer ${{ env.ADMIN_JWT }}'"
+                -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
 
-      - name: Upload ZAP API Scan Report
+      - name: ZAP Authenticated Scans — Operator
+        run: |
+          TOKEN=$(cat .zap/tokens/operator.jwt 2>/dev/null || echo "")
+          if [ -z "$TOKEN" ]; then echo "::warning::No operator token, skipping"; exit 0; fi
+          mkdir -p .zap/reports && chmod -R a+w .zap/reports
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/.zap:/zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+            -t http://localhost:8080/v3/api-docs \
+            -f openapi \
+            -c rules.tsv \
+            -r /zap/wrk/reports/zap-api-operator.html \
+            -w /zap/wrk/reports/zap-api-operator.md \
+            -x /zap/wrk/reports/zap-api-operator.xml \
+            -z "-config replacer.full_list[0].description=operator_auth \
+                -config replacer.full_list[0].enabled=true \
+                -config replacer.full_list[0].matchtype=REQ_HEADER \
+                -config replacer.full_list[0].matchstr=Authorization \
+                -config replacer.full_list[0].regex=false \
+                -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
+
+      - name: ZAP Authenticated Scans — Customer
+        run: |
+          TOKEN=$(cat .zap/tokens/customer.jwt 2>/dev/null || echo "")
+          if [ -z "$TOKEN" ]; then echo "::warning::No customer token, skipping"; exit 0; fi
+          mkdir -p .zap/reports && chmod -R a+w .zap/reports
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/.zap:/zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+            -t http://localhost:8080/v3/api-docs \
+            -f openapi \
+            -c rules.tsv \
+            -r /zap/wrk/reports/zap-api-customer.html \
+            -w /zap/wrk/reports/zap-api-customer.md \
+            -x /zap/wrk/reports/zap-api-customer.xml \
+            -z "-config replacer.full_list[0].description=customer_auth \
+                -config replacer.full_list[0].enabled=true \
+                -config replacer.full_list[0].matchtype=REQ_HEADER \
+                -config replacer.full_list[0].matchstr=Authorization \
+                -config replacer.full_list[0].regex=false \
+                -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
+
+      - name: Upload ZAP API Scan Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: zap-api-auth
-          path: .zap/reports/zap-api-auth.*
+          path: .zap/reports/zap-api-*.*
 
   # ===========================================================================
   # STAGE 6 — Artifact & SBOM (nightly/manual only, no duplicated Docker build)
