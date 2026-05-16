@@ -9,8 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -22,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class IastTaintTrackingFilter extends OncePerRequestFilter {
 
     private static final Map<String, List<TaintFlow>> detectedFlows = new ConcurrentHashMap<>();
+    private static final List<TaintFlow> confirmedExploitableFlows = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -48,19 +47,39 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
 
     private void analyzeFlows(String requestId, HttpServletRequest request,
                                TaintAwareHttpServletResponseWrapper responseWrapper) {
-        List<TaintFlow> flows = new ArrayList<>();
+        List<TaintFlow> rawFlows = new ArrayList<>();
 
-        detectSqlInjectionTaint(request, flows);
-        detectPathTraversalTaint(request, flows);
-        detectCommandInjectionTaint(request, flows);
+        detectSqlInjectionTaint(request, rawFlows);
+        detectPathTraversalTaint(request, rawFlows);
+        detectCommandInjectionTaint(request, rawFlows);
 
-        if (!flows.isEmpty()) {
-            detectedFlows.put(requestId, flows);
-            log.warn("[IAST] Potential taint flows detected for request {}: {}",
-                    requestId, flows.size());
-            for (TaintFlow flow : flows) {
-                log.warn("[IAST] {} | source={} sink={}",
-                        flow.type, flow.source, flow.sink);
+        if (rawFlows.isEmpty()) return;
+
+        String uri = request.getRequestURI();
+        int status = responseWrapper.getStatus();
+        boolean twoXx = status >= 200 && status < 300;
+
+        List<TaintFlow> enriched = new ArrayList<>(rawFlows.size());
+        for (TaintFlow raw : rawFlows) {
+            // COMMAND_INJECTION reaching a 2xx response = confirmed exploitable.
+            // SQL injection is protected by JPA parameterized queries (not confirmed).
+            // Path traversal is protected by PathValidator (not confirmed).
+            boolean confirmed = "COMMAND_INJECTION".equals(raw.type) && twoXx;
+            enriched.add(new TaintFlow(raw.type, raw.source, raw.sink, uri, confirmed));
+        }
+
+        detectedFlows.put(requestId, enriched);
+        log.warn("[IAST] {} taint flow(s) for {} {} (HTTP {})",
+                enriched.size(), request.getMethod(), uri, status);
+
+        for (TaintFlow flow : enriched) {
+            if (flow.confirmedExploitable) {
+                confirmedExploitableFlows.add(flow);
+                log.error("[IAST][CONFIRMED-EXPLOITABLE] {} | source={} uri={}",
+                        flow.type, flow.source, flow.requestUri);
+            } else {
+                log.warn("[IAST] {} | source={} sink={} uri={}",
+                        flow.type, flow.source, flow.sink, flow.requestUri);
             }
         }
     }
@@ -155,20 +174,50 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
         detectedFlows.clear();
     }
 
+    /** All flows confirmed exploitable across requests since last {@link #clearConfirmedExploitableFlows()}. */
+    public static List<TaintFlow> getConfirmedExploitableFlows() {
+        return java.util.Collections.unmodifiableList(confirmedExploitableFlows);
+    }
+
+    /** Call in {@code @BeforeAll} of IAST tests to start each run from a clean slate. */
+    public static void clearConfirmedExploitableFlows() {
+        confirmedExploitableFlows.clear();
+    }
+
+    /**
+     * A detected taint flow from an HTTP source to a dangerous sink.
+     *
+     * <p>Source-line correlation: {@code requestUri} maps the finding to the controller that owns
+     * the route (e.g. {@code /api/admin/operations/backup} → {@code OperationsController →
+     * BackupServiceImpl.generateBackup()}). Use the project route table in the IAST README for the
+     * full URI-to-controller mapping.
+     */
     public static class TaintFlow {
         public final String type;
         public final String source;
         public final String sink;
+        /** Request URI — maps to a specific controller method for source-line correlation. */
+        public final String requestUri;
+        /** True when {@code COMMAND_INJECTION} taint reached a 2xx response. */
+        public final boolean confirmedExploitable;
 
+        /** Used internally by detect methods; {@code requestUri} and {@code confirmedExploitable} enriched in analyzeFlows. */
         TaintFlow(String type, String source, String sink) {
+            this(type, source, sink, null, false);
+        }
+
+        TaintFlow(String type, String source, String sink, String requestUri, boolean confirmedExploitable) {
             this.type = type;
             this.source = source;
             this.sink = sink;
+            this.requestUri = requestUri;
+            this.confirmedExploitable = confirmedExploitable;
         }
 
         @Override
         public String toString() {
-            return String.format("%s: %s -> %s", type, source, sink);
+            return String.format("%s: %s -> %s [uri=%s, confirmed=%b]",
+                    type, source, sink, requestUri, confirmedExploitable);
         }
     }
 }

@@ -1,6 +1,8 @@
 package pt.isep.desofs.vendnet;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,6 +47,14 @@ class IastIntegrationTest {
 
     private String token;
 
+    @BeforeAll
+    static void clearAllFlows() {
+        // Start each IAST run with a clean slate so confirmed-exploitable findings
+        // from other test classes do not bleed into this build gate.
+        IastTaintTrackingFilter.clearDetectedFlows();
+        IastTaintTrackingFilter.clearConfirmedExploitableFlows();
+    }
+
     @BeforeEach
     void setUp() {
         token = tokenForRole("iast-test@vendnet.com", Role.ROLE_CUSTOMER);
@@ -53,6 +64,22 @@ class IastIntegrationTest {
     @AfterEach
     void tearDown() {
         IastTaintTrackingFilter.clearDetectedFlows();
+    }
+
+    /**
+     * Build gate: fails the Maven {@code iast} profile if any COMMAND_INJECTION taint reached a
+     * 2xx response (i.e. the application did not reject the malicious input).
+     *
+     * <p>SQL-injection and path-traversal flows are never confirmed because the application uses
+     * JPA parameterized queries and {@code PathValidator}, respectively.
+     */
+    @AfterAll
+    static void noConfirmedExploitablePaths_buildGate() {
+        List<IastTaintTrackingFilter.TaintFlow> confirmed =
+                IastTaintTrackingFilter.getConfirmedExploitableFlows();
+        assertTrue(confirmed.isEmpty(),
+                "[IAST] Build gate failed — confirmed exploitable path(s) detected (SR-09): "
+                        + confirmed);
     }
 
     @Test
