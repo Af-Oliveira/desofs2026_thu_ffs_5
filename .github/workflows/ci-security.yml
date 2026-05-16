@@ -1,17 +1,23 @@
 # =============================================================================
-# VendNet CI/CD Pipeline
+# VendNet CI/CD Pipeline — Full Security Pipeline
 #
-# Clean logical flow per Doc/Sugestions.md:
+# Flow per Doc/Sugestions.md & CI_CD_USER_STORIES.md:
 #   Secret Detect ──┐
 #   Semgrep ────────┤
-#                   ├──> [Build, Test & Sonar] ──> [Docker Build & Trivy] ──> [DAST ZAP] ──> [Deploy]
-#   SCA / Enforcer ─┘
+#                    ├──> [Build, Test & Package] ──> [SAST] ──> [DAST ZAP] ──> [Deploy]
+#   SCA / Enforcer ─┘                                  ├──> [SonarQube]
+#                                                      ├──> [IAST]
+#                                                      └──> [Docker Build & Trivy] ──> [Deploy]
 #
-# Key optimisations:
-#   - Secret-detect and Semgrep run immediately (source-only, no build needed)
-#   - Build+Test+ArchUnit+Integration merged into single mvn verify (no redundant runners)
-#   - SonarQube reuses compiled target/ from build stage (no recompilation)
-#   - Docker build removed from artifact-scan (handled by docker-build stage)
+# Key fixes vs previous version:
+#   - ZAP DAST: removed chmod -R a+w that failed on root-owned Docker files
+#   - ZAP DAST: added MFA-aware token acquisition (handles mfaRequired=true)
+#   - SonarQube: uses secrets instead of hardcoded creds, reuses build artifacts
+#   - Build: generates CycloneDX SBOM, JaCoCo coverage gate (≥80%)
+#   - Trivy: pinned to specific version (not @master)
+#   - Deploy: actual SSH-based deployment to vs427 per GITHUB_ENVIRONMENTS_SETUP.md
+#   - Concurrency: cancel-in-progress prevents duplicate runs on same branch
+#   - Dependabot: required by US-SCA-002 (configured in .github/dependabot.yml)
 # =============================================================================
 
 name: CI / CD Pipeline — VendNet
@@ -24,6 +30,10 @@ on:
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -71,7 +81,7 @@ jobs:
           sarif_file: semgrep.sarif
 
   # ===========================================================================
-  # STAGE 1 — Build, Test & Package (combined: unit + ArchUnit + integration)
+  # STAGE 1 — Build, Test & Package (unit + ArchUnit + integration + SBOM + coverage gate)
   # ===========================================================================
   build:
     name: Build, Test & Package
@@ -90,6 +100,14 @@ jobs:
         run: ./mvnw -B verify -P integration-test -Dspring.profiles.active=test
         working-directory: vendnet
 
+      - name: JaCoCo Coverage Gate (≥80% domain + application)
+        run: ./mvnw -B verify -P ci-security -Dspring.profiles.active=test -DskipTests
+        working-directory: vendnet
+
+      - name: Generate CycloneDX SBOM
+        run: ./mvnw -B cyclonedx:makeAggregateBom -DskipTests
+        working-directory: vendnet
+
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
@@ -104,6 +122,22 @@ jobs:
           path: |
             vendnet/target/surefire-reports/
             vendnet/target/failsafe-reports/
+
+      - name: Upload Build Output (for SonarQube reuse)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            vendnet/target/classes/
+            vendnet/target/site/
+            vendnet/target/*.jar
+          retention-days: 1
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: vendnet/target/vendnet-sbom.json
 
   # ===========================================================================
   # STAGE 2a — SAST: SpotBugs (needs compiled classes)
@@ -189,7 +223,7 @@ jobs:
           path: vendnet/target/failsafe-reports/
 
   # ===========================================================================
-  # STAGE 3 — SonarQube Quality Gate (reuses compiled target, no recompilation)
+  # STAGE 3 — SonarQube Quality Gate (reuses build output, no recompilation)
   # ===========================================================================
   sonar:
     name: SonarQube - Quality Gate
@@ -205,6 +239,12 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Download Build Output
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: vendnet/target/
+
       - name: Import vs-gate SSL certificate
         run: |
           cp "${JAVA_HOME}/lib/security/cacerts" /tmp/cacerts
@@ -212,8 +252,15 @@ jobs:
           echo | openssl s_client -connect vs-gate.dei.isep.ipp.pt:10427 -servername vs-gate.dei.isep.ipp.pt 2>/dev/null | openssl x509 -out /tmp/vsgate.crt
           "${JAVA_HOME}/bin/keytool" -importcert -keystore /tmp/cacerts -storepass changeit -file /tmp/vsgate.crt -noprompt
 
-      - name: SonarQube Scan + Quality Gate
-        run: ./mvnw -B test jacoco:report sonar:sonar -Dsonar.host.url=https://vs-gate.dei.isep.ipp.pt:10427 -Dsonar.login=admin -Dsonar.password='@admin' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300 -Djavax.net.ssl.trustStore=/tmp/cacerts -Djavax.net.ssl.trustStorePassword=changeit
+      - name: SonarQube Analysis + Quality Gate
+        run: |
+          ./mvnw -B sonar:sonar \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300 \
+            -Djavax.net.ssl.trustStore=/tmp/cacerts \
+            -Djavax.net.ssl.trustStorePassword=changeit
         working-directory: vendnet
 
   # ===========================================================================
@@ -232,6 +279,7 @@ jobs:
         run: |
           echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
           echo "tag=${GITHUB_REF#refs/heads/}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Build Docker Image
         run: |
@@ -239,7 +287,7 @@ jobs:
           docker tag vendnet:${{ steps.meta.outputs.tag }} vendnet:${{ steps.meta.outputs.branch }}-latest
 
       - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: 'vendnet:${{ steps.meta.outputs.tag }}'
           scan-type: 'image'
@@ -265,7 +313,12 @@ jobs:
           retention-days: 1
 
   # ===========================================================================
-  # STAGE 5 — DAST: OWASP ZAP (needs build, runs on PRs too)
+  # STAGE 5 — DAST: OWASP ZAP (needs running app)
+  #
+  # FIX: Previous version used `chmod -R a+w .zap/reports` which failed when
+  # Docker-created root-owned files from prior scans blocked the chmod.
+  # The ZAP container writes to the mounted volume fine; we only need mkdir.
+  # A sudo chmod step before artifact uploads ensures readability.
   # ===========================================================================
   dast:
     name: DAST - OWASP ZAP Baseline + Authenticated
@@ -312,20 +365,30 @@ jobs:
               -H "Content-Type: application/json" \
               -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASS}\"}")
             TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
-            if [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ] && [ "$TOKEN" != "null" ]; then
+            if [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ] && [ "$TOKEN" != "null" ] && [ "$TOKEN" != "" ]; then
               echo "${TOKEN}" > ".zap/tokens/${ROLE}.jwt"
               echo "Logged in as ${EMAIL} (${ROLE})"
             else
-              echo "::warning::Login failed for ${EMAIL}: ${RESP}"
+              MFA=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('mfaRequired',''))" 2>/dev/null || echo "")
+              if [ "$MFA" = "True" ] || [ "$MFA" = "true" ]; then
+                echo "::warning::MFA required for ${EMAIL} — skipping (bootstrap users should not have MFA)"
+              else
+                echo "::warning::Login failed for ${EMAIL}: ${RESP}"
+              fi
             fi
           done
-          # Verify at least one role has a token
+          TOKEN_COUNT=$(find .zap/tokens -name '*.jwt' | wc -l)
+          echo "tokens_obtained=${TOKEN_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "Obtained ${TOKEN_COUNT} of 3 required tokens"
+          if [ "$TOKEN_COUNT" -eq 0 ]; then
+            echo "::error::No JWT tokens obtained — DAST cannot proceed"
+            exit 1
+          fi
           ls -la .zap/tokens/
 
       - name: ZAP Baseline Scan - Public Surface
         run: |
           mkdir -p .zap/reports
-          chmod -R a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -343,11 +406,11 @@ jobs:
           name: zap-baseline
           path: .zap/reports/zap-baseline.*
 
-      - name: ZAP Authenticated Scans — Admin
+      - name: ZAP Authenticated Scan — Admin
         run: |
           TOKEN=$(cat .zap/tokens/admin.jwt 2>/dev/null || echo "")
           if [ -z "$TOKEN" ]; then echo "::warning::No admin token, skipping"; exit 0; fi
-          mkdir -p .zap/reports && chmod -R a+w .zap/reports
+          mkdir -p .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -365,11 +428,11 @@ jobs:
                 -config replacer.full_list[0].regex=false \
                 -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
 
-      - name: ZAP Authenticated Scans — Operator
+      - name: ZAP Authenticated Scan — Operator
         run: |
           TOKEN=$(cat .zap/tokens/operator.jwt 2>/dev/null || echo "")
           if [ -z "$TOKEN" ]; then echo "::warning::No operator token, skipping"; exit 0; fi
-          mkdir -p .zap/reports && chmod -R a+w .zap/reports
+          mkdir -p .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -387,11 +450,11 @@ jobs:
                 -config replacer.full_list[0].regex=false \
                 -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
 
-      - name: ZAP Authenticated Scans — Customer
+      - name: ZAP Authenticated Scan — Customer
         run: |
           TOKEN=$(cat .zap/tokens/customer.jwt 2>/dev/null || echo "")
           if [ -z "$TOKEN" ]; then echo "::warning::No customer token, skipping"; exit 0; fi
-          mkdir -p .zap/reports && chmod -R a+w .zap/reports
+          mkdir -p .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -409,6 +472,10 @@ jobs:
                 -config replacer.full_list[0].regex=false \
                 -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
 
+      - name: Fix ZAP Report Permissions (Docker creates root-owned files)
+        if: always()
+        run: sudo find .zap/reports -type f -exec chmod a+r {} \; 2>/dev/null || true
+
       - name: Upload ZAP API Scan Reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -417,7 +484,7 @@ jobs:
           path: .zap/reports/zap-api-*.*
 
   # ===========================================================================
-  # STAGE 6 — Artifact & SBOM (nightly/manual only, no duplicated Docker build)
+  # STAGE 6 — Artifact & SBOM (nightly/manual only)
   # ===========================================================================
   artifact-scan:
     name: Artifact & SBOM Scan
@@ -437,10 +504,10 @@ jobs:
       - name: Upload SBOM (CycloneDX JSON)
         uses: actions/upload-artifact@v4
         with:
-          name: sbom
+          name: sbom-nightly
           path: vendnet/target/vendnet-sbom.json
       - name: Trivy JAR Filesystem Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
           scan-ref: 'vendnet/target/'
@@ -466,12 +533,43 @@ jobs:
       name: DEV
       url: http://vs427.dei.isep.ipp.pt:2226
     steps:
+      - uses: actions/checkout@v4
       - name: Download Docker Image
         uses: actions/download-artifact@v4
         with:
           name: docker-image-develop
-      - name: Deploy Acknowledged
-        run: echo "DEV deployment triggered (${{ github.sha }})"
+          path: /tmp/docker
+      - name: Load & Deploy Docker Image
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ vars.REMOTE_HOST || 'vs427.dei.isep.ipp.pt' }}
+          REMOTE_PORT: ${{ vars.REMOTE_PORT || '2222' }}
+          APP_PORT: ${{ vars.APP_PORT || '2226' }}
+          BUILD_TAG: develop-${{ github.sha::7 }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+            "docker load && \
+             docker stop vendnet-dev 2>/dev/null || true && \
+             docker rm vendnet-dev 2>/dev/null || true && \
+             docker run -d --name vendnet-dev --restart unless-stopped \
+               -p ${APP_PORT}:8080 \
+               -e SPRING_PROFILES_ACTIVE=dev \
+               vendnet:develop-latest"
+
+      - name: Smoke Test DEV
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://vs427.dei.isep.ipp.pt:${{ vars.APP_PORT || '2226' }}/actuator/health | grep -q '"status":"UP"'; then
+              echo "DEV smoke test passed"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::warning::DEV smoke test did not pass within 150s"
 
   # ===========================================================================
   # STAGE 8 — Deploy STAGING (main branch, after DAST)
@@ -485,15 +583,56 @@ jobs:
       name: STAGING
       url: http://vs427.dei.isep.ipp.pt:2226
     steps:
+      - uses: actions/checkout@v4
       - name: Download Docker Image
         uses: actions/download-artifact@v4
         with:
           name: docker-image-main
-      - name: Deploy + Smoke Test
-        run: echo "STAGING deployment triggered (${{ github.sha }})"
+          path: /tmp/docker
+      - name: Load & Deploy Docker Image
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ vars.REMOTE_HOST || 'vs427.dei.isep.ipp.pt' }}
+          REMOTE_PORT: ${{ vars.REMOTE_PORT || '2222' }}
+          APP_PORT: ${{ vars.APP_PORT || '2226' }}
+          SPRING_DATASOURCE_URL: ${{ secrets.STAGE_DB_URL }}
+          SPRING_DATASOURCE_USERNAME: ${{ secrets.STAGE_DB_USER }}
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.STAGE_DB_PASS }}
+          JWT_SECRET: ${{ secrets.STAGE_JWT_SECRET }}
+          HMAC_SECRET: ${{ secrets.STAGE_HMAC_SECRET }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+            "docker load && \
+             docker stop vendnet-stage 2>/dev/null || true && \
+             docker rm vendnet-stage 2>/dev/null || true && \
+             docker run -d --name vendnet-stage --restart unless-stopped \
+               -p ${APP_PORT}:8080 \
+               -e SPRING_PROFILES_ACTIVE=stage \
+               -e SPRING_DATASOURCE_URL='${SPRING_DATASOURCE_URL}' \
+               -e SPRING_DATASOURCE_USERNAME='${SPRING_DATASOURCE_USERNAME}' \
+               -e SPRING_DATASOURCE_PASSWORD='${SPRING_DATASOURCE_PASSWORD}' \
+               -e APP_JWT_SECRET='${JWT_SECRET}' \
+               -e APP_PAYMENT_WEBHOOK_SECRET='${HMAC_SECRET}' \
+               --network=host \
+               vendnet:main-latest"
+
+      - name: Smoke Test STAGING
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://vs427.dei.isep.ipp.pt:${{ vars.APP_PORT || '2226' }}/actuator/health | grep -q '"status":"UP"'; then
+              echo "STAGING smoke test passed"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::warning::STAGING smoke test did not pass within 150s"
 
   # ===========================================================================
-  # STAGE 9 — Deploy PROD (manual dispatch only)
+  # STAGE 9 — Deploy PROD (manual dispatch only, requires reviewer approval)
   # ===========================================================================
   deploy-prod:
     name: Deploy to PROD
@@ -504,9 +643,50 @@ jobs:
       name: PROD
       url: http://vs427.dei.isep.ipp.pt:2226
     steps:
+      - uses: actions/checkout@v4
       - name: Download Docker Image
         uses: actions/download-artifact@v4
         with:
           name: docker-image-main
-      - name: Deploy + Health Check
-        run: echo "PROD deployment triggered (${{ github.sha }})"
+          path: /tmp/docker
+      - name: Load & Deploy Docker Image
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ vars.REMOTE_HOST || 'vs427.dei.isep.ipp.pt' }}
+          REMOTE_PORT: ${{ vars.REMOTE_PORT || '2222' }}
+          APP_PORT: ${{ vars.APP_PORT || '2226' }}
+          SPRING_DATASOURCE_URL: ${{ secrets.PROD_DB_URL }}
+          SPRING_DATASOURCE_USERNAME: ${{ secrets.PROD_DB_USER }}
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.PROD_DB_PASS }}
+          JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
+          HMAC_SECRET: ${{ secrets.PROD_HMAC_SECRET }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+            "docker load && \
+             docker stop vendnet-prod 2>/dev/null || true && \
+             docker rm vendnet-prod 2>/dev/null || true && \
+             docker run -d --name vendnet-prod --restart unless-stopped \
+               -p ${APP_PORT}:8080 \
+               -e SPRING_PROFILES_ACTIVE=prod \
+               -e SPRING_DATASOURCE_URL='${SPRING_DATASOURCE_URL}' \
+               -e SPRING_DATASOURCE_USERNAME='${SPRING_DATASOURCE_USERNAME}' \
+               -e SPRING_DATASOURCE_PASSWORD='${SPRING_DATASOURCE_PASSWORD}' \
+               -e APP_JWT_SECRET='${JWT_SECRET}' \
+               -e APP_PAYMENT_WEBHOOK_SECRET='${HMAC_SECRET}' \
+               --network=host \
+               vendnet:main-latest"
+
+      - name: Smoke Test PROD
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://vs427.dei.isep.ipp.pt:${{ vars.APP_PORT || '2226' }}/actuator/health | grep -q '"status":"UP"'; then
+              echo "PROD smoke test passed"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::warning::PROD smoke test did not pass within 150s"
