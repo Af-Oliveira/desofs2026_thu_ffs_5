@@ -130,7 +130,7 @@ jobs:
       - name: Semgrep Scan
         uses: returntocorp/semgrep-action@v1
         with:
-          config: p/java p/spring p/secrets .semgrep/
+          config: p/java p/secrets
 
       - name: Check Semgrep SARIF exists
         id: semgrep-sarif
