@@ -276,6 +276,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           ./mvnw -B sonar:sonar \
+            -Dsonar.projectDate="$(date -u +%Y-%m-%dT%H:%M:%S%z)" \
             -Dsonar.qualitygate.wait=true \
             -Dsonar.qualitygate.timeout=300 \
             -Djavax.net.ssl.trustStore=/tmp/cacerts \
@@ -568,7 +569,7 @@ jobs:
   # ===========================================================================
   deploy-dev:
     name: Deploy to DEV
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: docker-build
     if: github.ref == 'refs/heads/develop'
     environment:
@@ -628,7 +629,7 @@ jobs:
   # ===========================================================================
   deploy-staging:
     name: Deploy to STAGING
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [docker-build, dast]
     if: github.ref == 'refs/heads/main'
     environment:
@@ -706,7 +707,7 @@ jobs:
   # ===========================================================================
   deploy-prod:
     name: Deploy to PROD
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [docker-build, dast, sonar]
     if: github.event_name == 'workflow_dispatch'
     environment:
