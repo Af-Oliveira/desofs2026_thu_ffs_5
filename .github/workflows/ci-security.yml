@@ -588,7 +588,7 @@ jobs:
           echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
 
-          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -v -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
             "docker load && \
              docker stop vendnet-dev 2>/dev/null || true && \
              docker rm vendnet-dev 2>/dev/null || true && \
@@ -651,7 +651,7 @@ jobs:
           echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
 
-          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -v -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
             "docker load && \
              docker stop vendnet-stage-mysql 2>/dev/null || true && \
              docker rm vendnet-stage-mysql 2>/dev/null || true && \
@@ -727,7 +727,7 @@ jobs:
           echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
 
-          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -v -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
             "docker load && \
              docker stop vendnet-prod-mysql 2>/dev/null || true && \
              docker rm vendnet-prod-mysql 2>/dev/null || true && \
