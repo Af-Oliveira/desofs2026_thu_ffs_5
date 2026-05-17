@@ -432,7 +432,8 @@ jobs:
             -c rules.tsv \
             -r /zap/wrk/reports/zap-baseline.html \
             -w /zap/wrk/reports/zap-baseline.md \
-            -x /zap/wrk/reports/zap-baseline.xml
+            -x /zap/wrk/reports/zap-baseline.xml \
+            -z "-config proxy.port=9090"
 
       - name: Upload ZAP Baseline Report
         if: always()
@@ -457,7 +458,8 @@ jobs:
             -r /zap/wrk/reports/zap-api-admin.html \
             -w /zap/wrk/reports/zap-api-admin.md \
             -x /zap/wrk/reports/zap-api-admin.xml \
-            -z "-config replacer.full_list[0].description=admin_auth \
+            -z "-config proxy.port=9090 \
+                -config replacer.full_list[0].description=admin_auth \
                 -config replacer.full_list[0].enabled=true \
                 -config replacer.full_list[0].matchtype=REQ_HEADER \
                 -config replacer.full_list[0].matchstr=Authorization \
@@ -480,7 +482,8 @@ jobs:
             -r /zap/wrk/reports/zap-api-operator.html \
             -w /zap/wrk/reports/zap-api-operator.md \
             -x /zap/wrk/reports/zap-api-operator.xml \
-            -z "-config replacer.full_list[0].description=operator_auth \
+            -z "-config proxy.port=9090 \
+                -config replacer.full_list[0].description=operator_auth \
                 -config replacer.full_list[0].enabled=true \
                 -config replacer.full_list[0].matchtype=REQ_HEADER \
                 -config replacer.full_list[0].matchstr=Authorization \
@@ -503,7 +506,8 @@ jobs:
             -r /zap/wrk/reports/zap-api-customer.html \
             -w /zap/wrk/reports/zap-api-customer.md \
             -x /zap/wrk/reports/zap-api-customer.xml \
-            -z "-config replacer.full_list[0].description=customer_auth \
+            -z "-config proxy.port=9090 \
+                -config replacer.full_list[0].description=customer_auth \
                 -config replacer.full_list[0].enabled=true \
                 -config replacer.full_list[0].matchtype=REQ_HEADER \
                 -config replacer.full_list[0].matchstr=Authorization \
