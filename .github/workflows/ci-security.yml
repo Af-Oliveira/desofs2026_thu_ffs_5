@@ -316,10 +316,10 @@ jobs:
   # ===========================================================================
   # STAGE 5 — DAST: OWASP ZAP (needs running app)
   #
-  # FIX: Previous version used `chmod -R a+w .zap/reports` which failed when
-  # Docker-created root-owned files from prior scans blocked the chmod.
-  # The ZAP container writes to the mounted volume fine; we only need mkdir.
-  # A sudo chmod step before artifact uploads ensures readability.
+  # ZAP runs as user 'zap' (uid 1000) inside the container but .zap/reports
+  # is created by the runner user.  We chmod a+w *before* each scan so the
+  # container can write report files; a post-scan sudo chmod ensures
+  # root-owned artefacts are readable for upload.
   # ===========================================================================
   dast:
     name: DAST - OWASP ZAP Baseline + Authenticated
@@ -390,6 +390,7 @@ jobs:
       - name: ZAP Baseline Scan - Public Surface
         run: |
           mkdir -p .zap/reports
+          chmod a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -412,6 +413,7 @@ jobs:
           TOKEN=$(cat .zap/tokens/admin.jwt 2>/dev/null || echo "")
           if [ -z "$TOKEN" ]; then echo "::warning::No admin token, skipping"; exit 0; fi
           mkdir -p .zap/reports
+          chmod a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -434,6 +436,7 @@ jobs:
           TOKEN=$(cat .zap/tokens/operator.jwt 2>/dev/null || echo "")
           if [ -z "$TOKEN" ]; then echo "::warning::No operator token, skipping"; exit 0; fi
           mkdir -p .zap/reports
+          chmod a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -456,6 +459,7 @@ jobs:
           TOKEN=$(cat .zap/tokens/customer.jwt 2>/dev/null || echo "")
           if [ -z "$TOKEN" ]; then echo "::warning::No customer token, skipping"; exit 0; fi
           mkdir -p .zap/reports
+          chmod a+w .zap/reports
           docker run --rm --network host \
             -v ${{ github.workspace }}/.zap:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
