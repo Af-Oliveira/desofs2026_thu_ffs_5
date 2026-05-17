@@ -27,8 +27,33 @@ curl -o actions-runner-linux-x64-2.334.0.tar.gz -L https://github.com/actions/ru
 # Verify hash (optional but recommended)
 echo "048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271  actions-runner-linux-x64-2.334.0.tar.gz" | shasum -a 256 -c
 
-# Extract
-tar xzf actions-runner-linux-x64-2.334.0.tar.gz
+# Extract (skip permission errors — the VM filesystem may not support Unix perms)
+tar --no-same-permissions -xzf actions-runner-linux-x64-2.334.0.tar.gz
+chmod +x config.sh run.sh svc.sh
+```
+
+### Install dependencies (Java 17, Maven, Docker)
+
+vs427 is "Ubuntu 24.04 LTS with Docker" so Docker is pre-installed. Add Java 17 and Maven:
+
+```bash
+# Java 17 (Eclipse Temurin)
+apt-get update -y
+apt-get install -y wget apt-transport-https gnupg
+
+wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor > /usr/share/keyrings/adoptium.gpg
+echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" > /etc/apt/sources.list.d/adoptium.list
+
+apt-get update -y
+apt-get install -y temurin-17-jdk
+
+# Maven 3.9
+apt-get install -y maven
+
+# Verify
+java -version
+mvn -version
+docker --version
 ```
 
 ### Configure the runner
@@ -100,9 +125,10 @@ Go to **GitHub → Settings → Environments → DEV / STAGING / PROD** and upda
 
 ---
 
-## 5. Important Notes
+## 6. Important Notes
 
-- The runner VM must have Java 17, Maven, Docker, docker-compose installed
+- All dependencies are installed in step 2 above (Java 17, Maven, Docker)
+- Docker should be pre-installed on vs427; if not: `apt-get install -y docker.io docker-compose`
 - The runner needs **outbound** internet access to reach `github.com`
 - No DNS needed — all deploy targets are `localhost` when runner is on vs427
 - The `SSH_PRIVATE_KEY` secret must be usable from the runner VM (key auth to localhost)
