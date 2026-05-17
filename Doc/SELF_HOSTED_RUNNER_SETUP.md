@@ -25,7 +25,7 @@ mkdir -p /opt/actions-runner && cd /opt/actions-runner
 curl -o actions-runner-linux-x64-2.334.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.334.0/actions-runner-linux-x64-2.334.0.tar.gz
 
 # Verify hash (optional but recommended)
-echo "6d507c8e4096edec0c2ff3805b87d685b998eb21bb2a5c3c103cc3bc4f3e15c3  actions-runner-linux-x64-2.334.0.tar.gz" | shasum -a 256 -c
+echo "048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271  actions-runner-linux-x64-2.334.0.tar.gz" | shasum -a 256 -c
 
 # Extract
 tar xzf actions-runner-linux-x64-2.334.0.tar.gz
