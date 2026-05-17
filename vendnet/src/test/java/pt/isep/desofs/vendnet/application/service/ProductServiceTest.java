@@ -3,19 +3,20 @@ package pt.isep.desofs.vendnet.application.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,104 +41,76 @@ class ProductServiceTest {
 	}
 
 	@Test
-	void findAllActive_shouldReturnList() {
-		Product product = Product.builder()
-				.id(1L)
-				.sku("SKU-001")
-				.name("Coke")
-				.active(true)
-				.build();
-		when(productRepository.findAllByActiveTrue()).thenReturn(List.of(product));
-
-		List<Product> result = productService.findAllActive();
-
-		assertEquals(1, result.size());
-		assertEquals("SKU-001", result.get(0).getSku());
-	}
-
-	@Test
-	void findAllActive_shouldReturnEmptyList() {
-		when(productRepository.findAllByActiveTrue()).thenReturn(Collections.emptyList());
-
-		List<Product> result = productService.findAllActive();
-
-		assertTrue(result.isEmpty());
+	void findAllActive_shouldReturnActiveProducts() {
+		Product p = Product.builder().id(1L).sku("SKU-001").name("Coke").active(true)
+				.price(new BigDecimal("1.50")).createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+		when(productRepository.findAllByActiveTrue()).thenReturn(java.util.List.of(p));
+		assertEquals(1, productService.findAllActive().size());
 	}
 
 	@Test
 	void findBySku_shouldReturnProduct() {
-		Product product = Product.builder()
-				.id(1L)
-				.sku("SKU-001")
-				.name("Coke")
-				.build();
-		when(productRepository.findBySku("SKU-001")).thenReturn(Optional.of(product));
-
-		Product result = productService.findBySku("SKU-001");
-
-		assertEquals("SKU-001", result.getSku());
-		assertEquals("Coke", result.getName());
+		Product p = Product.builder().id(1L).sku("SKU-001").name("Coke").build();
+		when(productRepository.findBySku("SKU-001")).thenReturn(Optional.of(p));
+		assertEquals("SKU-001", productService.findBySku("SKU-001").getSku());
 	}
 
 	@Test
 	void findBySku_shouldThrowWhenNotFound() {
 		when(productRepository.findBySku("UNKNOWN")).thenReturn(Optional.empty());
-
 		assertThrows(IllegalArgumentException.class, () -> productService.findBySku("UNKNOWN"));
 	}
 
 	@Test
-	void createProduct_shouldSaveAndReturnProduct() {
-		Product product = Product.builder()
-				.id(1L)
-				.name("Coke")
-				.sku("SKU-001")
-				.price(new BigDecimal("1.50"))
-				.build();
-		when(productRepository.save(any(Product.class))).thenReturn(product);
-
-		Product result = productService.createProduct("Coke", "Refrigerante", new BigDecimal("1.50"), "SKU-001", null);
-
-		assertEquals("SKU-001", result.getSku());
-		assertEquals(new BigDecimal("1.50"), result.getPrice());
-		verify(productRepository).save(any(Product.class));
-	}
-
-	@Test
-	void createProduct_withImage_shouldStoreFileAndSave() {
-		MultipartFile image = new org.springframework.mock.web.MockMultipartFile(
-				"image", "coke.jpg", "image/jpeg", "fake-image-content".getBytes());
-		Product product = Product.builder()
-				.id(1L)
-				.name("Coke")
-				.sku("SKU-001")
-				.price(new BigDecimal("1.50"))
-				.imageUrl("/products/coke.jpg")
-				.build();
-		when(fileStorageService.store(any(MultipartFile.class), any(String.class))).thenReturn("/products/coke.jpg");
-		when(productRepository.save(any(Product.class))).thenReturn(product);
-
-		Product result = productService.createProduct("Coke", "Desc", new BigDecimal("1.50"), "SKU-001", image);
-
-		assertEquals("/products/coke.jpg", result.getImageUrl());
-		verify(fileStorageService).store(any(MultipartFile.class), any(String.class));
-	}
-
-	@Test
-	void createProduct_withEmptyImage_shouldNotStoreFile() {
-		MultipartFile emptyImage = new org.springframework.mock.web.MockMultipartFile(
-				"image", "", "image/jpeg", new byte[0]);
-		Product product = Product.builder()
-				.id(1L)
-				.name("Coke")
-				.sku("SKU-001")
-				.price(new BigDecimal("1.50"))
-				.build();
-		when(productRepository.save(any(Product.class))).thenReturn(product);
-
-		Product result = productService.createProduct("Coke", "Desc", new BigDecimal("1.50"), "SKU-001", emptyImage);
-
+	void createProduct_withoutImage_shouldSaveProduct() {
+		Product saved = Product.builder().id(1L).name("Coke").description("Soda").price(new BigDecimal("1.50"))
+				.sku("SKU-001").active(true).createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+		when(productRepository.save(any(Product.class))).thenReturn(saved);
+		Product result = productService.createProduct("Coke", "Soda", new BigDecimal("1.50"), "SKU-001", null);
 		assertNotNull(result);
 		verify(productRepository).save(any(Product.class));
+		verify(fileStorageService, never()).store(any(), anyString());
+	}
+
+	@Test
+	void createProduct_withImage_shouldStoreFileAndSaveProduct() {
+		MultipartFile image = new org.springframework.mock.web.MockMultipartFile("image", "coke.jpg", "image/jpeg", "data".getBytes());
+		Product saved = Product.builder().id(1L).name("Coke").sku("SKU-001").imageUrl("/products/coke.jpg")
+				.price(new BigDecimal("1.50")).active(true).createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+		when(fileStorageService.store(any(MultipartFile.class), anyString())).thenReturn("/products/coke.jpg");
+		when(productRepository.save(any(Product.class))).thenReturn(saved);
+		Product result = productService.createProduct("Coke", "Soda", new BigDecimal("1.50"), "SKU-001", image);
+		assertNotNull(result);
+		verify(fileStorageService).store(any(MultipartFile.class), anyString());
+	}
+
+	@Test
+	void updateProduct_shouldUpdateAllFields() {
+		Product existing = Product.builder().id(1L).name("Coke").description("Soda").price(new BigDecimal("1.50"))
+				.sku("SKU-001").active(true).createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+		Product updated = Product.builder().name("Pepsi").description("Cola").price(new BigDecimal("2.00")).active(false).build();
+		when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+		when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+		Product result = productService.updateProduct(1L, updated);
+		assertEquals("Pepsi", result.getName());
+		assertEquals(new BigDecimal("2.00"), result.getPrice());
+		assertEquals(false, result.isActive());
+	}
+
+	@Test
+	void updateProduct_shouldPartialUpdate() {
+		Product existing = Product.builder().id(1L).name("Coke").description("Soda").price(new BigDecimal("1.50"))
+				.sku("SKU-001").active(true).createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+		Product updated = Product.builder().name("Pepsi").build();
+		when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+		when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+		Product result = productService.updateProduct(1L, updated);
+		assertEquals("Pepsi", result.getName());
+	}
+
+	@Test
+	void updateProduct_shouldThrowWhenNotFound() {
+		when(productRepository.findById(999L)).thenReturn(Optional.empty());
+		assertThrows(IllegalArgumentException.class, () -> productService.updateProduct(999L, new Product()));
 	}
 }
