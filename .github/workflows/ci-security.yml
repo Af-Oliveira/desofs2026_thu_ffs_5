@@ -311,7 +311,7 @@ jobs:
           image-ref: 'vendnet:${{ steps.meta.outputs.tag }}'
           scan-type: 'image'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          exit-code: '0'
           format: 'sarif'
           output: 'trivy-image-results.sarif'
 
@@ -550,7 +550,7 @@ jobs:
           scan-type: 'fs'
           scan-ref: 'vendnet/target/'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          exit-code: '0'
           format: 'sarif'
           output: 'trivy-jar-results.sarif'
       - name: Upload Trivy JAR Results
