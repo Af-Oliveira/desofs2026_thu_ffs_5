@@ -276,6 +276,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           ./mvnw -B sonar:sonar \
+            -Dsonar.projectDate="$(date -u +%Y-%m-%dT%H:%M:%S%z)" \
             -Dsonar.qualitygate.wait=true \
             -Dsonar.qualitygate.timeout=300 \
             -Djavax.net.ssl.trustStore=/tmp/cacerts \
