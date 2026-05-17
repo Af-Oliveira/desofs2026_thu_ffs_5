@@ -585,10 +585,12 @@ jobs:
           APP_PORT: ${{ vars.APP_PORT || '8280' }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
-
-          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -v -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          APP_PORT=$(echo "$APP_PORT" | tr -d '[:space:]')
+          REMOTE_PORT=$(echo "$REMOTE_PORT" | tr -d '[:space:]')
+          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>&1 || true
+          echo "Deploying to DEV at ${REMOTE_HOST}:${APP_PORT}..."
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -o StrictHostKeyChecking=accept-new -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
             "docker load && \
              docker stop vendnet-dev 2>/dev/null || true && \
              docker rm vendnet-dev 2>/dev/null || true && \
@@ -648,10 +650,12 @@ jobs:
           HMAC_SECRET: ${{ secrets.STAGE_HMAC_SECRET }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
-
-          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -v -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          APP_PORT=$(echo "$APP_PORT" | tr -d '[:space:]')
+          REMOTE_PORT=$(echo "$REMOTE_PORT" | tr -d '[:space:]')
+          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>&1 || true
+          echo "Deploying to STAGING at ${REMOTE_HOST}:${APP_PORT}..."
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -o StrictHostKeyChecking=accept-new -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
             "docker load && \
              docker stop vendnet-stage-mysql 2>/dev/null || true && \
              docker rm vendnet-stage-mysql 2>/dev/null || true && \
@@ -724,10 +728,12 @@ jobs:
           HMAC_SECRET: ${{ secrets.PROD_HMAC_SECRET }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
-
-          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -v -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          APP_PORT=$(echo "$APP_PORT" | tr -d '[:space:]')
+          REMOTE_PORT=$(echo "$REMOTE_PORT" | tr -d '[:space:]')
+          ssh-keyscan -p "${REMOTE_PORT}" "${REMOTE_HOST}" >> ~/.ssh/known_hosts 2>&1 || true
+          echo "Deploying to PROD at ${REMOTE_HOST}:${APP_PORT}..."
+          gunzip -c /tmp/docker/vendnet-image.tar.gz | ssh -o StrictHostKeyChecking=accept-new -p "${REMOTE_PORT}" -i ~/.ssh/deploy_key root@"${REMOTE_HOST}" \
             "docker load && \
              docker stop vendnet-prod-mysql 2>/dev/null || true && \
              docker rm vendnet-prod-mysql 2>/dev/null || true && \
