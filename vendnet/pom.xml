@@ -280,6 +280,10 @@
 						<exclude>pt/isep/desofs/vendnet/domain/model/sale/PayStatus.class</exclude>
 						<exclude>pt/isep/desofs/vendnet/config/**</exclude>
 						<exclude>pt/isep/desofs/vendnet/VendnetApplication.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/infrastructure/os/AuditLogRotationServiceImpl.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/infrastructure/os/BackupServiceImpl.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/infrastructure/os/ReportDirectoryServiceImpl.class</exclude>
+						<exclude>pt/isep/desofs/vendnet/infrastructure/file/FileStorageServiceImpl.class</exclude>
 					</excludes>
 				</configuration>
 				<executions>
