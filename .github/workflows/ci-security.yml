@@ -232,8 +232,11 @@ jobs:
     steps:
       - name: Check SonarQube secrets
         id: check_secrets
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ -n "${{ secrets.SONAR_HOST_URL }}" ] && [ -n "${{ secrets.SONAR_TOKEN }}" ]; then
+          if [ -n "$SONAR_HOST_URL" ] && [ -n "$SONAR_TOKEN" ]; then
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::SONAR_HOST_URL or SONAR_TOKEN not configured — skipping SonarQube"
