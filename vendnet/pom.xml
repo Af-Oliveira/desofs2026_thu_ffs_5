@@ -397,6 +397,7 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
+					<argLine>@{argLine} -Djdk.attach.allowAttachSelf=true -XX:+EnableDynamicAgentLoading</argLine>
 					<excludes>
 						<exclude>**/*E2ETest.java</exclude>
 					</excludes>
@@ -460,6 +461,7 @@
 									<goal>verify</goal>
 								</goals>
 								<configuration>
+									<argLine>@{argLine} -Djdk.attach.allowAttachSelf=true -XX:+EnableDynamicAgentLoading</argLine>
 									<includes>
 										<include>**/*IT.java</include>
 										<include>**/*IntegrationTest.java</include>
@@ -486,6 +488,7 @@
 									<goal>verify</goal>
 								</goals>
 								<configuration>
+									<argLine>@{argLine} -Djdk.attach.allowAttachSelf=true -XX:+EnableDynamicAgentLoading</argLine>
 									<includes>
 										<include>**/*IastIntegrationTest.java</include>
 									</includes>
@@ -505,6 +508,7 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<!-- Applies to bound phases and to CLI: mvn failsafe:integration-test -Pe2e -->
 						<configuration>
+							<argLine>@{argLine} -Djdk.attach.allowAttachSelf=true -XX:+EnableDynamicAgentLoading</argLine>
 							<includes>
 								<include>**/*E2ETest.java</include>
 							</includes>

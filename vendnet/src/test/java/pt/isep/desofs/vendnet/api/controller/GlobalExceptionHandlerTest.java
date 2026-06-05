@@ -15,9 +15,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import pt.isep.desofs.vendnet.api.view.ApiError;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
 import pt.isep.desofs.vendnet.domain.exception.DisabledException;
@@ -110,10 +113,11 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@Test
-	void handleValidation_shouldReturn400() {
-		org.springframework.web.bind.MethodArgumentNotValidException ex =
-			org.mockito.Mockito.mock(org.springframework.web.bind.MethodArgumentNotValidException.class);
-		when(ex.getBindingResult()).thenReturn(new org.springframework.validation.BeanPropertyBindingResult(new Object(), "obj"));
+	void handleValidation_shouldReturn400() throws NoSuchMethodException {
+		MethodParameter parameter =
+			new MethodParameter(GlobalExceptionHandlerTest.class.getDeclaredMethod("validationTarget", Object.class), 0);
+		MethodArgumentNotValidException ex =
+			new MethodArgumentNotValidException(parameter, new BeanPropertyBindingResult(new Object(), "obj"));
 		ResponseEntity<ApiError> response = handler.handleValidation(ex);
 		assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
 		assertEquals("Validation Error", response.getBody().getError());
@@ -124,4 +128,7 @@ class GlobalExceptionHandlerTest {
 		ResponseEntity<ApiError> response = handler.handleUnauthorized(new UnauthorizedException("test"));
 		assertNotNull(response.getBody().getTimestamp());
 	}
+
+	@SuppressWarnings("unused")
+	private void validationTarget(Object obj) {}
 }

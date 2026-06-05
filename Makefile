@@ -8,7 +8,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 
-.PHONY: help clean build maven-build docker-build docker-push \
+.PHONY: help app-help clean build maven-build docker-build docker-push \
         dev dev-up dev-stop dev-clean dev-status dev-logs \
         stage stage-up stage-stop stage-clean stage-status stage-logs \
         prod prod-up prod-stop prod-clean prod-status prod-logs \
@@ -16,6 +16,10 @@ SHELL := /bin/bash
         smoke-test-dev smoke-test-stage smoke-test-all \
         deploy-dev deploy-stage deploy-prod \
         security-scan sast sca sonar \
+        test verify coverage lint format format-check archunit abuse-tests \
+        integration-test e2e sbom enforcer docker-scan secret-scan \
+        zap-baseline zap-api-scan \
+        asvs asvs-fill asvs-test-evidence asvs-tracker \
         pipeline ci-all
 .DEFAULT_GOAL := help
 
@@ -23,7 +27,13 @@ SHELL := /bin/bash
 DC := docker compose
 APP_DIR := vendnet
 MVN := ./mvnw
+APP_MAKE := $(MAKE) -C $(APP_DIR) --no-print-directory
 BUILD_TAG ?= latest
+CODEX_PYTHON := /Users/rmotafreitas/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3
+PYTHON ?= $(shell if python3 -c 'import openpyxl' >/dev/null 2>&1; then command -v python3; elif [ -x "$(CODEX_PYTHON)" ]; then echo "$(CODEX_PYTHON)"; else echo python3; fi)
+ASVS_DIR := Deliverables/Phase1/ASVS_Checklist
+ASVS_SOURCE := $(ASVS_DIR)/ASVS_5.0_Tracker1.xlsx
+ASVS_OUTPUT ?= $(ASVS_DIR)/ASVS_5.0_Tracker_filled.xlsx
 
 # Ports per environment
 DEV_PORT := 8280
@@ -39,14 +49,23 @@ REMOTE_SSH_PORT ?= 2222
 # Help
 # =============================================================================
 help:
-	@echo "VendNet CI/CD System — Makefile Targets"
+	@echo "VendNet Root Makefile"
+	@echo "Use this Makefile from the repository root; app-local targets are delegated to $(APP_DIR)/Makefile."
 	@echo ""
 	@echo "Build:   make build | maven-build | docker-build | docker-push"
 	@echo "Envs:    make dev | stage | prod"
 	@echo "Deploy:  make deploy-dev | deploy-stage | deploy-prod"
-	@echo "Tests:   make smoke-test-dev | smoke-test-stage | smoke-test-all"
+	@echo "Tests:   make test | verify | coverage | archunit | abuse-tests | integration-test"
 	@echo "Security: make security-scan | sast | sca | sonar"
+	@echo "ASVS:    make asvs | asvs-tracker | asvs-fill"
+	@echo "App DX:  make app-help | app-<target>  (example: make app-run)"
 	@echo "Pipeline: make pipeline | ci-all"
+
+app-help:
+	@$(APP_MAKE) help
+
+app-%:
+	@$(APP_MAKE) $*
 
 # =============================================================================
 # BUILD
@@ -235,6 +254,45 @@ sonar:
 	@cd $(APP_DIR) && $(MVN) verify sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.login=admin -Dsonar.password=admin
 
 security-scan: sast sca
+
+# =============================================================================
+# APP TARGETS (delegated to vendnet/Makefile)
+# =============================================================================
+test verify coverage lint format format-check archunit abuse-tests integration-test e2e sbom enforcer docker-scan secret-scan zap-baseline zap-api-scan:
+	@$(APP_MAKE) $@
+
+# =============================================================================
+# ASVS TRACKER
+# =============================================================================
+asvs: asvs-tracker
+
+asvs-test-evidence:
+	@echo "[ASVS] Running unit, integration, architecture, abuse, and IAST evidence tests..."
+	@cd $(APP_DIR) && $(MVN) clean verify -P integration-test
+	@echo "[ASVS] Test evidence generated under $(APP_DIR)/target/*-reports"
+
+asvs-fill:
+	@echo "[ASVS] Copying and filling ASVS workbook from repository evidence..."
+	@$(PYTHON) $(ASVS_DIR)/fill_tracker.py \
+		--source-xlsx $(ASVS_SOURCE) \
+		--output $(ASVS_OUTPUT)
+	@echo "[ASVS] Filled workbook ready: $(ASVS_OUTPUT)"
+
+asvs-tracker:
+	@set +e; \
+	echo "[ASVS] Running unit, integration, architecture, abuse, and IAST evidence tests..."; \
+	cd $(APP_DIR) && $(MVN) clean verify -P integration-test; \
+	TEST_EXIT=$$?; \
+	cd ..; \
+	echo "[ASVS] Copying and filling ASVS workbook from repository evidence..."; \
+	$(PYTHON) $(ASVS_DIR)/fill_tracker.py \
+		--source-xlsx $(ASVS_SOURCE) \
+		--output $(ASVS_OUTPUT); \
+	if [ $$TEST_EXIT -ne 0 ]; then \
+		echo "[ASVS] Filled workbook was generated, but test evidence failed. Review $(APP_DIR)/target/*-reports."; \
+		exit $$TEST_EXIT; \
+	fi; \
+	echo "[ASVS] Filled workbook ready: $(ASVS_OUTPUT)"
 
 # =============================================================================
 # FULL PIPELINE (local)
