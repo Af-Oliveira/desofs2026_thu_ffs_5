@@ -686,6 +686,9 @@ jobs:
     if: |
       needs.setup-context.outputs.is_main == 'true' ||
       needs.setup-context.outputs.is_develop == 'true'
+    outputs:
+      image_full: ${{ steps.img.outputs.full }}
+      image_tag: ${{ needs.setup-context.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -699,11 +702,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: "🔡 Compute Lowercase Image Reference"
+        id: img
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
+          echo "full=${{ env.REGISTRY }}/${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
+
       - name: "📋 Docker Metadata"
         id: docker_meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/vendnet
+          images: ${{ steps.img.outputs.full }}
           tags: |
             type=raw,value=${{ needs.setup-context.outputs.image_tag }}
             type=raw,value=${{ needs.setup-context.outputs.branch }}-latest
@@ -725,7 +735,7 @@ jobs:
       - name: "🔬 Trivy Vulnerability Scan (Image)"
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: '${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}'
+          image-ref: '${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}'
           scan-type: 'image'
           severity: 'CRITICAL,HIGH'
           exit-code: '0'
@@ -745,7 +755,7 @@ jobs:
             echo "| Property | Value |"
             echo "|----------|-------|"
             echo "| **Registry** | \`${{ env.REGISTRY }}\` |"
-            echo "| **Image**    | \`${{ env.REGISTRY }}/${{ github.repository }}/vendnet\` |"
+            echo "| **Image**    | \`${{ steps.img.outputs.full }}\` |"
             echo "| **Tag**      | \`${{ needs.setup-context.outputs.image_tag }}\` |"
             echo "| **Branch**   | \`${{ needs.setup-context.outputs.branch }}-latest\` |"
             if [ "${{ needs.setup-context.outputs.is_release }}" = "true" ]; then
@@ -754,11 +764,11 @@ jobs:
             echo ""
             echo "### Pull command:"
             echo '```bash'
-            echo "docker pull ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}"
+            echo "docker pull ${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
-          echo "🐳 Image pushed: ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}"
+          echo "🐳 Image pushed: ${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}"
 
   # =============================================================================
   #  JOB 8 — DAST: OWASP ZAP (Dynamic Application Security Testing)
@@ -1033,7 +1043,7 @@ jobs:
             "${REMOTE_USER}@${REMOTE_HOST}" \
             bash /tmp/blue-green-deploy.sh \
               --env "dev" \
-              --image "${{ env.REGISTRY }}/${{ github.repository }}/vendnet" \
+              --image "${{ needs.docker-build-push.outputs.image_full }}" \
               --tag "${{ needs.setup-context.outputs.image_tag }}" \
               --port "${DEV_PORT}" \
               --registry "${{ env.REGISTRY }}" \
@@ -1131,7 +1141,7 @@ jobs:
             "${REMOTE_USER}@${REMOTE_HOST}" \
             bash /tmp/blue-green-deploy.sh \
               --env "stage" \
-              --image "${{ env.REGISTRY }}/${{ github.repository }}/vendnet" \
+              --image "${{ needs.docker-build-push.outputs.image_full }}" \
               --tag "${{ needs.setup-context.outputs.image_tag }}" \
               --port "${STAGE_PORT}" \
               --registry "${{ env.REGISTRY }}" \
@@ -1232,7 +1242,7 @@ jobs:
             "${REMOTE_USER}@${REMOTE_HOST}" \
             bash /tmp/blue-green-deploy.sh \
               --env "prod" \
-              --image "${{ env.REGISTRY }}/${{ github.repository }}/vendnet" \
+              --image "${{ needs.docker-build-push.outputs.image_full }}" \
               --tag "${{ needs.setup-context.outputs.image_tag }}" \
               --port "${PROD_PORT}" \
               --registry "${{ env.REGISTRY }}" \
@@ -1342,14 +1352,14 @@ jobs:
             ## 🚀 VendNet Release ${{ needs.setup-context.outputs.version }}
 
             ### 🔗 Artifacts
-            - **Docker Image:** `${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}`
-            - **Docker Image (latest):** `${{ env.REGISTRY }}/${{ github.repository }}/vendnet:latest`
+            - **Docker Image:** `${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}`
+            - **Docker Image (latest):** `${{ needs.docker-build-push.outputs.image_full }}:latest`
             - **SBOM:** CycloneDX JSON (attached below)
 
             ### 📦 Pull the Docker Image
             ```bash
-            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}
-            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:latest
+            docker pull ${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}
+            docker pull ${{ needs.docker-build-push.outputs.image_full }}:latest
             ```
 
             ### 🔒 Security
@@ -1379,7 +1389,7 @@ jobs:
             echo "|----------|-------|"
             echo "| **Version**   | \`${{ needs.setup-context.outputs.version }}\` |"
             echo "| **Tag**       | \`${{ github.ref_name }}\` |"
-            echo "| **Docker**    | \`${{ env.REGISTRY }}/${{ github.repository }}/vendnet:latest\` |"
+            echo "| **Docker**    | \`${{ needs.docker-build-push.outputs.image_full }}:latest\` |"
             echo "| **SBOM**      | vendnet-sbom.json (CycloneDX 1.5) |"
             echo "| **JAR**       | vendnet.jar |"
             echo ""
