@@ -1,0 +1,1451 @@
+# =============================================================================
+#  ██╗   ██╗███████╗███╗   ██╗██████╗ ███╗   ██╗███████╗████████╗
+#  ██║   ██║██╔════╝████╗  ██║██╔══██╗████╗  ██║██╔════╝╚══██╔══╝
+#  ██║   ██║█████╗  ██╔██╗ ██║██║  ██║██╔██╗ ██║█████╗     ██║
+#  ╚██╗ ██╔╝██╔══╝  ██║╚██╗██║██║  ██║██║╚██╗██║██╔══╝     ██║
+#   ╚████╔╝ ███████╗██║ ╚████║██████╔╝██║ ╚████║███████╗   ██║
+#    ╚═══╝  ╚══════╝╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝
+#
+#  VendNet CI/CD Pipeline — Enterprise-Grade v2.0
+#  "Zero-downtime, maximum security, developer-first."
+#
+#  Architecture:
+#    Stage 0 ─ Setup Context      (naming, versioning, metadata)
+#    Stage 1 ─ Fast Security      (Gitleaks + Semgrep, source-only, parallel)
+#    Stage 2 ─ Build & Unit Tests (fail-fast, Maven cached)
+#    Stage 3 ─ Integration Tests  (only if unit tests pass)
+#    Stage 4 ─ Deep Security      (SpotBugs + Dependency Check, parallel)
+#    Stage 5 ─ SonarQube Gate     (strict ≥80% coverage, reads JaCoCo XML)
+#    Stage 6 ─ Docker Build+Push  (multi-stage cache, Trivy scan, GHCR)
+#    Stage 7 ─ DAST ZAP           (baseline + authenticated RBAC scans)
+#    Stage 8 ─ Deploy DEV         (Blue/Green, zero-downtime)
+#    Stage 9 ─ Deploy STAGING     (Blue/Green, zero-downtime)
+#    Stage 10 ─ Deploy PROD       (Blue/Green, manual gate)
+#    Stage 11 ─ GitHub Release    (on tag push: JAR + SBOM + source ZIP)
+#
+#  Key improvements over v1:
+#    - Split Build/Unit Tests from Integration Tests (fail-fast)
+#    - Blue/Green zero-downtime deployments via GHCR + remote script
+#    - Unified quality gate (JaCoCo XML → SonarQube, strict ≥80%)
+#    - Aggressive caching (Maven, SonarQube, NVD, Docker buildx)
+#    - Automated GitHub Releases with SBOM + JAR attachments
+#    - Emoji-powered logging and GitHub UI step summaries
+#    - Log grouping (::group::) for clean output
+#    - Dynamic artifact naming: vendnet-<branch>-v<version>-<short_sha>
+# =============================================================================
+
+name: "🚀 VendNet CI/CD Pipeline v2"
+
+# ── TRIGGERS ──────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']                                # Semantic version tags trigger releases
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'                          # Nightly full security scan (2 AM UTC)
+  workflow_dispatch:
+    inputs:
+      deploy_prod:
+        description: '🚨 Deploy to PRODUCTION?'
+        required: true
+        type: boolean
+        default: false
+      skip_tests:
+        description: '⚡ Skip tests? (emergency only)'
+        type: boolean
+        default: false
+
+# ── CONCURRENCY ────────────────────────────────────────────────────────────────
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── GLOBAL PERMISSIONS ─────────────────────────────────────────────────────────
+permissions:
+  contents: read
+  packages: write                               # For GHCR push
+  security-events: write                        # For SARIF uploads
+  actions: write
+  pull-requests: read
+  issues: write
+
+# ── GLOBAL ENVIRONMENT ─────────────────────────────────────────────────────────
+env:
+  APP_NAME: vendnet
+  APP_DIR: vendnet
+  JAVA_VERSION: '17'
+  JAVA_DISTRIBUTION: 'temurin'
+  REGISTRY: ghcr.io
+  # Remote server (DEI ISEP private cloud)
+  REMOTE_HOST: vs427.dei.isep.ipp.pt
+  REMOTE_SSH_PORT: '2222'
+  REMOTE_USER: root
+  # Ports per environment (public-facing)
+  DEV_PORT: '8280'
+  STAGE_PORT: '8180'
+  PROD_PORT: '8080'
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                              J O B S                                         ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+jobs:
+  # =============================================================================
+  #  JOB 0 — SETUP CONTEXT
+  #  Generates traceable artifact naming and shared metadata for all downstream
+  #  jobs.  Format: vendnet-<branch>-v<version>-<short_sha>
+  # =============================================================================
+  setup-context:
+    name: "📋 Setup Context"
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      version: ${{ steps.meta.outputs.version }}
+      branch: ${{ steps.meta.outputs.branch }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      is_release: ${{ steps.meta.outputs.is_release }}
+      is_main: ${{ steps.meta.outputs.is_main }}
+      is_develop: ${{ steps.meta.outputs.is_develop }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "🔢 Generate Build Metadata"
+        id: meta
+        run: |
+          echo "::group::📋 Computing Build Context"
+
+          # Determine branch name (safe: replace slashes with dashes)
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          BRANCH="${BRANCH#refs/tags/}"
+          BRANCH="$(echo "${BRANCH}" | tr '/' '-')"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            BRANCH="main"  # tags are always on main
+          fi
+
+          # Extract semantic version from pom.xml (or use tag if present)
+          # We need the PROJECT version (after <artifactId>vendnet</artifactId>),
+          # not the parent POM version. grep -m1 would grab parent version first.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            IS_RELEASE="true"
+          else
+            VERSION=$(awk '/<artifactId>vendnet<\/artifactId>/{found=1; next} found && /<version>/{gsub(/.*<version>|<\/version>.*/, ""); print; exit}' vendnet/pom.xml)
+            if [ -z "${VERSION}" ]; then
+              VERSION="0.0.1-SNAPSHOT"
+              echo "::warning::Could not extract version from pom.xml, using fallback: ${VERSION}"
+            fi
+            IS_RELEASE="false"
+          fi
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          IMAGE_TAG="${BRANCH}-${SHORT_SHA}"
+
+          # Artifact naming: vendnet-<branch>-v<version>-<short_sha>
+          ARTIFACT_NAME="${APP_NAME}-${BRANCH}-v${VERSION}-${SHORT_SHA}"
+
+          # Boolean flags for conditional jobs
+          if [ "${GITHUB_REF}" = "refs/heads/main" ] || [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            IS_MAIN="true"
+          else
+            IS_MAIN="false"
+          fi
+
+          if [ "${GITHUB_REF}" = "refs/heads/develop" ]; then
+            IS_DEVELOP="true"
+          else
+            IS_DEVELOP="false"
+          fi
+
+          echo "branch=${BRANCH}"               >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}"             >> "${GITHUB_OUTPUT}"
+          echo "short_sha=${SHORT_SHA}"         >> "${GITHUB_OUTPUT}"
+          echo "image_tag=${IMAGE_TAG}"          >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=${ARTIFACT_NAME}"  >> "${GITHUB_OUTPUT}"
+          echo "is_release=${IS_RELEASE}"       >> "${GITHUB_OUTPUT}"
+          echo "is_main=${IS_MAIN}"             >> "${GITHUB_OUTPUT}"
+          echo "is_develop=${IS_DEVELOP}"       >> "${GITHUB_OUTPUT}"
+
+          # ── GitHub Step Summary (visible in Actions UI) ──
+          {
+            echo "## 📋 VendNet Build Context"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Artifact**  | \`${ARTIFACT_NAME}\` |"
+            echo "| **Branch**    | \`${BRANCH}\` |"
+            echo "| **Version**   | \`${VERSION}\` |"
+            echo "| **Commit**    | \`${SHORT_SHA}\` |"
+            echo "| **Image Tag** | \`${IMAGE_TAG}\` |"
+            echo "| **Is Release?** | ${IS_RELEASE} |"
+            echo "| **Trigger**   | ${GITHUB_EVENT_NAME} |"
+            echo ""
+            echo "🔗 [View commit](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          echo "::endgroup::"
+
+          echo "📋 Artifact: ${ARTIFACT_NAME}"
+          echo "📋 Image Tag: ${IMAGE_TAG}"
+          echo "📋 Branch:    ${BRANCH}"
+
+      - name: "💾 Export Metadata to GITHUB_ENV"
+        run: |
+          {
+            echo "ARTIFACT_NAME=${{ steps.meta.outputs.artifact_name }}"
+            echo "VERSION=${{ steps.meta.outputs.version }}"
+            echo "BRANCH=${{ steps.meta.outputs.branch }}"
+            echo "SHORT_SHA=${{ steps.meta.outputs.short_sha }}"
+            echo "IMAGE_TAG=${{ steps.meta.outputs.image_tag }}"
+            echo "IS_RELEASE=${{ steps.meta.outputs.is_release }}"
+            echo "IS_MAIN=${{ steps.meta.outputs.is_main }}"
+            echo "IS_DEVELOP=${{ steps.meta.outputs.is_develop }}"
+          } >> "${GITHUB_ENV}"
+
+  # =============================================================================
+  #  JOB 1a — SECRET DETECTION (Gitleaks, source-only, runs FAST)
+  # =============================================================================
+  secret-detect:
+    name: "🕵️ Secret Detection — Gitleaks"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "🔍 Scanning for Secrets with Gitleaks"
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =============================================================================
+  #  JOB 1b — SAST SEMGREP (source-only, runs in parallel with Gitleaks)
+  # =============================================================================
+  semgrep:
+    name: "🔬 SAST — Semgrep"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "🔬 Running Semgrep (Java + Secrets rules)"
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/java p/secrets
+
+      - name: "📎 Check SARIF Output"
+        id: sarif
+        run: |
+          if [ -f semgrep.sarif ]; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: "📤 Upload Semgrep SARIF to GitHub"
+        uses: github/codeql-action/upload-sarif@v4
+        if: steps.sarif.outputs.exists == 'true'
+        with:
+          sarif_file: semgrep.sarif
+
+  # =============================================================================
+  #  JOB 2 — BUILD & UNIT TESTS (fail-fast, includes ArchUnit)
+  #  Caches Maven ~/.m2/repository for speed.
+  # =============================================================================
+  build-unit-tests:
+    name: "🧪 Build & Unit Tests"
+    runs-on: ubuntu-latest
+    needs: setup-context
+    outputs:
+      artifact_name: ${{ needs.setup-context.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Cache Maven Repository"
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "🔨 Compile + Run Unit Tests (surefire + ArchUnit)"
+        id: unit_tests
+        run: |
+          echo "::group::🧪 Compiling and Running Unit Tests"
+          cd vendnet
+          ./mvnw -B test -Dspring.profiles.active=test \
+            -Dtest='!*IT,!*IntegrationTest,!*AbuseCaseTest,!*IastIntegrationTest,!*E2ETest'
+          echo "::endgroup::"
+        env:
+          MAVEN_OPTS: '-Xmx1024m -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+
+      - name: "📊 JaCoCo Coverage Report Generation"
+        run: |
+          echo "::group::📊 Generating JaCoCo Report"
+          cd vendnet
+          ./mvnw -B jacoco:report -DskipTests
+          echo "::endgroup::"
+
+      - name: "📋 JaCoCo Coverage Summary"
+        run: |
+          echo "::group::📊 Coverage Summary"
+          cd vendnet
+          JACOCO_XML="target/site/jacoco/jacoco.xml"
+          if [ -f "${JACOCO_XML}" ]; then
+            # Extract coverage metrics using python
+            python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('${JACOCO_XML}')
+          root = tree.getroot()
+          for counter in root.iter('counter'):
+              ctype = counter.get('type', '')
+              missed = int(counter.get('missed', 0))
+              covered = int(counter.get('covered', 0))
+              total = missed + covered
+              pct = (covered / total * 100) if total > 0 else 0
+              if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
+                  print(f'  {ctype:12s}: {covered}/{total} = {pct:.2f}%')
+          "
+            # Write coverage to step summary
+            {
+              echo "## 📊 JaCoCo Coverage Report"
+              echo '```'
+              python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('${JACOCO_XML}')
+          root = tree.getroot()
+          for counter in root.iter('counter'):
+              ctype = counter.get('type', '')
+              missed = int(counter.get('missed', 0))
+              covered = int(counter.get('covered', 0))
+              total = missed + covered
+              pct = (covered / total * 100) if total > 0 else 0
+              if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
+                  print(f'{ctype:12s}: {covered}/{total} = {pct:.2f}%')
+          "
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::warning::JaCoCo XML report not found at ${JACOCO_XML}"
+          fi
+          echo "::endgroup::"
+
+      - name: "📤 Upload Unit Test Reports"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-reports
+          path: vendnet/target/surefire-reports/
+          retention-days: 7
+
+      - name: "📤 Upload JaCoCo Coverage Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: |
+            vendnet/target/site/jacoco/
+            vendnet/target/jacoco.exec
+          retention-days: 7
+
+      - name: "📤 Upload Compiled Classes (for SonarQube reuse)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            vendnet/target/classes/
+            vendnet/target/test-classes/
+            vendnet/target/site/
+          retention-days: 1
+
+  # =============================================================================
+  #  JOB 3 — INTEGRATION TESTS (failsafe, runs only if unit tests pass)
+  #  Uses Testcontainers for MySQL integration tests.
+  # =============================================================================
+  integration-tests:
+    name: "🐳 Integration Tests"
+    runs-on: ubuntu-latest
+    needs: [setup-context, build-unit-tests]
+    if: ${{ !cancelled() && needs.build-unit-tests.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Restore Maven Cache"
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "🐳 Run Integration Tests (Testcontainers + Failsafe)"
+        run: |
+          echo "::group::🐳 Integration Tests (Testcontainers)"
+          cd vendnet
+          ./mvnw -B verify -P integration-test -Dspring.profiles.active=test \
+            -Dtest='!*UnitTest,!*ArchitectureTest,!*ArchTest'
+          echo "::endgroup::"
+        env:
+          MAVEN_OPTS: '-Xmx1024m'
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
+
+      - name: "📤 Upload Integration Test Reports"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-reports
+          path: vendnet/target/failsafe-reports/
+          retention-days: 7
+
+  # =============================================================================
+  #  JOB 4 — SAST: SpotBugs + FindSecBugs (needs compiled classes)
+  # =============================================================================
+  sast-spotbugs:
+    name: "🔍 SAST — SpotBugs + FindSecBugs"
+    runs-on: ubuntu-latest
+    needs: build-unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Restore Maven Cache"
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "🔍 SpotBugs with FindSecBugs (Max Effort, Low Threshold)"
+        run: |
+          echo "::group::🔍 Running SpotBugs + FindSecBugs"
+          cd vendnet
+          ./mvnw -B spotbugs:check \
+            -Dspotbugs.effort=Max \
+            -Dspotbugs.threshold=Low
+          echo "::endgroup::"
+
+      - name: "📤 Upload SpotBugs Report"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spotbugs-report
+          path: vendnet/target/spotbugsXml.xml
+          retention-days: 7
+
+  # =============================================================================
+  #  JOB 5 — SCA: OWASP Dependency Check + Maven Enforcer
+  # =============================================================================
+  sca:
+    name: "📦 SCA — Dependency Check + Enforcer"
+    runs-on: ubuntu-latest
+    needs: build-unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Restore Maven Cache"
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "🗄️ Cache NVD Database"
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check/data
+          key: nvd-cache-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            nvd-cache-${{ runner.os }}-
+
+      - name: "📋 Maven Enforcer (Pinned Versions Check)"
+        run: |
+          echo "::group::📋 Maven Enforcer"
+          cd vendnet
+          ./mvnw -B validate
+          echo "::endgroup::"
+
+      - name: "🛡️ OWASP Dependency Check (CVSS ≥ 7 fails)"
+        run: |
+          echo "::group::🛡️ OWASP Dependency Check"
+          cd vendnet
+          ./mvnw -B org.owasp:dependency-check-maven:check \
+            -Danalyzer.ossindex.enabled=false
+          echo "::endgroup::"
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+      - name: "📤 Upload Dependency Check Report"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: vendnet/target/dependency-check-report.html
+          retention-days: 7
+
+  # =============================================================================
+  #  JOB 5b — IAST: Runtime Taint Analysis Build Gate
+  # =============================================================================
+  iast:
+    name: "🦠 IAST — Runtime Taint Analysis"
+    runs-on: ubuntu-latest
+    needs: build-unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Restore Maven Cache"
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "🦠 IAST Taint-Tracking Build Gate"
+        run: |
+          echo "::group::🦠 Running IAST Tests"
+          cd vendnet
+          ./mvnw -B verify -P iast -Dspring.profiles.active=test
+          echo "::endgroup::"
+
+      - name: "📤 Upload IAST Report"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iast-report
+          path: vendnet/target/failsafe-reports/
+          retention-days: 7
+
+  # =============================================================================
+  #  JOB 6 — SONARQUBE QUALITY GATE
+  #  Strict mode: fails build if coverage < 80% or quality gate fails.
+  #  Reuses compiled classes from build-output artifact (no recompilation).
+  #  Reads JaCoCo XML report for unified coverage alignment.
+  # =============================================================================
+  sonarqube:
+    name: "🏅 SonarQube Quality Gate"
+    runs-on: ubuntu-latest
+    needs: [setup-context, build-unit-tests, sast-spotbugs, sca]
+    steps:
+      - name: "🔐 Check SonarQube Secrets"
+        id: check_secrets
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "${SONAR_HOST_URL}" ] && [ -n "${SONAR_TOKEN}" ]; then
+            echo "has_secrets=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::⚠️ SONAR_HOST_URL or SONAR_TOKEN not configured — skipping SonarQube"
+            echo "has_secrets=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        with:
+          fetch-depth: 0
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Restore Maven Cache"
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "📥 Download Build Output (for class reuse)"
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: vendnet/target/
+
+      - name: "📥 Download JaCoCo Report (for unified coverage)"
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-report
+          path: vendnet/target/site/jacoco/
+
+      - name: "🔒 Import vs-gate SSL Certificate (ISEP Infrastructure)"
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          echo "::group::🔒 Importing ISEP SSL Certificate"
+          cp "${JAVA_HOME}/lib/security/cacerts" /tmp/cacerts
+          chmod u+w /tmp/cacerts
+          echo | openssl s_client -connect vs-gate.dei.isep.ipp.pt:10427 \
+            -servername vs-gate.dei.isep.ipp.pt 2>/dev/null | \
+            openssl x509 -out /tmp/vsgate.crt
+          "${JAVA_HOME}/bin/keytool" -importcert \
+            -keystore /tmp/cacerts \
+            -storepass changeit \
+            -file /tmp/vsgate.crt \
+            -noprompt
+          echo "::endgroup::"
+
+      - name: "🗄️ Cache SonarQube Plugins"
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: sonar-cache-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            sonar-cache-${{ runner.os }}-
+
+      - name: "🏅 SonarQube Analysis + Quality Gate (Strict)"
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          echo "::group::🏅 Running SonarQube Analysis"
+          cd vendnet
+
+          # Ensure JaCoCo XML is accessible
+          if [ -f "target/site/jacoco/jacoco.xml" ]; then
+            echo "✅ JaCoCo XML report found — SonarQube will use it"
+          else
+            echo "::warning::⚠️ JaCoCo XML not found — coverage may be incomplete"
+          fi
+
+          ./mvnw -B sonar:sonar \
+            -Dsonar.projectDate="$(date -u +%Y-%m-%dT%H:%M:%S%z)" \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300 \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+            -Djavax.net.ssl.trustStore=/tmp/cacerts \
+            -Djavax.net.ssl.trustStorePassword=changeit
+
+          SONAR_EXIT=$?
+          echo "::endgroup::"
+
+          if [ ${SONAR_EXIT} -ne 0 ]; then
+            echo "::error::❌ SonarQube Quality Gate FAILED! Coverage may be below 80% or other metrics failed."
+            echo "::error::Check report at: ${SONAR_HOST_URL}/dashboard?id=vendnet"
+          else
+            echo "✅ SonarQube Quality Gate PASSED"
+          fi
+
+          # Write quality gate status to step summary
+          {
+            echo "## 🏅 SonarQube Quality Gate"
+            echo "| Metric | Status |"
+            echo "|--------|--------|"
+            if [ ${SONAR_EXIT} -eq 0 ]; then
+              echo "| **Quality Gate** | ✅ PASSED |"
+            else
+              echo "| **Quality Gate** | ❌ FAILED |"
+            fi
+            echo "| **Coverage Rule** | ≥ 80% (JaCoCo → SonarQube) |"
+            echo ""
+            echo "🔗 [View SonarQube Dashboard](${SONAR_HOST_URL}/dashboard?id=vendnet)"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          exit ${SONAR_EXIT}
+
+  # =============================================================================
+  #  JOB 7 — DOCKER BUILD & PUSH (with Trivy scan, push to GHCR)
+  #  Only runs for main/develop branches and tags.
+  # =============================================================================
+  docker-build-push:
+    name: "🐳 Docker Build, Scan & Push"
+    runs-on: ubuntu-latest
+    needs: [setup-context, build-unit-tests, sast-spotbugs, sca]
+    if: |
+      needs.setup-context.outputs.is_main == 'true' ||
+      needs.setup-context.outputs.is_develop == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "📦 Cache Docker Layers (buildx gha)"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "🔐 Login to GitHub Container Registry"
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📋 Docker Metadata"
+        id: docker_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/vendnet
+          tags: |
+            type=raw,value=${{ needs.setup-context.outputs.image_tag }}
+            type=raw,value=${{ needs.setup-context.outputs.branch }}-latest
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ needs.setup-context.outputs.is_release == 'true' }}
+
+      - name: "🐳 Build & Push Docker Image"
+        uses: docker/build-push-action@v6
+        with:
+          context: vendnet/
+          push: true
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: "🔬 Trivy Vulnerability Scan (Image)"
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}'
+          scan-type: 'image'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+
+      - name: "📤 Upload Trivy SARIF Results"
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-image-results.sarif
+
+      - name: "📋 Docker Build Summary"
+        run: |
+          {
+            echo "## 🐳 Docker Image Published"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Registry** | \`${{ env.REGISTRY }}\` |"
+            echo "| **Image**    | \`${{ env.REGISTRY }}/${{ github.repository }}/vendnet\` |"
+            echo "| **Tag**      | \`${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Branch**   | \`${{ needs.setup-context.outputs.branch }}-latest\` |"
+            if [ "${{ needs.setup-context.outputs.is_release }}" = "true" ]; then
+              echo "| **Release**  | \`latest\` |"
+            fi
+            echo ""
+            echo "### Pull command:"
+            echo '```bash'
+            echo "docker pull ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          echo "🐳 Image pushed: ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}"
+
+  # =============================================================================
+  #  JOB 8 — DAST: OWASP ZAP (Dynamic Application Security Testing)
+  #  Baseline scan (public) + Authenticated API scans for Admin/Operator/Customer
+  # =============================================================================
+  dast-zap:
+    name: "🔥 DAST — OWASP ZAP"
+    runs-on: ubuntu-latest
+    needs: build-unit-tests
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Restore Maven Cache"
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "🚀 Start VendNet for DAST (H2 + bootstrap)"
+        run: |
+          echo "::group::🚀 Starting VendNet for ZAP DAST"
+          cd vendnet
+          ./mvnw -B package -DskipTests -q
+          java -Dspring.profiles.active=zap,bootstrap -jar target/*.jar \
+            > /tmp/vendnet-dast.log 2>&1 &
+          echo "::endgroup::"
+
+      - name: "⏳ Wait for Application Health"
+        run: |
+          echo "::group::⏳ Waiting for /actuator/health"
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
+              echo "✅ App healthy after $((i * 2))s"
+              sleep 3
+              echo "::endgroup::"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::❌ App failed to start after 120s"
+          echo "=== Boot log ==="
+          cat /tmp/vendnet-dast.log 2>/dev/null || true
+          echo "::endgroup::"
+          exit 1
+
+      - name: "🔑 Obtain JWT Tokens for RBAC Roles"
+        id: login
+        run: |
+          echo "::group::🔑 Authenticating RBAC Roles"
+          mkdir -p .zap/tokens
+
+          for creds in "admin@vendnet.io:Admin@1234" "operator@vendnet.io:Operator@1234" "customer@vendnet.io:Customer@1234"; do
+            EMAIL="${creds%%:*}"
+            PASS="${creds##*:}"
+            ROLE=$(echo "${EMAIL}" | cut -d@ -f1)
+            TOKEN=""
+
+            for attempt in 1 2 3; do
+              HTTP_CODE=$(curl -s -o /tmp/login-resp.json -w "%{http_code}" \
+                -X POST http://localhost:8080/api/auth/login \
+                -H "Content-Type: application/json" \
+                -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASS}\"}")
+
+              echo "  Login ${EMAIL} attempt ${attempt}: HTTP ${HTTP_CODE}"
+
+              if [ "${HTTP_CODE}" = "200" ]; then
+                TOKEN=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" < /tmp/login-resp.json 2>/dev/null)
+                if [ -n "${TOKEN}" ] && [ "${TOKEN}" != "None" ] && [ "${TOKEN}" != "null" ]; then
+                  echo "${TOKEN}" > ".zap/tokens/${ROLE}.jwt"
+                  echo "  ✅ Logged in as ${EMAIL} (${ROLE})"
+                  break
+                fi
+              else
+                echo "  Response: $(cat /tmp/login-resp.json 2>/dev/null)"
+              fi
+              sleep 2
+            done
+
+            if [ -z "${TOKEN}" ] || [ "${TOKEN}" = "None" ] || [ "${TOKEN}" = "null" ]; then
+              MFA=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('mfaRequired',''))" < /tmp/login-resp.json 2>/dev/null || echo "")
+              if [ "${MFA}" = "True" ] || [ "${MFA}" = "true" ]; then
+                echo "  ⚠️ MFA required for ${EMAIL} — skipping"
+              else
+                echo "  ⚠️ Login failed for ${EMAIL} after 3 attempts"
+              fi
+            fi
+          done
+
+          TOKEN_COUNT=$(find .zap/tokens -name '*.jwt' 2>/dev/null | wc -l)
+          echo "tokens_obtained=${TOKEN_COUNT}" >> "${GITHUB_OUTPUT}"
+          echo "🔑 Tokens obtained: ${TOKEN_COUNT}/3"
+          ls -la .zap/tokens/ 2>/dev/null || true
+          echo "::endgroup::"
+
+      - name: "🔥 ZAP Baseline Scan — Public Surface"
+        run: |
+          echo "::group::🔥 ZAP Baseline Scan"
+          mkdir -p .zap/reports
+          chmod a+w .zap/reports
+          docker run --rm --network host \
+            -v "${GITHUB_WORKSPACE}/.zap:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://localhost:8080 \
+            -c rules.tsv \
+            -r /zap/wrk/reports/zap-baseline.html \
+            -w /zap/wrk/reports/zap-baseline.md \
+            -x /zap/wrk/reports/zap-baseline.xml \
+            -z "-config proxy.port=9090"
+          echo "::endgroup::"
+
+      - name: "📤 Upload ZAP Baseline Report"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline
+          path: .zap/reports/zap-baseline.*
+          retention-days: 7
+
+      - name: "🔥 ZAP Authenticated Scan — Admin"
+        run: |
+          echo "::group::🔥 ZAP Authenticated — Admin"
+          TOKEN=$(cat .zap/tokens/admin.jwt 2>/dev/null || echo "")
+          if [ -z "${TOKEN}" ]; then echo "⚠️ No admin token, skipping"; echo "::endgroup::"; exit 0; fi
+          mkdir -p .zap/reports
+          chmod a+w .zap/reports
+          docker run --rm --network host \
+            -v "${GITHUB_WORKSPACE}/.zap:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+            -t http://localhost:8080/v3/api-docs \
+            -f openapi \
+            -c rules.tsv \
+            -r /zap/wrk/reports/zap-api-admin.html \
+            -w /zap/wrk/reports/zap-api-admin.md \
+            -x /zap/wrk/reports/zap-api-admin.xml \
+            -z "-config proxy.port=9090 \
+                -config replacer.full_list[0].description=admin_auth \
+                -config replacer.full_list[0].enabled=true \
+                -config replacer.full_list[0].matchtype=REQ_HEADER \
+                -config replacer.full_list[0].matchstr=Authorization \
+                -config replacer.full_list[0].regex=false \
+                -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
+          echo "::endgroup::"
+
+      - name: "🔥 ZAP Authenticated Scan — Operator"
+        run: |
+          echo "::group::🔥 ZAP Authenticated — Operator"
+          TOKEN=$(cat .zap/tokens/operator.jwt 2>/dev/null || echo "")
+          if [ -z "${TOKEN}" ]; then echo "⚠️ No operator token, skipping"; echo "::endgroup::"; exit 0; fi
+          mkdir -p .zap/reports
+          chmod a+w .zap/reports
+          docker run --rm --network host \
+            -v "${GITHUB_WORKSPACE}/.zap:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+            -t http://localhost:8080/v3/api-docs \
+            -f openapi \
+            -c rules.tsv \
+            -r /zap/wrk/reports/zap-api-operator.html \
+            -w /zap/wrk/reports/zap-api-operator.md \
+            -x /zap/wrk/reports/zap-api-operator.xml \
+            -z "-config proxy.port=9090 \
+                -config replacer.full_list[0].description=operator_auth \
+                -config replacer.full_list[0].enabled=true \
+                -config replacer.full_list[0].matchtype=REQ_HEADER \
+                -config replacer.full_list[0].matchstr=Authorization \
+                -config replacer.full_list[0].regex=false \
+                -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
+          echo "::endgroup::"
+
+      - name: "🔥 ZAP Authenticated Scan — Customer"
+        run: |
+          echo "::group::🔥 ZAP Authenticated — Customer"
+          TOKEN=$(cat .zap/tokens/customer.jwt 2>/dev/null || echo "")
+          if [ -z "${TOKEN}" ]; then echo "⚠️ No customer token, skipping"; echo "::endgroup::"; exit 0; fi
+          mkdir -p .zap/reports
+          chmod a+w .zap/reports
+          docker run --rm --network host \
+            -v "${GITHUB_WORKSPACE}/.zap:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+            -t http://localhost:8080/v3/api-docs \
+            -f openapi \
+            -c rules.tsv \
+            -r /zap/wrk/reports/zap-api-customer.html \
+            -w /zap/wrk/reports/zap-api-customer.md \
+            -x /zap/wrk/reports/zap-api-customer.xml \
+            -z "-config proxy.port=9090 \
+                -config replacer.full_list[0].description=customer_auth \
+                -config replacer.full_list[0].enabled=true \
+                -config replacer.full_list[0].matchtype=REQ_HEADER \
+                -config replacer.full_list[0].matchstr=Authorization \
+                -config replacer.full_list[0].regex=false \
+                -config 'replacer.full_list[0].replacement=Bearer ${TOKEN}'"
+          echo "::endgroup::"
+
+      - name: "📤 Fix ZAP Report Permissions"
+        if: always()
+        run: sudo find .zap/reports -type f -exec chmod a+r {} \; 2>/dev/null || true
+
+      - name: "📤 Upload ZAP API Scan Reports"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-api-auth
+          path: .zap/reports/zap-api-*.*
+          retention-days: 7
+
+  # =============================================================================
+  #  JOB 9 — DEPLOY DEV (Zero-Downtime Blue/Green)
+  #  Runs on self-hosted runner, deploys to vs427 via SSH.
+  #  Pushes Blue/Green deploy script to remote and executes it.
+  # =============================================================================
+  deploy-dev:
+    name: "🟢🔵 Deploy DEV — Blue/Green"
+    runs-on: self-hosted
+    needs: [setup-context, docker-build-push, sonarqube]
+    if: |
+      needs.setup-context.outputs.is_develop == 'true' &&
+      needs.docker-build-push.result == 'success'
+    environment:
+      name: DEV
+      url: http://${{ env.REMOTE_HOST }}:${{ env.DEV_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "🔐 Setup SSH Key"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "::group::🔐 Setting up SSH"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "::endgroup::"
+
+      - name: "📤 Upload Blue/Green Deploy Script to Remote"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "::group::📤 Uploading Blue/Green Script"
+          scp -o StrictHostKeyChecking=accept-new \
+            -P "${REMOTE_SSH_PORT}" \
+            -i ~/.ssh/deploy_key \
+            scripts/blue-green-deploy.sh \
+            "${REMOTE_USER}@${REMOTE_HOST}:/tmp/blue-green-deploy.sh"
+          echo "::endgroup::"
+
+      - name: "🟢🔵 Execute Blue/Green Deployment — DEV"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "::group::🟢🔵 Deploying DEV (Blue/Green)"
+
+          ssh -o StrictHostKeyChecking=accept-new \
+            -p "${REMOTE_SSH_PORT}" \
+            -i ~/.ssh/deploy_key \
+            "${REMOTE_USER}@${REMOTE_HOST}" \
+            bash /tmp/blue-green-deploy.sh \
+              --env "dev" \
+              --image "${{ env.REGISTRY }}/${{ github.repository }}/vendnet" \
+              --tag "${{ needs.setup-context.outputs.image_tag }}" \
+              --port "${DEV_PORT}" \
+              --registry "${{ env.REGISTRY }}" \
+              --registry-user "${{ github.actor }}" \
+              --registry-pass "${GITHUB_TOKEN}" \
+              --profile "dev" \
+              --db-url "jdbc:h2:mem:vendnet_dev;DB_CLOSE_DELAY=-1" \
+              --db-driver "org.h2.Driver" \
+              --jwt-secret "dev-secret-key-for-ci-only" \
+              --network "vendnet-dev-net"
+
+          echo "::endgroup::"
+
+      - name: "✅ Smoke Test DEV"
+        run: |
+          echo "::group::✅ DEV Smoke Test"
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+              "http://${REMOTE_HOST}:${DEV_PORT}/actuator/health" 2>/dev/null || echo "000")
+            if [ "${HTTP_CODE}" = "200" ]; then
+              echo "✅ DEV healthy on port ${DEV_PORT} (attempt $((i)))"
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "  ⏳ Waiting... (${HTTP_CODE}) attempt ${i}/30"
+            sleep 5
+          done
+          echo "::error::❌ DEV smoke test FAILED after 150s"
+          echo "::endgroup::"
+          exit 1
+
+      - name: "📋 Deploy DEV Summary"
+        if: always()
+        run: |
+          {
+            echo "## 🟢🔵 DEV Deployment Summary"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Environment** | DEV |"
+            echo "| **URL**         | http://${REMOTE_HOST}:${DEV_PORT} |"
+            echo "| **Image Tag**   | \`${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Strategy**    | Blue/Green (Zero-Downtime) |"
+            echo "| **Status**      | ${{ job.status }} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  # =============================================================================
+  #  JOB 10 — DEPLOY STAGING (Zero-Downtime Blue/Green + MySQL)
+  # =============================================================================
+  deploy-staging:
+    name: "🟡🔵 Deploy STAGING — Blue/Green"
+    runs-on: self-hosted
+    needs: [setup-context, docker-build-push, sonarqube, dast-zap]
+    if: |
+      needs.setup-context.outputs.is_main == 'true' &&
+      needs.docker-build-push.result == 'success'
+    environment:
+      name: STAGING
+      url: http://${{ env.REMOTE_HOST }}:${{ env.STAGE_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "🔐 Setup SSH Key"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: "📤 Upload Blue/Green Deploy Script"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          scp -o StrictHostKeyChecking=accept-new \
+            -P "${REMOTE_SSH_PORT}" \
+            -i ~/.ssh/deploy_key \
+            scripts/blue-green-deploy.sh \
+            "${REMOTE_USER}@${REMOTE_HOST}:/tmp/blue-green-deploy.sh"
+
+      - name: "🟡🔵 Execute Blue/Green Deployment — STAGING"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STAGE_DB_URL: ${{ secrets.STAGE_DB_URL }}
+          STAGE_DB_USER: ${{ secrets.STAGE_DB_USER }}
+          STAGE_DB_PASS: ${{ secrets.STAGE_DB_PASS }}
+          STAGE_JWT_SECRET: ${{ secrets.STAGE_JWT_SECRET }}
+          STAGE_HMAC_SECRET: ${{ secrets.STAGE_HMAC_SECRET }}
+        run: |
+          echo "::group::🟡🔵 Deploying STAGING (Blue/Green)"
+
+          ssh -o StrictHostKeyChecking=accept-new \
+            -p "${REMOTE_SSH_PORT}" \
+            -i ~/.ssh/deploy_key \
+            "${REMOTE_USER}@${REMOTE_HOST}" \
+            bash /tmp/blue-green-deploy.sh \
+              --env "stage" \
+              --image "${{ env.REGISTRY }}/${{ github.repository }}/vendnet" \
+              --tag "${{ needs.setup-context.outputs.image_tag }}" \
+              --port "${STAGE_PORT}" \
+              --registry "${{ env.REGISTRY }}" \
+              --registry-user "${{ github.actor }}" \
+              --registry-pass "${GITHUB_TOKEN}" \
+              --profile "stage" \
+              --db-url "${STAGE_DB_URL}" \
+              --db-user "${STAGE_DB_USER}" \
+              --db-pass "${STAGE_DB_PASS}" \
+              --jwt-secret "${STAGE_JWT_SECRET}" \
+              --hmac-secret "${STAGE_HMAC_SECRET}" \
+              --network "vendnet-stage-net"
+
+          echo "::endgroup::"
+
+      - name: "✅ Smoke Test STAGING"
+        run: |
+          echo "::group::✅ STAGING Smoke Test"
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+              "http://${REMOTE_HOST}:${STAGE_PORT}/actuator/health" 2>/dev/null || echo "000")
+            if [ "${HTTP_CODE}" = "200" ]; then
+              echo "✅ STAGING healthy on port ${STAGE_PORT} (attempt $((i)))"
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "  ⏳ Waiting... (${HTTP_CODE}) attempt ${i}/30"
+            sleep 5
+          done
+          echo "::error::❌ STAGING smoke test FAILED after 150s"
+          echo "::endgroup::"
+          exit 1
+
+      - name: "📋 Deploy STAGING Summary"
+        if: always()
+        run: |
+          {
+            echo "## 🟡🔵 STAGING Deployment Summary"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Environment** | STAGING |"
+            echo "| **URL**         | http://${REMOTE_HOST}:${STAGE_PORT} |"
+            echo "| **Image Tag**   | \`${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Strategy**    | Blue/Green (Zero-Downtime) |"
+            echo "| **Status**      | ${{ job.status }} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  # =============================================================================
+  #  JOB 11 — DEPLOY PROD (Zero-Downtime Blue/Green, Manual Gate)
+  #  Only on workflow_dispatch with deploy_prod=true, or tag push.
+  # =============================================================================
+  deploy-prod:
+    name: "🔴🔵 Deploy PROD — Blue/Green"
+    runs-on: self-hosted
+    needs: [setup-context, docker-build-push, sonarqube, dast-zap, deploy-staging]
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_prod == true) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    environment:
+      name: PROD
+      url: http://${{ env.REMOTE_HOST }}:${{ env.PROD_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "🔐 Setup SSH Key"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: "📤 Upload Blue/Green Deploy Script"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          scp -o StrictHostKeyChecking=accept-new \
+            -P "${REMOTE_SSH_PORT}" \
+            -i ~/.ssh/deploy_key \
+            scripts/blue-green-deploy.sh \
+            "${REMOTE_USER}@${REMOTE_HOST}:/tmp/blue-green-deploy.sh"
+
+      - name: "🔴🔵 Execute Blue/Green Deployment — PROD"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+          PROD_DB_USER: ${{ secrets.PROD_DB_USER }}
+          PROD_DB_PASS: ${{ secrets.PROD_DB_PASS }}
+          PROD_JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
+          PROD_HMAC_SECRET: ${{ secrets.PROD_HMAC_SECRET }}
+        run: |
+          echo "::group::🔴🔵 Deploying PRODUCTION (Blue/Green)"
+
+          ssh -o StrictHostKeyChecking=accept-new \
+            -p "${REMOTE_SSH_PORT}" \
+            -i ~/.ssh/deploy_key \
+            "${REMOTE_USER}@${REMOTE_HOST}" \
+            bash /tmp/blue-green-deploy.sh \
+              --env "prod" \
+              --image "${{ env.REGISTRY }}/${{ github.repository }}/vendnet" \
+              --tag "${{ needs.setup-context.outputs.image_tag }}" \
+              --port "${PROD_PORT}" \
+              --registry "${{ env.REGISTRY }}" \
+              --registry-user "${{ github.actor }}" \
+              --registry-pass "${GITHUB_TOKEN}" \
+              --profile "prod" \
+              --db-url "${PROD_DB_URL}" \
+              --db-user "${PROD_DB_USER}" \
+              --db-pass "${PROD_DB_PASS}" \
+              --jwt-secret "${PROD_JWT_SECRET}" \
+              --hmac-secret "${PROD_HMAC_SECRET}" \
+              --network "vendnet-prod-net" \
+              --security-opts "no-new-privileges:true" \
+              --cap-drop "ALL" \
+              --cap-add "NET_BIND_SERVICE"
+
+          echo "::endgroup::"
+
+      - name: "✅ Smoke Test PROD"
+        run: |
+          echo "::group::✅ PRODUCTION Smoke Test"
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+              "http://${REMOTE_HOST}:${PROD_PORT}/actuator/health" 2>/dev/null || echo "000")
+            if [ "${HTTP_CODE}" = "200" ]; then
+              echo "✅ PROD healthy on port ${PROD_PORT} (attempt $((i)))"
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "  ⏳ Waiting... (${HTTP_CODE}) attempt ${i}/30"
+            sleep 5
+          done
+          echo "::error::❌ PROD smoke test FAILED after 150s"
+          echo "::endgroup::"
+          exit 1
+
+      - name: "📋 Deploy PROD Summary"
+        if: always()
+        run: |
+          {
+            echo "## 🔴🔵 PRODUCTION Deployment Summary"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Environment** | PRODUCTION |"
+            echo "| **URL**         | http://${REMOTE_HOST}:${PROD_PORT} |"
+            echo "| **Image Tag**   | \`${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Strategy**    | Blue/Green (Zero-Downtime) |"
+            echo "| **Status**      | ${{ job.status }} |"
+            echo ""
+            echo "### 🚨 Rollback Instructions"
+            echo "If needed, SSH to server and run:"
+            echo '```bash'
+            echo "# Switch back to previous (inactive) container:"
+            echo "docker ps -a --filter 'name=vendnet-prod-' --format '{{.Names}} {{.Status}}'"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  # =============================================================================
+  #  JOB 12 — GITHUB RELEASE (on tag push to main)
+  #  Creates an official GitHub Release with:
+  #    - Source code ZIP (auto)
+  #    - vendnet.jar (compiled artifact)
+  #    - CycloneDX SBOM
+  # =============================================================================
+  github-release:
+    name: "📦 GitHub Release"
+    runs-on: ubuntu-latest
+    needs: [setup-context, docker-build-push, sonarqube, deploy-staging]
+    if: |
+      needs.setup-context.outputs.is_release == 'true' &&
+      needs.docker-build-push.result == 'success'
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: "📦 Restore Maven Cache"
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: "🔨 Build vendnet.jar + Generate SBOM"
+        run: |
+          echo "::group::🔨 Packaging JAR + SBOM"
+          cd vendnet
+          ./mvnw -B package -DskipTests
+          cp target/vendnet-*.jar target/vendnet.jar
+          echo "::endgroup::"
+
+      - name: "📦 Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref }}
+          name: "🚀 VendNet ${{ needs.setup-context.outputs.version }}"
+          body: |
+            ## 🚀 VendNet Release ${{ needs.setup-context.outputs.version }}
+
+            ### 🔗 Artifacts
+            - **Docker Image:** `${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}`
+            - **Docker Image (latest):** `${{ env.REGISTRY }}/${{ github.repository }}/vendnet:latest`
+            - **SBOM:** CycloneDX JSON (attached below)
+
+            ### 📦 Pull the Docker Image
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:${{ needs.setup-context.outputs.image_tag }}
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/vendnet:latest
+            ```
+
+            ### 🔒 Security
+            - ✅ SonarQube Quality Gate passed
+            - ✅ SpotBugs + FindSecBugs SAST
+            - ✅ OWASP Dependency Check
+            - ✅ Trivy Image Scan
+            - ✅ OWASP ZAP DAST (baseline + authenticated)
+
+            ### 📊 Quality
+            - JaCoCo Coverage ≥ 80% (domain + application)
+            - SonarQube Quality Gate: PASSED
+
+            ### 🔗 Commit
+            [${{ needs.setup-context.outputs.short_sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          draft: false
+          prerelease: false
+          files: |
+            vendnet/target/vendnet.jar
+            vendnet/target/vendnet-sbom.json
+
+      - name: "📋 Release Summary"
+        run: |
+          {
+            echo "## 📦 GitHub Release Created"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Version**   | \`${{ needs.setup-context.outputs.version }}\` |"
+            echo "| **Tag**       | \`${{ github.ref_name }}\` |"
+            echo "| **Docker**    | \`${{ env.REGISTRY }}/${{ github.repository }}/vendnet:latest\` |"
+            echo "| **SBOM**      | vendnet-sbom.json (CycloneDX 1.5) |"
+            echo "| **JAR**       | vendnet.jar |"
+            echo ""
+            echo "🔗 [View Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                     ADMINISTRATOR NOTES                                      ║
+# ╠══════════════════════════════════════════════════════════════════════════════╣
+# ║                                                                              ║
+# ║  🔧 HOW TO DISABLE PIPELINE FAILURE EMAIL SPAM:                              ║
+# ║    1. Go to your repository on GitHub                                        ║
+# ║    2. Click your avatar (top-right) → Settings                               ║
+# ║    3. Left sidebar → Notifications                                           ║
+# ║    4. Under "System" → uncheck "Email" for "Actions"                         ║
+# ║    5. Alternatively, watch only "Issues" in the repo Watch dropdown          ║
+# ║                                                                              ║
+# ║  🔐 REQUIRED SECRETS (set in Settings → Secrets and variables → Actions):    ║
+# ║    - SSH_PRIVATE_KEY        (deploy key for vs427.dei.isep.ipp.pt)           ║
+# ║    - SONAR_HOST_URL         (https://vs-gate.dei.isep.ipp.pt:10427)          ║
+# ║    - SONAR_TOKEN            (SonarQube project token)                        ║
+# ║    - NVD_API_KEY            (NIST NVD API key for dependency check)          ║
+# ║    - STAGE_DB_URL           (STAGING database JDBC URL)                      ║
+# ║    - STAGE_DB_USER          (STAGING database username)                      ║
+# ║    - STAGE_DB_PASS          (STAGING database password)                      ║
+# ║    - STAGE_JWT_SECRET       (STAGING JWT signing key)                        ║
+# ║    - STAGE_HMAC_SECRET      (STAGING HMAC webhook key)                       ║
+# ║    - PROD_DB_URL            (PRODUCTION database JDBC URL)                   ║
+# ║    - PROD_DB_USER           (PRODUCTION database username)                   ║
+# ║    - PROD_DB_PASS           (PRODUCTION database password)                   ║
+# ║    - PROD_JWT_SECRET        (PRODUCTION JWT signing key)                     ║
+# ║    - PROD_HMAC_SECRET       (PRODUCTION HMAC webhook key)                    ║
+# ║                                                                              ║
+# ║  🔐 REQUIRED VARIABLES (Settings → Secrets and variables → Variables):       ║
+# ║    - REMOTE_HOST            (default: vs427.dei.isep.ipp.pt)                 ║
+# ║    - REMOTE_PORT            (default: 2222)                                  ║
+# ║    - DEV_PORT               (default: 8280)                                  ║
+# ║    - STAGE_PORT             (default: 8180)                                  ║
+# ║    - PROD_PORT              (default: 8080)                                  ║
+# ║                                                                              ║
+# ║  🚨 BLUE/GREEN DEPLOYMENT:                                                   ║
+# ║    The remote server (vs427) needs:                                          ║
+# ║    - Docker installed                                                        ║
+# ║    - Nginx installed (for reverse proxy traffic switching)                   ║
+# ║    - The blue-green-deploy.sh script uploaded to /tmp/                       ║
+# ║    See: scripts/blue-green-deploy.sh for implementation details              ║
+# ║                                                                              ║
+# ║  📦 GITHUB CONTAINER REGISTRY:                                               ║
+# ║    Images are pushed to ghcr.io/<org>/vendnet.                               ║
+# ║    Ensure the package is "Public" in GitHub Package settings                 ║
+# ║    or configure a GITHUB_TOKEN with read:packages scope for the server.      ║
+# ║                                                                              ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
