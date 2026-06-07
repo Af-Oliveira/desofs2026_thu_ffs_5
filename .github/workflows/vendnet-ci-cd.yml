@@ -788,7 +788,7 @@ jobs:
       contents: read
       actions: write
     steps:
-      - uses: actions/checkout@v4 
+      - uses: actions/checkout@v4  
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
