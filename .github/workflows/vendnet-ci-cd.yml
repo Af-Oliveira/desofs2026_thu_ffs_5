@@ -615,22 +615,6 @@ jobs:
           name: jacoco-report
           path: vendnet/target/site/jacoco/
 
-      - name: "🔒 Import vs-gate SSL Certificate (ISEP Infrastructure)"
-        if: steps.check_secrets.outputs.has_secrets == 'true'
-        run: |
-          echo "::group::🔒 Importing ISEP SSL Certificate"
-          cp "${JAVA_HOME}/lib/security/cacerts" /tmp/cacerts
-          chmod u+w /tmp/cacerts
-          echo | openssl s_client -connect vs-gate.dei.isep.ipp.pt:10427 \
-            -servername vs-gate.dei.isep.ipp.pt 2>/dev/null | \
-            openssl x509 -out /tmp/vsgate.crt
-          "${JAVA_HOME}/bin/keytool" -importcert \
-            -keystore /tmp/cacerts \
-            -storepass changeit \
-            -file /tmp/vsgate.crt \
-            -noprompt
-          echo "::endgroup::"
-
       - name: "🗄️ Cache SonarQube Plugins"
         if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: actions/cache@v4
@@ -657,12 +641,12 @@ jobs:
           fi
 
           ./mvnw -B sonar:sonar \
+            -Dsonar.host.url="${SONAR_HOST_URL}" \
+            -Dsonar.token="${SONAR_TOKEN}" \
             -Dsonar.projectDate="$(date -u +%Y-%m-%dT%H:%M:%S%z)" \
             -Dsonar.qualitygate.wait=true \
             -Dsonar.qualitygate.timeout=300 \
-            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
-            -Djavax.net.ssl.trustStore=/tmp/cacerts \
-            -Djavax.net.ssl.trustStorePassword=changeit
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
           SONAR_EXIT=$?
           echo "::endgroup::"
@@ -788,7 +772,7 @@ jobs:
       contents: read
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4  
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
