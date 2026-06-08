@@ -80,7 +80,7 @@ env:
   REGISTRY: ghcr.io
   # Remote server (DEI ISEP private cloud)
   REMOTE_HOST: vs427.dei.isep.ipp.pt
-  REMOTE_SSH_PORT: '2222'
+  REMOTE_SSH_PORT: '22'
   REMOTE_USER: root
   # Ports per environment (public-facing)
   DEV_PORT: '8280'
