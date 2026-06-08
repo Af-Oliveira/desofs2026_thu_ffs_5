@@ -319,6 +319,12 @@ ensure_mysql_running() {
         return 0
     fi
 
+    # Remove stopped/conflicting container from previous failed deploy
+    if docker inspect "$mysql_name" >/dev/null 2>&1; then
+        log "  ${RECYCLE} Removing stale MySQL container: ${mysql_name}"
+        docker rm "$mysql_name" 2>/dev/null || true
+    fi
+
     log "${PACKAGE} Starting MySQL container: ${mysql_name}"
 
     # Ensure Docker network exists
