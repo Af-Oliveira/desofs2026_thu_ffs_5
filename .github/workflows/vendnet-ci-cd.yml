@@ -350,7 +350,7 @@ jobs:
           echo "::endgroup::"
 
       - name: "📤 Upload Unit Test Reports"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: unit-test-reports
@@ -358,7 +358,7 @@ jobs:
           retention-days: 7
 
       - name: "📤 Upload JaCoCo Coverage Report"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-report
           path: |
@@ -367,7 +367,7 @@ jobs:
           retention-days: 7
 
       - name: "📤 Upload Runtime Jar"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vendnet-runtime-jar
           path: |
@@ -377,7 +377,7 @@ jobs:
           retention-days: 1
 
       - name: "📤 Upload Compiled Classes (for SonarQube reuse)"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-output
           path: |
@@ -425,7 +425,7 @@ jobs:
           TESTCONTAINERS_RYUK_DISABLED: 'true'
 
       - name: "📤 Upload Integration Test Reports"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: integration-test-reports
@@ -467,7 +467,7 @@ jobs:
           echo "::endgroup::"
 
       - name: "📤 Upload SpotBugs Report"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: spotbugs-report
@@ -525,7 +525,7 @@ jobs:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
       - name: "📤 Upload Dependency Check Report"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: dependency-check-report
@@ -565,7 +565,7 @@ jobs:
           echo "::endgroup::"
 
       - name: "📤 Upload IAST Report"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: iast-report
@@ -911,7 +911,7 @@ jobs:
 
       - name: "📤 Upload ZAP Baseline Report"
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zap-baseline
           path: .zap/reports/zap-baseline.*
@@ -923,7 +923,7 @@ jobs:
 
       - name: "📤 Upload ZAP API Scan Reports"
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zap-api-auth
           path: |
