@@ -308,39 +308,19 @@ jobs:
           cd vendnet
           JACOCO_XML="target/site/jacoco/jacoco.xml"
           if [ -f "${JACOCO_XML}" ]; then
-            # Extract coverage metrics using python
             python3 -c "
-          import xml.etree.ElementTree as ET
-          tree = ET.parse('${JACOCO_XML}')
-          root = tree.getroot()
-          for counter in root.iter('counter'):
-              ctype = counter.get('type', '')
-              missed = int(counter.get('missed', 0))
-              covered = int(counter.get('covered', 0))
-              total = missed + covered
-              pct = (covered / total * 100) if total > 0 else 0
-              if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
-                  print(f'  {ctype:12s}: {covered}/{total} = {pct:.2f}%')
-          "
-            # Write coverage to step summary
-            {
-              echo "## 📊 JaCoCo Coverage Report"
-              echo '```'
-              python3 -c "
-          import xml.etree.ElementTree as ET
-          tree = ET.parse('${JACOCO_XML}')
-          root = tree.getroot()
-          for counter in root.iter('counter'):
-              ctype = counter.get('type', '')
-              missed = int(counter.get('missed', 0))
-              covered = int(counter.get('covered', 0))
-              total = missed + covered
-              pct = (covered / total * 100) if total > 0 else 0
-              if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
-                  print(f'{ctype:12s}: {covered}/{total} = {pct:.2f}%')
-          "
-              echo '```'
-            } >> "${GITHUB_STEP_SUMMARY}"
+import xml.etree.ElementTree as ET
+tree = ET.parse('${JACOCO_XML}')
+root = tree.getroot()
+for counter in root.findall('counter'):
+    ctype = counter.get('type', '')
+    missed = int(counter.get('missed', 0))
+    covered = int(counter.get('covered', 0))
+    total = missed + covered
+    pct = (covered / total * 100) if total > 0 else 0
+    if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
+        print(f'  {ctype:12s}: {covered}/{total} = {pct:.2f}%')
+"
           else
             echo "::warning::JaCoCo XML report not found at ${JACOCO_XML}"
           fi
