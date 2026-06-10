@@ -749,17 +749,47 @@ main() {
     setup_nginx "$new_color"
 
     # Verify Nginx can reach the new backend
-    log "${HOURGLASS} Verifying traffic switch..."
+    log "${HOURGLASS} Verifying traffic switch via Nginx..."
     sleep 2
     local nginx_container
     nginx_container=$(get_nginx_container_name)
 
     # Quick HTTP check through nginx
     local health_url="http://localhost:${PORT}/actuator/health"
-    if curl -sf --max-time 10 "$health_url" 2>/dev/null | grep -q '"status":"UP"'; then
-        success "Traffic switched SUCCESSFULLY — ${health_url} returns UP"
-    else
-        warn "Health check through Nginx did not confirm UP — check manually: curl ${health_url}"
+    local health_ok="false"
+    for i in $(seq 1 6); do
+        if curl -sf --max-time 5 "$health_url" 2>/dev/null | grep -q '"status":"UP"'; then
+            health_ok="true"
+            success "Traffic switched SUCCESSFULLY — ${health_url} returns UP (attempt ${i})"
+            break
+        fi
+        log "  ${HOURGLASS} Health check attempt ${i}/6 — retrying in 3s..."
+        sleep 3
+    done
+
+    if [ "$health_ok" != "true" ]; then
+        # ROLLBACK: switch Nginx back to the old (still-running) container
+        if [ "$current_color" != "none" ]; then
+            local old_container
+            old_container=$(get_container_name "$current_color")
+            if docker inspect -f '{{.State.Running}}' "$old_container" 2>/dev/null | grep -q "true"; then
+                warn "Health check through Nginx FAILED! Rolling back to ${current_color^^}..."
+                setup_nginx "$current_color"
+                sleep 2
+                if curl -sf --max-time 10 "$health_url" 2>/dev/null | grep -q '"status":"UP"'; then
+                    success "Rollback SUCCESSFUL — ${current_color^^} is serving traffic again"
+                else
+                    warn "Rollback completed but health check still not confirming — manual intervention required"
+                fi
+            else
+                warn "Old container ${old_container} is not running — cannot roll back"
+            fi
+        fi
+        error "Health check through Nginx FAILED after 6 attempts! Pipeline aborted to prevent downtime.
+       ${YELLOW}Debug:${NC}
+         curl ${health_url}
+         docker logs --tail 50 ${nginx_container}
+         docker logs --tail 50 $(get_container_name "${new_color}")"
     fi
 
     # ── Phase 6: Gracefully shutdown old container ────────────────────────────
