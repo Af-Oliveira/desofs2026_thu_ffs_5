@@ -2,6 +2,7 @@ package pt.isep.desofs.vendnet.infrastructure.os;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,12 +12,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+@Tag("unit")
 @ExtendWith(MockitoExtension.class)
 class ReportDirectoryServiceImplTest {
 
@@ -26,11 +29,12 @@ class ReportDirectoryServiceImplTest {
 	@Mock private PathValidator pathValidator;
 
 	private ReportDirectoryServiceImpl service;
+	private Path vendnetRoot;
 
 	@BeforeEach
 	void setUp() throws IOException {
 		service = new ReportDirectoryServiceImpl(pathValidator);
-		Path vendnetRoot = tempDir.resolve("vendnet");
+		vendnetRoot = tempDir.resolve("vendnet");
 		Files.createDirectories(vendnetRoot);
 		org.springframework.test.util.ReflectionTestUtils.setField(service, "vendnetRoot", vendnetRoot.toString());
 	}
@@ -68,5 +72,23 @@ class ReportDirectoryServiceImplTest {
 			service.createReportDirectory("sales");
 			service.createReportDirectory("sales");
 		});
+	}
+
+	@Test
+	void createReportDirectory_pathOutsideSandbox_shouldThrow() {
+		when(pathValidator.isValidPath(any(), any())).thenReturn(false);
+		assertThrows(SecurityException.class, () -> service.createReportDirectory("sales"));
+	}
+
+	@Test
+	void cleanupOldReports_shouldDeleteExpiredDirectory() throws IOException {
+		when(pathValidator.isValidPath(any(), any())).thenReturn(true);
+		Path expiredDay = vendnetRoot.resolve("reports/sales/2020/01/01");
+		Files.createDirectories(expiredDay);
+		Files.writeString(expiredDay.resolve("report.csv"), "data");
+
+		service.cleanupOldReports(30);
+
+		assertFalse(Files.exists(expiredDay));
 	}
 }
