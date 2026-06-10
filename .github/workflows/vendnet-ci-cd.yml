@@ -14,24 +14,25 @@
 #    Stage 1 ─ Fast Security      (Gitleaks + Semgrep, source-only, parallel)
 #    Stage 2 ─ Build & Unit Tests (fail-fast, Maven cached)
 #    Stage 3 ─ Integration Tests  (only if unit tests pass)
-#    Stage 4 ─ Deep Security      (SpotBugs + Dependency Check, parallel)
-#    Stage 5 ─ SonarQube Gate     (strict ≥80% coverage, reads JaCoCo XML)
-#    Stage 6 ─ Docker Build+Push  (multi-stage cache, Trivy scan, GHCR)
-#    Stage 7 ─ DAST ZAP           (baseline + authenticated RBAC scans)
-#    Stage 8 ─ Deploy DEV         (Blue/Green, zero-downtime)
-#    Stage 9 ─ Deploy STAGING     (Blue/Green, zero-downtime)
-#    Stage 10 ─ Deploy PROD       (Blue/Green, manual gate)
+#    Stage 4 ─ Deep Security      (SpotBugs + Dependency Check + IAST, parallel)
+#    Stage 5 ─ SonarQube Gate     (mandatory, ≥80% coverage, reads JaCoCo XML)
+#    Stage 6 ─ DAST ZAP           (baseline + authenticated RBAC scans)
+#    Stage 7 ─ Docker Build+Push  (depends on all gates, Trivy scan, GHCR + Docker Hub)
+#    Stage 8 ─ Deploy DEV         (Manual overwrite, workflow_dispatch only)
+#    Stage 9 ─ Deploy STAGING     (Blue/Green, zero-downtime, on push to main)
+#    Stage 10 ─ Deploy PROD       (Blue/Green, zero-downtime, on tag/dispatch)
 #    Stage 11 ─ GitHub Release    (on tag push: JAR + SBOM + source ZIP)
+#    Stage 12 ─ Pipeline Summary  (aggregates results, URLs, links, artifacts)
 #
 #  Key improvements over v1:
-#    - Split Build/Unit Tests from Integration Tests (fail-fast)
-#    - Blue/Green zero-downtime deployments via GHCR + remote script
+#    - All quality/security gates block docker push (no deploy without passing)
+#    - SonarQube is mandatory — missing secrets fail the pipeline
+#    - Dual-registry push: GHCR + Docker Hub
+#    - Consistent semver naming: {version}+{short_sha}
+#    - Blue/Green zero-downtime for production (main/tags), manual overwrite for DEV
+#    - Automatic rollback if Nginx health check fails after traffic switch
 #    - Unified quality gate (JaCoCo XML → SonarQube, strict ≥80%)
-#    - Aggressive caching (Maven, SonarQube, NVD, Docker buildx)
-#    - Automated GitHub Releases with SBOM + JAR attachments
-#    - Emoji-powered logging and GitHub UI step summaries
-#    - Log grouping (::group::) for clean output
-#    - Dynamic artifact naming: vendnet-<branch>-v<version>-<short_sha>
+#    - Pipeline Summary stage aggregates all results for developer visibility
 # =============================================================================
 
 name: "🚀 VendNet CI/CD Pipeline v2"
@@ -52,8 +53,9 @@ on:
         required: true
         type: boolean
         default: false
-      skip_tests:
-        description: '⚡ Skip tests? (emergency only)'
+      deploy_dev:
+        description: '🟢 Overwrite current DEV environment?'
+        required: true
         type: boolean
         default: false
 
@@ -78,6 +80,7 @@ env:
   JAVA_VERSION: '17'
   JAVA_DISTRIBUTION: 'temurin'
   REGISTRY: ghcr.io
+  DOCKERHUB_REGISTRY: docker.io
   # Remote server (DEI ISEP private cloud)
   REMOTE_HOST: vs427.dei.isep.ipp.pt
   REMOTE_SSH_PORT: '22'
@@ -143,10 +146,11 @@ jobs:
           fi
 
           SHORT_SHA="${GITHUB_SHA::7}"
-          IMAGE_TAG="${BRANCH}-${SHORT_SHA}"
+          # Semver with build metadata: {version}+{short_sha}
+          IMAGE_TAG="${VERSION}+${SHORT_SHA}"
 
-          # Artifact naming: vendnet-<branch>-v<version>-<short_sha>
-          ARTIFACT_NAME="${APP_NAME}-${BRANCH}-v${VERSION}-${SHORT_SHA}"
+          # Artifact naming: vendnet-{version}+{short_sha}
+          ARTIFACT_NAME="${APP_NAME}-${VERSION}+${SHORT_SHA}"
 
           # Boolean flags for conditional jobs
           if [ "${GITHUB_REF}" = "refs/heads/main" ] || [ "${GITHUB_REF_TYPE}" = "tag" ]; then
@@ -572,20 +576,20 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ -n "${SONAR_HOST_URL}" ] && [ -n "${SONAR_TOKEN}" ]; then
-            echo "has_secrets=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "::warning::⚠️ SONAR_HOST_URL or SONAR_TOKEN not configured — skipping SonarQube"
-            echo "has_secrets=false" >> "${GITHUB_OUTPUT}"
+          if [ -z "${SONAR_HOST_URL}" ] || [ -z "${SONAR_TOKEN}" ]; then
+            echo "::error::❌ SONAR_HOST_URL or SONAR_TOKEN not configured."
+            echo "::error::⚠️ SonarQube Quality Gate is mandatory — pipeline cannot proceed without it."
+            echo "::error::Add SONAR_HOST_URL and SONAR_TOKEN to repository secrets."
+            exit 1
           fi
+          echo "has_secrets=true" >> "${GITHUB_OUTPUT}"
+          echo "📡 SonarQube connection verified"
 
       - uses: actions/checkout@v4
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         with:
           fetch-depth: 0
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
@@ -593,7 +597,6 @@ jobs:
           cache: 'maven'
 
       - name: "📦 Restore Maven Cache"
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: actions/cache@v4
         with:
           path: ~/.m2/repository
@@ -602,21 +605,18 @@ jobs:
             maven-${{ runner.os }}-
 
       - name: "📥 Download Build Output (for class reuse)"
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: actions/download-artifact@v4
         with:
           name: build-output
           path: vendnet/target/
 
       - name: "📥 Download JaCoCo Report (for unified coverage)"
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: actions/download-artifact@v4
         with:
           name: jacoco-report
           path: vendnet/target/site/jacoco/
 
       - name: "🗄️ Cache SonarQube Plugins"
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
@@ -625,7 +625,6 @@ jobs:
             sonar-cache-${{ runner.os }}-
 
       - name: "🏅 SonarQube Analysis + Quality Gate (Strict)"
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -676,18 +675,19 @@ jobs:
           exit ${SONAR_EXIT}
 
   # =============================================================================
-  #  JOB 7 — DOCKER BUILD & PUSH (with Trivy scan, push to GHCR)
-  #  Only runs for main/develop branches and tags.
+  #  JOB 7 — DOCKER BUILD & PUSH (with Trivy scan, push to GHCR + Docker Hub)
+  #  Depends on ALL quality and security gates.
   # =============================================================================
   docker-build-push:
     name: "🐳 Docker Build, Scan & Push"
     runs-on: ubuntu-latest
-    needs: [setup-context, build-unit-tests, sast-spotbugs, sca]
+    needs: [setup-context, build-unit-tests, integration-tests, secret-detect, semgrep, sast-spotbugs, sca, iast, sonarqube, dast-zap]
     if: |
       needs.setup-context.outputs.is_main == 'true' ||
       needs.setup-context.outputs.is_develop == 'true'
     outputs:
       image_full: ${{ steps.img.outputs.full }}
+      image_dockerhub: ${{ steps.img.outputs.dockerhub }}
       image_tag: ${{ needs.setup-context.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
@@ -702,18 +702,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: "🔐 Login to Docker Hub"
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKERHUB_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: "🔡 Compute Lowercase Image Reference"
         id: img
         run: |
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "name=${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
           echo "full=${{ env.REGISTRY }}/${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
+          echo "dockerhub=${{ env.DOCKERHUB_REGISTRY }}/${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
 
       - name: "📋 Docker Metadata"
         id: docker_meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.img.outputs.full }}
+          images: |
+            ${{ steps.img.outputs.full }}
+            ${{ steps.img.outputs.dockerhub }}
           tags: |
             type=raw,value=${{ needs.setup-context.outputs.image_tag }}
             type=raw,value=${{ needs.setup-context.outputs.branch }}-latest
@@ -754,21 +764,23 @@ jobs:
             echo "## 🐳 Docker Image Published"
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| **Registry** | \`${{ env.REGISTRY }}\` |"
-            echo "| **Image**    | \`${{ steps.img.outputs.full }}\` |"
-            echo "| **Tag**      | \`${{ needs.setup-context.outputs.image_tag }}\` |"
-            echo "| **Branch**   | \`${{ needs.setup-context.outputs.branch }}-latest\` |"
+            echo "| **GHCR Image**    | \`${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Docker Hub**    | \`${{ steps.img.outputs.dockerhub }}:${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Tag**           | \`${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Branch**        | \`${{ needs.setup-context.outputs.branch }}-latest\` |"
             if [ "${{ needs.setup-context.outputs.is_release }}" = "true" ]; then
               echo "| **Release**  | \`latest\` |"
             fi
             echo ""
-            echo "### Pull command:"
+            echo "### Pull commands:"
             echo '```bash'
             echo "docker pull ${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}"
+            echo "docker pull ${{ steps.img.outputs.dockerhub }}:${{ needs.setup-context.outputs.image_tag }}"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
-          echo "🐳 Image pushed: ${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}"
+          echo "🐳 GHCR: ${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}"
+          echo "🐳 Docker Hub: ${{ steps.img.outputs.dockerhub }}:${{ needs.setup-context.outputs.image_tag }}"
 
   # =============================================================================
   #  JOB 8 — DAST: OWASP ZAP (Dynamic Application Security Testing)
@@ -991,16 +1003,17 @@ jobs:
           retention-days: 7
 
   # =============================================================================
-  #  JOB 9 — DEPLOY DEV (Zero-Downtime Blue/Green)
-  #  Runs on self-hosted runner, deploys to vs427 via SSH.
-  #  Pushes Blue/Green deploy script to remote and executes it.
+  #  JOB 9 — DEPLOY DEV (Manual overwrite, for pre-production only)
+  #  Simple stop→start deploy. Blue/Green is reserved for production.
+  #  Only runs on workflow_dispatch with deploy_dev=true.
   # =============================================================================
   deploy-dev:
-    name: "🟢🔵 Deploy DEV — Blue/Green"
+    name: "🟢 Deploy DEV — Manual Overwrite"
     runs-on: self-hosted
     needs: [setup-context, docker-build-push, sonarqube]
     if: |
-      needs.setup-context.outputs.is_develop == 'true' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.deploy_dev == true &&
       needs.docker-build-push.result == 'success'
     environment:
       name: DEV
@@ -1018,42 +1031,57 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           echo "::endgroup::"
 
-      - name: "📤 Upload Blue/Green Deploy Script to Remote"
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          echo "::group::📤 Uploading Blue/Green Script"
-          scp -o StrictHostKeyChecking=accept-new \
-            -P "${REMOTE_SSH_PORT}" \
-            -i ~/.ssh/deploy_key \
-            scripts/blue-green-deploy.sh \
-            "${REMOTE_USER}@${REMOTE_HOST}:/tmp/blue-green-deploy.sh"
-          echo "::endgroup::"
-
-      - name: "🟢🔵 Execute Blue/Green Deployment — DEV"
+      - name: "🟢 Deploy DEV — Stop → Pull → Run"
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "::group::🟢🔵 Deploying DEV (Blue/Green)"
+          echo "::group::🟢 Deploying DEV (overwrite)"
 
           ssh -o StrictHostKeyChecking=accept-new \
             -p "${REMOTE_SSH_PORT}" \
             -i ~/.ssh/deploy_key \
-            "${REMOTE_USER}@${REMOTE_HOST}" \
-            bash /tmp/blue-green-deploy.sh \
-              --env "dev" \
-              --image "${{ needs.docker-build-push.outputs.image_full }}" \
-              --tag "${{ needs.setup-context.outputs.image_tag }}" \
-              --port "${DEV_PORT}" \
-              --registry "${{ env.REGISTRY }}" \
-              --registry-user "${{ github.actor }}" \
-              --registry-pass "${GITHUB_TOKEN}" \
-              --profile "dev" \
-              --db-url "jdbc:h2:mem:vendnet_dev;DB_CLOSE_DELAY=-1" \
-              --db-driver "org.h2.Driver" \
-              --jwt-secret "dev-secret-key-for-ci-only" \
-              --network "vendnet-dev-net"
+            "${REMOTE_USER}@${REMOTE_HOST}" << 'DEPLOY_EOF'
+          set -euo pipefail
+
+          IMAGE_FULL="${{ needs.docker-build-push.outputs.image_full }}"
+          IMAGE_TAG="${{ needs.setup-context.outputs.image_tag }}"
+          REGISTRY_URL="${{ env.REGISTRY }}"
+          REGISTRY_USER="${{ github.actor }}"
+          REGISTRY_PASS="${GITHUB_TOKEN}"
+          DEV_PORT="${{ env.DEV_PORT }}"
+          CONTAINER="vendnet-dev"
+          NETWORK="vendnet-dev-net"
+
+          echo "📋 Pulling ${IMAGE_FULL}:${IMAGE_TAG}..."
+          echo "${REGISTRY_PASS}" | docker login "${REGISTRY_URL}" -u "${REGISTRY_USER}" --password-stdin
+          docker pull "${IMAGE_FULL}:${IMAGE_TAG}"
+
+          echo "🛑 Stopping existing DEV container..."
+          docker stop "${CONTAINER}" 2>/dev/null || true
+          docker rm "${CONTAINER}" 2>/dev/null || true
+
+          docker network create "${NETWORK}" 2>/dev/null || true
+
+          echo "🚀 Starting new DEV container..."
+          docker run -d \
+            --name "${CONTAINER}" \
+            --network "${NETWORK}" \
+            --restart unless-stopped \
+            -p "${DEV_PORT}:8080" \
+            -e "SPRING_PROFILES_ACTIVE=dev" \
+            -e "APP_JWT_SECRET=dev-secret-key-for-ci-only" \
+            -e "SPRING_DATASOURCE_URL=jdbc:h2:mem:vendnet_dev;DB_CLOSE_DELAY=-1" \
+            -e "SPRING_DATASOURCE_DRIVER=org.h2.Driver" \
+            --health-cmd="wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1" \
+            --health-interval=10s \
+            --health-timeout=5s \
+            --health-retries=5 \
+            --health-start-period=60s \
+            "${IMAGE_FULL}:${IMAGE_TAG}"
+
+          echo "✅ DEV container started"
+          DEPLOY_EOF
 
           echo "::endgroup::"
 
@@ -1079,13 +1107,13 @@ jobs:
         if: always()
         run: |
           {
-            echo "## 🟢🔵 DEV Deployment Summary"
+            echo "## 🟢 DEV Deployment Summary"
             echo "| Property | Value |"
             echo "|----------|-------|"
             echo "| **Environment** | DEV |"
             echo "| **URL**         | http://${REMOTE_HOST}:${DEV_PORT} |"
             echo "| **Image Tag**   | \`${{ needs.setup-context.outputs.image_tag }}\` |"
-            echo "| **Strategy**    | Blue/Green (Zero-Downtime) |"
+            echo "| **Strategy**    | Manual Overwrite |"
             echo "| **Status**      | ${{ job.status }} |"
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -1352,14 +1380,18 @@ jobs:
             ## 🚀 VendNet Release ${{ needs.setup-context.outputs.version }}
 
             ### 🔗 Artifacts
-            - **Docker Image:** `${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}`
+            - **Docker Image (GHCR):** `${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}`
+            - **Docker Image (Docker Hub):** `${{ needs.docker-build-push.outputs.image_dockerhub }}:${{ needs.setup-context.outputs.image_tag }}`
             - **Docker Image (latest):** `${{ needs.docker-build-push.outputs.image_full }}:latest`
             - **SBOM:** CycloneDX JSON (attached below)
 
             ### 📦 Pull the Docker Image
             ```bash
+            # From GitHub Container Registry
             docker pull ${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}
-            docker pull ${{ needs.docker-build-push.outputs.image_full }}:latest
+
+            # From Docker Hub
+            docker pull ${{ needs.docker-build-push.outputs.image_dockerhub }}:${{ needs.setup-context.outputs.image_tag }}
             ```
 
             ### 🔒 Security
@@ -1396,6 +1428,150 @@ jobs:
             echo "🔗 [View Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})"
           } >> "${GITHUB_STEP_SUMMARY}"
 
+  # =============================================================================
+  #  JOB 13 — PIPELINE SUMMARY
+  #  Aggregates all results, URLs, and artifacts into a single developer-friendly
+  #  view.  Runs always, even if earlier jobs failed.
+  # =============================================================================
+  pipeline-summary:
+    name: "📊 Pipeline Summary"
+    runs-on: ubuntu-latest
+    needs: [setup-context, secret-detect, semgrep, build-unit-tests, integration-tests,
+            sast-spotbugs, sca, iast, sonarqube, docker-build-push, dast-zap,
+            deploy-dev, deploy-staging, deploy-prod, github-release]
+    if: always()
+    steps:
+      - name: "📊 Aggregate Pipeline Results"
+        run: |
+          # ── Helper: get job status icon ──
+          icon() {
+            case "$1" in
+              success)   echo "✅" ;;
+              failure)   echo "❌" ;;
+              skipped)   echo "⏭️" ;;
+              cancelled) echo "🚫" ;;
+              *)         echo "❓" ;;
+            esac
+          }
+
+          # ── Collect job statuses ──
+          SECRET_DETECT="${{ needs.secret-detect.result }}"
+          SEMGREP="${{ needs.semgrep.result }}"
+          BUILD_UNIT="${{ needs.build-unit-tests.result }}"
+          INTEGRATION="${{ needs.integration-tests.result }}"
+          SPOTBUGS="${{ needs.sast-spotbugs.result }}"
+          SCA="${{ needs.sca.result }}"
+          IAST="${{ needs.iast.result }}"
+          SONARQUBE="${{ needs.sonarqube.result }}"
+          DOCKER="${{ needs.docker-build-push.result }}"
+          DAST_ZAP="${{ needs.dast-zap.result }}"
+          DEPLOY_DEV="${{ needs.deploy-dev.result }}"
+          DEPLOY_STAGE="${{ needs.deploy-staging.result }}"
+          DEPLOY_PROD="${{ needs.deploy-prod.result }}"
+          RELEASE="${{ needs.github-release.result }}"
+
+          {
+            echo "## 📊 VendNet Pipeline Summary"
+            echo ""
+            echo "### 🔧 Build Context"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Artifact** | \`${{ needs.setup-context.outputs.artifact_name }}\` |"
+            echo "| **Version**  | \`${{ needs.setup-context.outputs.version }}\` |"
+            echo "| **Branch**   | \`${{ needs.setup-context.outputs.branch }}\` |"
+            echo "| **Commit**   | \`${{ needs.setup-context.outputs.short_sha }}\` |"
+            echo "| **Image Tag**| \`${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo ""
+            echo "### 🛡️ Security Gates"
+            echo "| Gate | Status |"
+            echo "|------|--------|"
+            echo "| Secret Detection (Gitleaks) | $(icon "${SECRET_DETECT}") ${SECRET_DETECT} |"
+            echo "| SAST — Semgrep              | $(icon "${SEMGREP}") ${SEMGREP} |"
+            echo "| SAST — SpotBugs+FindSecBugs | $(icon "${SPOTBUGS}") ${SPOTBUGS} |"
+            echo "| SCA — Dependency Check      | $(icon "${SCA}") ${SCA} |"
+            echo "| IAST — Taint Analysis       | $(icon "${IAST}") ${IAST} |"
+            echo "| DAST — OWASP ZAP            | $(icon "${DAST_ZAP}") ${DAST_ZAP} |"
+            echo ""
+            echo "### 🧪 Quality Gates"
+            echo "| Gate | Status |"
+            echo "|------|--------|"
+            echo "| Build & Unit Tests          | $(icon "${BUILD_UNIT}") ${BUILD_UNIT} |"
+            echo "| Integration Tests           | $(icon "${INTEGRATION}") ${INTEGRATION} |"
+            echo "| SonarQube Quality Gate      | $(icon "${SONARQUBE}") ${SONARQUBE} |"
+            echo "| Docker Build & Push         | $(icon "${DOCKER}") ${DOCKER} |"
+            echo ""
+            echo "### 🚀 Deployments"
+            echo "| Environment | Status | URL |"
+            echo "|-------------|--------|-----|"
+            if [ "${DEPLOY_DEV}" != "skipped" ]; then
+              echo "| DEV         | $(icon "${DEPLOY_DEV}") ${DEPLOY_DEV} | http://${REMOTE_HOST}:${DEV_PORT} |"
+            else
+              echo "| DEV         | ⏭️ Not deployed | — |"
+            fi
+            if [ "${DEPLOY_STAGE}" != "skipped" ]; then
+              echo "| STAGING     | $(icon "${DEPLOY_STAGE}") ${DEPLOY_STAGE} | http://${REMOTE_HOST}:${STAGE_PORT} |"
+            else
+              echo "| STAGING     | ⏭️ Not deployed | — |"
+            fi
+            if [ "${DEPLOY_PROD}" != "skipped" ]; then
+              echo "| PRODUCTION  | $(icon "${DEPLOY_PROD}") ${DEPLOY_PROD} | http://${REMOTE_HOST}:${PROD_PORT} |"
+            else
+              echo "| PRODUCTION  | ⏭️ Not deployed | — |"
+            fi
+            echo ""
+            echo "### 📦 Artifacts & Links"
+            echo ""
+            if [ -n "${{ secrets.SONAR_HOST_URL }}" ]; then
+              echo "🔗 [SonarQube Dashboard](${{ secrets.SONAR_HOST_URL }}/dashboard?id=vendnet)"
+            fi
+            echo ""
+            echo "🔗 [JaCoCo Coverage Report](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifact: jacoco-report)*"
+            echo "🔗 [ZAP DAST Reports](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifacts: zap-baseline, zap-api-auth)*"
+            echo "🔗 [Unit Test Reports](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifact: unit-test-reports)*"
+            echo "🔗 [Integration Test Reports](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifact: integration-test-reports)*"
+            echo ""
+            echo "### 🐳 Docker Images"
+            echo "| Registry | Image |"
+            echo "|----------|-------|"
+            echo "| **GHCR**      | \`${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo "| **Docker Hub**| \`docker.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')/vendnet:${{ needs.setup-context.outputs.image_tag }}\` |"
+            echo ""
+            if [ "${RELEASE}" != "skipped" ]; then
+              echo "### 📦 GitHub Release"
+              echo "| Property | Value |"
+              echo "|----------|-------|"
+              echo "| **Status**  | $(icon "${RELEASE}") ${RELEASE} |"
+              echo "| **Version** | \`${{ needs.setup-context.outputs.version }}\` |"
+              echo "| **Tag**     | \`${{ github.ref_name }}\` |"
+              echo ""
+              echo "🔗 [View Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})"
+            fi
+            echo ""
+            echo "🔗 [Full Pipeline Run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          echo "📊 Pipeline summary generated."
+
+      - name: "📋 Log Summary to Console"
+        run: |
+          echo "::group::📊 Pipeline Summary"
+          echo "Artifact:   ${{ needs.setup-context.outputs.artifact_name }}"
+          echo "Version:    ${{ needs.setup-context.outputs.version }}"
+          echo "Image Tag:  ${{ needs.setup-context.outputs.image_tag }}"
+          echo ""
+          echo "Security:   secret-detect=${{ needs.secret-detect.result }} semgrep=${{ needs.semgrep.result }}"
+          echo "SAST/SCA:   spotbugs=${{ needs.sast-spotbugs.result }} sca=${{ needs.sca.result }}"
+          echo "IAST:       ${{ needs.iast.result }}"
+          echo "SonarQube:  ${{ needs.sonarqube.result }}"
+          echo "DAST ZAP:   ${{ needs.dast-zap.result }}"
+          echo ""
+          echo "Tests:      unit=${{ needs.build-unit-tests.result }} integration=${{ needs.integration-tests.result }}"
+          echo "Docker:     ${{ needs.docker-build-push.result }}"
+          echo ""
+          echo "Deploys:    dev=${{ needs.deploy-dev.result }} stage=${{ needs.deploy-staging.result }} prod=${{ needs.deploy-prod.result }}"
+          echo "Release:    ${{ needs.github-release.result }}"
+          echo "::endgroup::"
+
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                     ADMINISTRATOR NOTES                                      ║
 # ╠══════════════════════════════════════════════════════════════════════════════╣
@@ -1409,6 +1585,8 @@ jobs:
 # ║                                                                              ║
 # ║  🔐 REQUIRED SECRETS (set in Settings → Secrets and variables → Actions):    ║
 # ║    - SSH_PRIVATE_KEY        (deploy key for vs427.dei.isep.ipp.pt)           ║
+# ║    - DOCKERHUB_USERNAME     (Docker Hub username for image push)             ║
+# ║    - DOCKERHUB_TOKEN        (Docker Hub access token/password)               ║
 # ║    - SONAR_HOST_URL         (https://vs-gate.dei.isep.ipp.pt:10427)          ║
 # ║    - SONAR_TOKEN            (SonarQube project token)                        ║
 # ║    - NVD_API_KEY            (NIST NVD API key for dependency check)          ║
@@ -1423,23 +1601,22 @@ jobs:
 # ║    - PROD_JWT_SECRET        (PRODUCTION JWT signing key)                     ║
 # ║    - PROD_HMAC_SECRET       (PRODUCTION HMAC webhook key)                    ║
 # ║                                                                              ║
-# ║  🔐 REQUIRED VARIABLES (Settings → Secrets and variables → Variables):       ║
-# ║    - REMOTE_HOST            (default: vs427.dei.isep.ipp.pt)                 ║
-# ║    - REMOTE_PORT            (default: 2222)                                  ║
-# ║    - DEV_PORT               (default: 8280)                                  ║
-# ║    - STAGE_PORT             (default: 8180)                                  ║
-# ║    - PROD_PORT              (default: 8080)                                  ║
+# ║  🚀 DEPLOYMENT STRATEGY:                                                     ║
+# ║    - DEV:     Manual overwrite (workflow_dispatch → deploy_dev=true)        ║
+# ║    - STAGING: Blue/Green zero-downtime (automatic on push to main)          ║
+# ║    - PROD:    Blue/Green zero-downtime (automatic on tag push,              ║
+# ║               or manual via workflow_dispatch → deploy_prod=true)           ║
 # ║                                                                              ║
-# ║  🚨 BLUE/GREEN DEPLOYMENT:                                                   ║
-# ║    The remote server (vs427) needs:                                          ║
-# ║    - Docker installed                                                        ║
-# ║    - Nginx installed (for reverse proxy traffic switching)                   ║
-# ║    - The blue-green-deploy.sh script uploaded to /tmp/                       ║
-# ║    See: scripts/blue-green-deploy.sh for implementation details              ║
+# ║  🚨 BLUE/GREEN ROLLBACK:                                                     ║
+# ║    If the Nginx health check fails after traffic switch, the script          ║
+# ║    automatically rolls back to the old container before failing the          ║
+# ║    pipeline. The old container is NOT removed unless the health check        ║
+# ║    passes. See: scripts/blue-green-deploy.sh                                ║
 # ║                                                                              ║
-# ║  📦 GITHUB CONTAINER REGISTRY:                                               ║
-# ║    Images are pushed to ghcr.io/<org>/vendnet.                               ║
-# ║    Ensure the package is "Public" in GitHub Package settings                 ║
-# ║    or configure a GITHUB_TOKEN with read:packages scope for the server.      ║
+# ║  📦 DOCKER REGISTRIES:                                                       ║
+# ║    - GHCR:       ghcr.io/<org>/vendnet (push via GITHUB_TOKEN)              ║
+# ║    - Docker Hub: docker.io/<org>/vendnet (push via DOCKERHUB_* secrets)     ║
+# ║    Ensure the GHCR package is "Public" in GitHub Package settings            ║
+# ║    or configure a token with read:packages scope for the server.             ║
 # ║                                                                              ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝

@@ -424,9 +424,9 @@ secret-scan:
 ## ======================================================================
 ci-local:
 	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ GitHub Actions CI (Local) ═══$(C_RESET)\n\n"
-	@printf "$(C_ARROW) Running ci-security.yml via act...\n"
+	@printf "$(C_ARROW) Running vendnet-ci-cd.yml via act...\n"
 	@mkdir -p /tmp/act-artifacts
-	@cd .. && act push -W .github/workflows/ci-security.yml \
+	@cd .. && act push -W .github/workflows/vendnet-ci-cd.yml \
 		--artifact-server-path /tmp/act-artifacts \
 		--platform ubuntu-latest=catthehacker/ubuntu:full-latest \
 		--container-architecture linux/amd64 2>&1 || \
@@ -434,20 +434,21 @@ ci-local:
 	@printf "\n$(C_OK) CI local run complete.\n"
 
 ci-local-build:
-	@printf "\n$(C_ARROW) Running build job locally...\n"
+	@printf "\n$(C_ARROW) Running build-unit-tests job locally...\n"
 	@mkdir -p /tmp/act-artifacts
-	@cd .. && act -j build -W .github/workflows/ci-security.yml \
+	@cd .. && act -j build-unit-tests -W .github/workflows/vendnet-ci-cd.yml \
 		--artifact-server-path /tmp/act-artifacts \
 		--platform ubuntu-latest=catthehacker/ubuntu:full-latest \
 		--container-architecture linux/amd64
 
 ci-local-pipeline:
-	@printf "\n$(C_ARROW) Running build + sast + sca + archunit jobs...\n"
+	@printf "\n$(C_ARROW) Running setup-context + build-unit-tests + sast-spotbugs + sca + secret-detect + semgrep jobs...\n"
 	@mkdir -p /tmp/act-artifacts
-	@cd .. && act -j build -j sast -j sca -j archunit -W .github/workflows/ci-security.yml \
+	@cd .. && act -W .github/workflows/vendnet-ci-cd.yml \
 		--artifact-server-path /tmp/act-artifacts \
 		--platform ubuntu-latest=catthehacker/ubuntu:full-latest \
-		--container-architecture linux/amd64
+		--container-architecture linux/amd64 \
+		setup-context build-unit-tests sast-spotbugs sca secret-detect semgrep
 	@printf "\n$(C_OK) CI pipeline jobs complete.\n"
 
 ## ======================================================================
