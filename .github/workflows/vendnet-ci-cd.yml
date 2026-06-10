@@ -207,7 +207,7 @@ jobs:
             echo "IS_RELEASE=${{ steps.meta.outputs.is_release }}"
             echo "IS_MAIN=${{ steps.meta.outputs.is_main }}"
             echo "IS_DEVELOP=${{ steps.meta.outputs.is_develop }}"
-          } >> "${GITHUB_ENV}"
+          } >> "${GITHUB_ENV}" 
 
   # =============================================================================
   #  JOB 1a — SECRET DETECTION (Gitleaks, source-only, runs FAST)
@@ -308,37 +308,37 @@ jobs:
           cd vendnet
           JACOCO_XML="target/site/jacoco/jacoco.xml"
           if [ -f "${JACOCO_XML}" ]; then
-            # Extract top-level project coverage totals only
+            # Extract coverage metrics using python
             python3 -c "
-import xml.etree.ElementTree as ET
-tree = ET.parse('${JACOCO_XML}')
-root = tree.getroot()
-for counter in root.findall('counter'):
-    ctype = counter.get('type', '')
-    missed = int(counter.get('missed', 0))
-    covered = int(counter.get('covered', 0))
-    total = missed + covered
-    pct = (covered / total * 100) if total > 0 else 0
-    if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
-        print(f'  {ctype:12s}: {covered}/{total} = {pct:.2f}%')
-"
-            # Write overall totals to step summary
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('${JACOCO_XML}')
+          root = tree.getroot()
+          for counter in root.iter('counter'):
+              ctype = counter.get('type', '')
+              missed = int(counter.get('missed', 0))
+              covered = int(counter.get('covered', 0))
+              total = missed + covered
+              pct = (covered / total * 100) if total > 0 else 0
+              if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
+                  print(f'  {ctype:12s}: {covered}/{total} = {pct:.2f}%')
+          "
+            # Write coverage to step summary
             {
-              echo "## 📊 JaCoCo Coverage"
+              echo "## 📊 JaCoCo Coverage Report"
               echo '```'
               python3 -c "
-import xml.etree.ElementTree as ET
-tree = ET.parse('${JACOCO_XML}')
-root = tree.getroot()
-for counter in root.findall('counter'):
-    ctype = counter.get('type', '')
-    missed = int(counter.get('missed', 0))
-    covered = int(counter.get('covered', 0))
-    total = missed + covered
-    pct = (covered / total * 100) if total > 0 else 0
-    if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
-        print(f'{ctype:12s}: {covered}/{total} = {pct:.2f}%')
-"
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('${JACOCO_XML}')
+          root = tree.getroot()
+          for counter in root.iter('counter'):
+              ctype = counter.get('type', '')
+              missed = int(counter.get('missed', 0))
+              covered = int(counter.get('covered', 0))
+              total = missed + covered
+              pct = (covered / total * 100) if total > 0 else 0
+              if ctype in ('LINE', 'BRANCH', 'INSTRUCTION'):
+                  print(f'{ctype:12s}: {covered}/{total} = {pct:.2f}%')
+          "
               echo '```'
             } >> "${GITHUB_STEP_SUMMARY}"
           else
@@ -1518,17 +1518,6 @@ for counter in root.findall('counter'):
             else
               echo "| PRODUCTION  | ⏭️ Not deployed | — |"
             fi
-            echo ""
-            echo "### 🐳 Docker Images"
-            echo "| Registry | Image |"
-            echo "|----------|-------|"
-            echo "| **GHCR**      | \`${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}\` |"
-            DOCKERHUB_REPO="$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
-            echo "| **Docker Hub**| [\`${DOCKERHUB_REPO}/vendnet:${{ needs.setup-context.outputs.image_tag }}\`](https://hub.docker.com/r/${DOCKERHUB_REPO}/vendnet) |"
-            echo ""
-            echo "### 🏅 Quality Gate"
-            echo ""
-            echo "🔗 [SonarQube Quality Gate](https://sonar.rmotafreitas.dev/quality_gates/show/Project%20Test)"
             echo ""
             if [ "${RELEASE}" != "skipped" ]; then
               echo "### 📦 GitHub Release"
