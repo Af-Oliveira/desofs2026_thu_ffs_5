@@ -35,6 +35,7 @@ public class AuthService {
 	private static final int TOTP_DIGITS = 6;
 	private static final String TOTP_ALGORITHM = "HmacSHA1";
 	private static final int MAX_USERNAME_LENGTH = 30;
+	private static final String MISSING_USER_DUMMY_PASSWORD = "MissingUserTimingPassword@2026";
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -99,8 +100,7 @@ public class AuthService {
 
 		if (userOpt.isEmpty()) {
 			passwordEncoder.matches(
-					request.getPassword(),
-					"$2a$12$RqJbK5l7aXxZ3F9hWZkW3.6bUMq4gmx6PjPS7bi1Yp0LcXRH9R5Qe");
+					request.getPassword(), passwordEncoder.encode(MISSING_USER_DUMMY_PASSWORD));
 			throw new UnauthorizedException("Invalid username or password");
 		}
 
