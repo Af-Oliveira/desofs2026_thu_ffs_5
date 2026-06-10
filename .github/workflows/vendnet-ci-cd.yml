@@ -1519,22 +1519,12 @@ jobs:
               echo "| PRODUCTION  | ⏭️ Not deployed | — |"
             fi
             echo ""
-            echo "### 📦 Artifacts & Links"
-            echo ""
-            if [ -n "${{ secrets.SONAR_HOST_URL }}" ]; then
-              echo "🔗 [SonarQube Dashboard](${{ secrets.SONAR_HOST_URL }}/dashboard?id=vendnet)"
-            fi
-            echo ""
-            echo "🔗 [JaCoCo Coverage Report](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifact: jacoco-report)*"
-            echo "🔗 [ZAP DAST Reports](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifacts: zap-baseline, zap-api-auth)*"
-            echo "🔗 [Unit Test Reports](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifact: unit-test-reports)*"
-            echo "🔗 [Integration Test Reports](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) *(download artifact: integration-test-reports)*"
-            echo ""
             echo "### 🐳 Docker Images"
             echo "| Registry | Image |"
             echo "|----------|-------|"
             echo "| **GHCR**      | \`${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}\` |"
-            echo "| **Docker Hub**| \`docker.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')/vendnet:${{ needs.setup-context.outputs.image_tag }}\` |"
+            DOCKERHUB_REPO="$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+            echo "| **Docker Hub**| [\`${DOCKERHUB_REPO}/vendnet:${{ needs.setup-context.outputs.image_tag }}\`](https://hub.docker.com/r/${DOCKERHUB_REPO}/vendnet) |"
             echo ""
             if [ "${RELEASE}" != "skipped" ]; then
               echo "### 📦 GitHub Release"
