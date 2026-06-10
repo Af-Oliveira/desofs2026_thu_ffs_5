@@ -54,9 +54,9 @@ public class BootstrapService {
 		VendingMachine vm3 = seedMachine("VM-PTO-001", "Porto - Campanha Station", now);
 		VendingMachine vm4 = seedMachine("VM-FAR-001", "Faro - Downtown", now);
 
-		seedUser("admin@vendnet.io", "Admin@1234", "System Administrator", Role.ROLE_ADMINISTRATOR, now);
-		seedUser("operator@vendnet.io", "Operator@1234", "Machine Operator", Role.ROLE_OPERATOR, now);
-		seedUser("customer@vendnet.io", "Customer@1234", "Regular Customer", Role.ROLE_CUSTOMER, now);
+		seedUser("admin", "admin@vendnet.io", "Admin@123456", "System Administrator", Role.ROLE_ADMINISTRATOR, now);
+		seedUser("operator", "operator@vendnet.io", "Operator@123456", "Machine Operator", Role.ROLE_OPERATOR, now);
+		seedUser("customer", "customer@vendnet.io", "Customer@123456", "Regular Customer", Role.ROLE_CUSTOMER, now);
 
 		seedSlot("A1", 20, 20, vm1, cola, now);
 		seedSlot("A2", 20, 20, vm1, water, now);
@@ -90,20 +90,21 @@ public class BootstrapService {
 		seedSale(vm3, cola, cola.getPrice(), 1, now.minusDays(1));
 		seedSale(vm4, nuts, nuts.getPrice(), 1, now.minusHours(5));
 
-		seedTelemetry(vm1, "ONLINE", now);
-		seedTelemetry(vm2, "ONLINE", now);
-		seedTelemetry(vm3, "ONLINE", now);
-		seedTelemetry(vm4, "MAINTENANCE", now);
+			seedTelemetry(vm1, "ONLINE", now.minusMinutes(5));
+			seedTelemetry(vm2, "ONLINE", now.minusMinutes(5));
+			seedTelemetry(vm3, "ONLINE", now.minusMinutes(5));
+			seedTelemetry(vm4, "MAINTENANCE", now.minusMinutes(5));
 
 		log.info("=== Bootstrapping complete ===");
 	}
 
-	private void seedUser(String email, String password, String name, Role role, LocalDateTime now) {
-		if (userRepository.existsByEmail(email)) {
+	private void seedUser(String username, String email, String password, String name, Role role, LocalDateTime now) {
+		if (userRepository.existsByUsername(username) || userRepository.existsByEmail(email)) {
 			log.info("User '{}' already exists — skipping", email);
 			return;
 		}
 		User user = User.builder()
+				.username(username)
 				.email(email)
 				.password(passwordEncoder.encode(password))
 				.name(name)
@@ -124,9 +125,11 @@ public class BootstrapService {
 		Product product = Product.builder()
 				.name(name)
 				.description(description)
-				.price(price)
-				.sku(sku)
-				.active(true)
+					.price(price)
+					.sku(sku)
+					.currency("EUR")
+					.category(sku.startsWith("DRK") ? "DRINK" : sku.startsWith("SNK") ? "SNACK" : "HOT")
+					.active(true)
 				.createdAt(now)
 				.updatedAt(now)
 				.build();

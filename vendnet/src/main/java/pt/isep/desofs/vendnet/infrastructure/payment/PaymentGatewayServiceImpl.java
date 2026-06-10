@@ -27,6 +27,15 @@ public class PaymentGatewayServiceImpl implements PaymentGatewayService {
 			log.warn("Payment authorization failed: invalid token");
 			throw new RuntimeException("Invalid payment token");
 		}
+		if ("tok_timeout".equals(paymentToken)) {
+			throw new RuntimeException("GATEWAY_TIMEOUT");
+		}
+		if ("tok_network".equals(paymentToken)) {
+			throw new RuntimeException("NETWORK_ERROR");
+		}
+		if ("tok_declined".equals(paymentToken)) {
+			throw new RuntimeException("DECLINED");
+		}
 		log.info("Payment authorized: token={}, amount={} EUR", paymentToken, amount);
 	}
 

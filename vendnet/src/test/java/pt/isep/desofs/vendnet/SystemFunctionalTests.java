@@ -98,7 +98,7 @@ class SystemFunctionalTests {
             mockMvc.perform(get("/api/auth/claims")
                             .header("Authorization", "Bearer " + token))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.subject").value("sys-customer@vendnet.io"))
+                    .andExpect(jsonPath("$.subject").value("syscustomer"))
                     .andExpect(jsonPath("$.role").value("ROLE_CUSTOMER"));
         }
 
@@ -150,12 +150,12 @@ class SystemFunctionalTests {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").exists());
 
-            // AAA: Act & Assert — backup (500 expected in H2: no mysqldump; but endpoint is reachable)
-            int backupStatus = mockMvc.perform(post("/api/admin/operations/backup")
+            // AAA: Act & Assert — backup returns encrypted artifact metadata
+            int backupStatus = mockMvc.perform(post("/api/admin/backups")
                             .header("Authorization", "Bearer " + token))
                     .andReturn().getResponse().getStatus();
-            assertTrue(backupStatus == 200 || backupStatus == 500,
-                    "Backup endpoint should be reachable (200 or 500)");
+            assertTrue(backupStatus == 201,
+                    "Backup endpoint should create an encrypted backup artifact");
 
             // AAA: Act & Assert — sales (via hierarchy)
             mockMvc.perform(get("/api/sales/machine/1")
@@ -212,19 +212,24 @@ class SystemFunctionalTests {
             createUserIfNeeded(email, "Test@1234", Role.ROLE_CUSTOMER);
 
             // AAA: Act — perform 5 failed login attempts
-            String loginJson = "{\"email\":\"" + email + "\",\"password\":\"WrongPass1\"}";
-            for (int i = 0; i < 5; i++) {
+            String username = usernameFromEmail(email);
+            String loginJson = "{\"username\":\"" + username + "\",\"password\":\"WrongPass1\"}";
+            for (int i = 0; i < 4; i++) {
                 mockMvc.perform(post("/api/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(loginJson))
                         .andExpect(status().isUnauthorized());
             }
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(loginJson))
+                    .andExpect(status().isLocked());
 
             // AAA: Assert — 6th attempt with CORRECT password should return 401 (account locked)
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"" + email + "\",\"password\":\"Test@1234\"}"))
-                    .andExpect(status().isUnauthorized());
+                            .content("{\"username\":\"" + username + "\",\"password\":\"Test@1234\"}"))
+                    .andExpect(status().isLocked());
 
             // AAA: Assert — verify account status is LOCKED in the database
             User lockedUser = userRepository.findByEmail(email).orElseThrow();
@@ -332,19 +337,17 @@ class SystemFunctionalTests {
 
             // AAA: Act — send telemetry with machine code reference
             String telemetryJson = "{"
-                    + "\"machine\":{\"code\":\"" + machineCode + "\"},"
-                    + "\"cpuUsage\":42.5,"
-                    + "\"memoryUsage\":68.3,"
-                    + "\"diskUsage\":55.0,"
-                    + "\"status\":\"ONLINE\","
-                    + "\"uptimeSeconds\":864000,"
-                    + "\"totalSalesToday\":42,"
-                    + "\"temperatureCelsius\":23.1,"
+                    + "\"serialNumber\":\"" + machineCode + "\","
+                    + "\"temperature\":23.1,"
+                    + "\"stockLevels\":{\"A1\":8},"
+                    + "\"statusCode\":\"ONLINE\","
+                    + "\"errorCodes\":[],"
                     + "\"timestamp\":\"2026-05-15T10:00:00\""
                     + "}";
 
             // AAA: Assert — telemetry accepted (permitAll endpoint)
             mockMvc.perform(post("/api/telemetry")
+                            .header("X-Machine-CN", machineCode)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(telemetryJson))
                     .andExpect(status().is2xxSuccessful());
@@ -403,7 +406,7 @@ class SystemFunctionalTests {
         createUserIfNeeded(email, "Test@1234", role);
         String resp = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"Test@1234\"}"))
+                        .content("{\"username\":\"" + usernameFromEmail(email) + "\",\"password\":\"Test@1234\"}"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(resp).get("token").asText();
@@ -412,6 +415,7 @@ class SystemFunctionalTests {
     private void createUserIfNeeded(String email, String password, Role role) {
         if (userRepository.findByEmail(email).isEmpty()) {
             User u = User.builder()
+                    .username(usernameFromEmail(email))
                     .email(email)
                     .password(passwordEncoder.encode(password))
                     .name("Func Test " + role.name())
@@ -422,5 +426,9 @@ class SystemFunctionalTests {
                     .build();
             userRepository.save(u);
         }
+    }
+
+    private String usernameFromEmail(String email) {
+        return email.substring(0, email.indexOf('@')).replaceAll("[^A-Za-z0-9]", "");
     }
 }

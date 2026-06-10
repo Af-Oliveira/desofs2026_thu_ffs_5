@@ -36,31 +36,29 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
      */
     @Test
     void ac01_backupEndpointRequiresAdministratorRole() {
-        given().post("/api/admin/operations/backup").then().statusCode(401);
+        given().post("/api/admin/backups").then().statusCode(401);
 
         String customerToken = loginAndGetToken(CUSTOMER_EMAIL, CUSTOMER_PASS);
         given()
                 .header("Authorization", authHeader(customerToken))
-                .post("/api/admin/operations/backup")
+                .post("/api/admin/backups")
                 .then()
                 .statusCode(403);
 
         String operatorToken = loginAndGetToken(OPERATOR_EMAIL, OPERATOR_PASS);
         given()
                 .header("Authorization", authHeader(operatorToken))
-                .post("/api/admin/operations/backup")
+                .post("/api/admin/backups")
                 .then()
                 .statusCode(403);
 
         String adminToken = loginAndGetToken(ADMIN_EMAIL, ADMIN_PASS);
-        int status =
-                given()
-                        .header("Authorization", authHeader(adminToken))
-                        .post("/api/admin/operations/backup")
-                        .then()
-                        .extract()
-                        .statusCode();
-        assertThat(status).isIn(200, 500);
+        given()
+                .header("Authorization", authHeader(adminToken))
+                .post("/api/admin/backups")
+                .then()
+                .statusCode(201)
+                .body("checksum", org.hamcrest.Matchers.not(org.hamcrest.Matchers.emptyOrNullString()));
     }
 
     /**
@@ -115,16 +113,31 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
      * [AC-03] Client-Supplied Price Manipulation
      *
      * <p>Precondições: customer JWT; DRK-002 (água €1.00) em VM-LIS-001.
-     * Resultado esperado: campos extra ignorados; preço da venda = catálogo, não 0.01.
-     * Referência: SR-03 / M-03 — {@code PurchaseRequest} sem unitPrice; {@code
-     * SaleService} usa {@code product.getPrice()}.
+     * Resultado esperado: campos extra de preço rejeitados com 400 antes do processamento.
+     * Referência: SR-24 / SR-29 — {@code PurchaseRequest} sem unitPrice/price e Jackson
+     * strict-deserialization activo.
      */
     @Test
     void ac03_clientCannotOverrideCatalogPrice() {
         String token = loginAndGetToken(CUSTOMER_EMAIL, CUSTOMER_PASS);
         Long productId = getProductIdBySku("DRK-002", token);
         Long machineId = getMachineIdByCode("VM-LIS-001", token);
-        String idem1 = "ac03-a-" + UUID.randomUUID();
+        given()
+                .header("Authorization", authHeader(token))
+                .contentType(ContentType.JSON)
+                .body(
+                        "{\"productId\":"
+                                + productId
+                                + ",\"machineId\":"
+                                + machineId
+                                + ",\"paymentToken\":\"tok_ac03\","
+                                + "\"idempotencyKey\":\"ac03-a-"
+                                + UUID.randomUUID()
+                                + "\",\"unitPrice\":0.01}")
+                .post("/api/sales/purchase")
+                .then()
+                .statusCode(400)
+                .body("message", org.hamcrest.Matchers.equalTo("Invalid request body"));
 
         given()
                 .header("Authorization", authHeader(token))
@@ -134,13 +147,35 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
                                 + productId
                                 + ",\"machineId\":"
                                 + machineId
-                                + ",\"paymentToken\":\"tok_ac03\",\"idempotencyKey\":\""
-                                + idem1
-                                + "\",\"unitPrice\":0.01}")
+                                + ",\"paymentToken\":\"tok_ac03b\","
+                                + "\"idempotencyKey\":\"ac03-b-"
+                                + UUID.randomUUID()
+                                + "\",\"price\":-1}")
                 .post("/api/sales/purchase")
                 .then()
-                .statusCode(201)
-                .body("status", org.hamcrest.Matchers.equalTo("COMPLETED"));
+                .statusCode(400)
+                .body("message", org.hamcrest.Matchers.equalTo("Invalid request body"));
+
+        String validSaleId =
+                given()
+                        .header("Authorization", authHeader(token))
+                        .contentType(ContentType.JSON)
+                        .body(
+                                Map.of(
+                                        "productId",
+                                        productId,
+                                        "machineId",
+                                        machineId,
+                                        "paymentToken",
+                                        "tok_ac03_valid",
+                                        "idempotencyKey",
+                                        "ac03-c-" + UUID.randomUUID()))
+                        .post("/api/sales/purchase")
+                        .then()
+                        .statusCode(201)
+                        .body("status", org.hamcrest.Matchers.equalTo("COMPLETED"))
+                        .extract()
+                        .path("saleId");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> sales =
@@ -153,41 +188,14 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
                         .jsonPath()
                         .getList("$");
 
-        Map<String, Object> latest = sales.get(sales.size() - 1);
-        BigDecimal unitPrice = new BigDecimal(latest.get("unitPrice").toString());
+        Map<String, Object> sale =
+                sales.stream()
+                        .filter(s -> validSaleId.equals(String.valueOf(s.get("id"))))
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("Sale " + validSaleId + " not found"));
+
+        BigDecimal unitPrice = new BigDecimal(sale.get("unitPrice").toString());
         assertThat(unitPrice).isEqualByComparingTo(new BigDecimal("1.00"));
-
-        String idem2 = "ac03-c-" + UUID.randomUUID();
-        given()
-                .header("Authorization", authHeader(token))
-                .contentType(ContentType.JSON)
-                .body(
-                        "{\"productId\":"
-                                + productId
-                                + ",\"machineId\":"
-                                + machineId
-                                + ",\"paymentToken\":\"tok_ac03b\",\"idempotencyKey\":\""
-                                + idem2
-                                + "\",\"price\":-1}")
-                .post("/api/sales/purchase")
-                .then()
-                .statusCode(201)
-                .body("status", org.hamcrest.Matchers.equalTo("COMPLETED"));
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> salesAfter =
-                given()
-                        .header("Authorization", authHeader(token))
-                        .get("/api/sales/me")
-                        .then()
-                        .statusCode(200)
-                        .extract()
-                        .jsonPath()
-                        .getList("$");
-
-        BigDecimal lastPrice =
-                new BigDecimal(salesAfter.get(salesAfter.size() - 1).get("unitPrice").toString());
-        assertThat(lastPrice).isEqualByComparingTo(new BigDecimal("1.00"));
     }
 
     /**
@@ -448,48 +456,56 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
      */
     @Test
     void ac08_telemetryEndpointValidationAndBurst() {
+        String timestamp = java.time.LocalDateTime.now().minusSeconds(5).toString();
         String validPayload =
-                "{\"machine\":{\"code\":\"VM-LIS-001\"},\"cpuUsage\":45.0,\"memoryUsage\":60.0,"
-                        + "\"diskUsage\":30.0,\"status\":\"ONLINE\",\"uptimeSeconds\":3600,"
-                        + "\"totalSalesToday\":5,\"temperatureCelsius\":22.5,"
-                        + "\"timestamp\":\"2026-05-16T10:00:00\"}";
+                "{\"serialNumber\":\"VM-LIS-001\",\"temperature\":22.5,"
+                        + "\"stockLevels\":{\"A1\":10,\"A2\":12,\"B1\":8},\"statusCode\":\"ONLINE\",\"errorCodes\":[],"
+                        + "\"timestamp\":\"" + timestamp + "\"}";
 
         given()
                 .contentType(ContentType.JSON)
+                .header("X-Machine-CN", "VM-LIS-001")
                 .body(validPayload)
-                .post("/api/telemetry")
+                .post("/api/machines/telemetry")
                 .then()
-                .statusCode(200);
+                .statusCode(200)
+                .body("accepted", org.hamcrest.Matchers.equalTo(true));
 
-        given().contentType(ContentType.JSON).post("/api/telemetry").then().statusCode(400);
+        given().contentType(ContentType.JSON).post("/api/machines/telemetry").then().statusCode(400);
 
         given()
                 .contentType(ContentType.JSON)
+                .header("X-Machine-CN", "VM-NO-SUCH")
                 .body(
-                        "{\"machine\":{\"code\":\"VM-NO-SUCH\"},\"cpuUsage\":1.0,\"memoryUsage\":1.0,"
-                                + "\"diskUsage\":1.0,\"status\":\"ONLINE\",\"uptimeSeconds\":1,"
-                                + "\"totalSalesToday\":0,\"temperatureCelsius\":20.0,"
-                                + "\"timestamp\":\"2026-05-16T10:00:00\"}")
-                .post("/api/telemetry")
+                        "{\"serialNumber\":\"VM-NO-SUCH\",\"temperature\":20.0,"
+                                + "\"stockLevels\":{\"A1\":10},\"statusCode\":\"ONLINE\",\"errorCodes\":[],"
+                                + "\"timestamp\":\"" + timestamp + "\"}")
+                .post("/api/machines/telemetry")
                 .then()
-                .statusCode(400);
+                .statusCode(403);
 
         int successes = 0;
-        for (int i = 0; i < 20; i++) {
+        int rateLimited = 0;
+        for (int i = 0; i < 5; i++) {
             int code =
                     given()
                             .contentType(ContentType.JSON)
+                            .header("X-Machine-CN", "VM-LIS-001")
                             .body(validPayload)
-                            .post("/api/telemetry")
+                            .post("/api/machines/telemetry")
                             .then()
                             .extract()
                             .statusCode();
             if (code >= 200 && code < 300) {
                 successes++;
             }
+            if (code == 429) {
+                rateLimited++;
+            }
             assertThat(code).isNotEqualTo(500);
         }
         assertThat(successes).isPositive();
+        assertThat(rateLimited).isPositive();
     }
 
     /**

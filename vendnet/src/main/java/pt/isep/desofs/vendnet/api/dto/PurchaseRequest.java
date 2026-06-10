@@ -23,5 +23,6 @@ public class PurchaseRequest {
 	@NotBlank
 	private String paymentToken;
 
+	@NotBlank
 	private String idempotencyKey;
 }

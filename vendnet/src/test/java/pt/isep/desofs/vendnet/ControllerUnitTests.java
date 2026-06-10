@@ -44,6 +44,7 @@ import pt.isep.desofs.vendnet.application.service.UserManagementService;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.sale.Sale;
+import pt.isep.desofs.vendnet.infrastructure.os.BackupResult;
 import pt.isep.desofs.vendnet.infrastructure.os.BackupService;
 import pt.isep.desofs.vendnet.infrastructure.os.ReportDirectoryService;
 
@@ -97,7 +98,7 @@ class ControllerUnitTests {
             // AAA: Assert — expect 200, token, email, role
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"user@vendnet.io\",\"password\":\"Test@1234\"}"))
+                            .content("{\"username\":\"user\",\"password\":\"Test@1234\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.token").value("jwt-token-abc123"))
                     .andExpect(jsonPath("$.email").value("user@vendnet.io"))
@@ -425,12 +426,20 @@ class ControllerUnitTests {
         void triggerBackup_returnsInitiated() throws Exception {
             // SUT: OperationsController.triggerBackup()
             // Unit Test / White Box
-            // AAA: Arrange — backupService.generateBackup() is void, no mock setup needed
+            // AAA: Arrange
+            when(backupService.generateBackup())
+                    .thenReturn(BackupResult.builder()
+                            .filename("vendnet-backup.sql.enc")
+                            .size(42L)
+                            .checksum("a".repeat(64))
+                            .timestamp(LocalDateTime.now())
+                            .build());
             // AAA: Act
             // AAA: Assert
             mockMvc.perform(post("/api/admin/operations/backup"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("backup initiated"));
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.filename").exists())
+                    .andExpect(jsonPath("$.checksum").exists());
         }
 
         @Test

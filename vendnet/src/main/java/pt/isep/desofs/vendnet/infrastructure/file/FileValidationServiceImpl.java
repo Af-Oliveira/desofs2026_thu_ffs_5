@@ -89,8 +89,8 @@ public class FileValidationServiceImpl implements FileValidationService {
 
 	private boolean crossCheckMagicBytesWithExtension(MultipartFile file) {
 		try {
-			byte[] firstBytes = file.getInputStream().readNBytes(16);
-			file.getInputStream().reset();
+			byte[] bytes = file.getBytes();
+			byte[] firstBytes = java.util.Arrays.copyOf(bytes, Math.min(bytes.length, 16));
 
 			String magicMime = tika.detect(new ByteArrayInputStream(firstBytes));
 			String ext = file.getOriginalFilename();

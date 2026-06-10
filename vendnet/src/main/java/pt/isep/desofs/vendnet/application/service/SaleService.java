@@ -63,21 +63,19 @@ public class SaleService {
 			throw new IllegalArgumentException("Product is not available");
 		}
 
-		String idempotencyKey =
-				request.getIdempotencyKey() != null
-						? request.getIdempotencyKey()
-						: UUID.randomUUID().toString();
+			String idempotencyKey = request.getIdempotencyKey();
 
 		Optional<IdempotencyRecord> existing =
 				idempotencyRepository.findByIdempotencyKey(idempotencyKey);
 		if (existing.isPresent()) {
 			log.info("Duplicate purchase request detected: key={}", idempotencyKey);
-			return PurchaseResponse.builder()
-					.saleId(String.valueOf(existing.get().getSaleId()))
-					.status("DUPLICATE")
-					.message("Purchase already processed")
-					.build();
-		}
+				return PurchaseResponse.builder()
+						.saleId(String.valueOf(existing.get().getSaleId()))
+						.status("DUPLICATE")
+						.transactionRef(existing.get().getResponseBody())
+						.message("Purchase already processed")
+						.build();
+			}
 
 		Slot slot =
 				slotRepository
@@ -100,17 +98,23 @@ public class SaleService {
 		BigDecimal unitPrice = product.getPrice();
 		BigDecimal totalAmount = unitPrice;
 
-		PaymentInfo paymentInfo;
-		try {
-			paymentGatewayService.authorizePayment(request.getPaymentToken(), totalAmount);
-			paymentInfo =
-					PaymentInfo.builder().method("CARD").status(PayStatus.COMPLETED.name()).build();
-		} catch (RuntimeException e) {
-			slot.releaseReservation();
-			slot.setUpdatedAt(LocalDateTime.now());
-			slotRepository.save(slot);
+			PaymentInfo paymentInfo;
+			try {
+				paymentGatewayService.authorizePayment(request.getPaymentToken(), totalAmount);
+				String transactionRef = "txn_" + UUID.randomUUID();
+				paymentInfo =
+						PaymentInfo.builder()
+								.method("CARD")
+								.transactionRef(transactionRef)
+								.status(PayStatus.COMPLETED.name())
+								.build();
+			} catch (RuntimeException e) {
+				String reason = e.getMessage() == null ? "Payment error" : e.getMessage();
+				slot.releaseReservation();
+				slot.setUpdatedAt(LocalDateTime.now());
+				slotRepository.save(slot);
 
-			LocalDateTime now = LocalDateTime.now();
+				LocalDateTime now = LocalDateTime.now();
 			Sale failedSale =
 					Sale.builder()
 							.machine(slot.getMachine())
@@ -121,17 +125,32 @@ public class SaleService {
 							.totalAmount(totalAmount)
 							.unitPrice(unitPrice)
 							.paymentInfo(
-									PaymentInfo.builder()
-											.method("CARD")
-											.status(PayStatus.FAILED.name())
-											.build())
+												PaymentInfo.builder()
+												.method("CARD")
+												.status(
+														("GATEWAY_TIMEOUT".equals(reason) || "NETWORK_ERROR".equals(reason))
+																? PayStatus.PENDING_VERIFICATION.name()
+																: PayStatus.FAILED.name())
+												.build())
 							.saleDate(now)
 							.createdAt(now)
 							.build();
-			saleRepository.save(failedSale);
+				Sale savedFailure = saleRepository.save(failedSale);
 
-			throw new PaymentDeclinedException("Payment declined: " + e.getMessage());
-		}
+				if ("GATEWAY_TIMEOUT".equals(reason) || "NETWORK_ERROR".equals(reason)) {
+					return PurchaseResponse.builder()
+							.saleId(String.valueOf(savedFailure.getId()))
+							.status("PENDING_VERIFICATION")
+							.statusUrl("/api/sales/" + savedFailure.getId() + "/status")
+							.message(
+									"GATEWAY_TIMEOUT".equals(reason)
+											? "Payment pending verification"
+											: "Retrying payment with same idempotency key")
+							.build();
+				}
+
+				throw new PaymentDeclinedException("Payment declined: " + reason);
+			}
 
 		slot.setUpdatedAt(LocalDateTime.now());
 		slotRepository.save(slot);
@@ -155,9 +174,10 @@ public class SaleService {
 
 		idempotencyRepository.save(
 				IdempotencyRecord.builder()
-						.idempotencyKey(idempotencyKey)
-						.responseStatus("COMPLETED")
-						.saleId(saved.getId())
+							.idempotencyKey(idempotencyKey)
+							.responseStatus("COMPLETED")
+							.responseBody(paymentInfo.getTransactionRef())
+							.saleId(saved.getId())
 						.createdAt(now)
 						.build());
 
@@ -169,9 +189,10 @@ public class SaleService {
 				totalAmount);
 
 		return PurchaseResponse.builder()
-				.saleId(String.valueOf(saved.getId()))
-				.status("COMPLETED")
-				.message("Purchase completed successfully")
-				.build();
+					.saleId(String.valueOf(saved.getId()))
+					.status("COMPLETED")
+					.transactionRef(paymentInfo.getTransactionRef())
+					.message("Purchase completed successfully")
+					.build();
 	}
 }

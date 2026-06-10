@@ -50,14 +50,16 @@ class GlobalExceptionHandlerTest {
 	@Test
 	void handleAccountLocked_shouldReturn401() {
 		ResponseEntity<ApiError> response = handler.handleAccountLocked(new AccountLockedException("locked"));
-		assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+		assertEquals(HttpStatus.LOCKED, response.getStatusCode());
+		assertEquals(423, response.getBody().getStatus());
 		assertEquals("Account Locked", response.getBody().getError());
 	}
 
 	@Test
 	void handleDisabled_shouldReturn401() {
 		ResponseEntity<ApiError> response = handler.handleDisabled(new DisabledException("suspended"));
-		assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+		assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+		assertEquals(403, response.getBody().getStatus());
 		assertEquals("Account Disabled", response.getBody().getError());
 	}
 

@@ -82,7 +82,7 @@ class ControllerIntegrationTests {
             // AAA: Act — login
             String resp = mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"int-test@vendnet.com\",\"password\":\"IntTest@1234\"}"))
+                            .content("{\"username\":\"inttest\",\"password\":\"IntTest@1234\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.token").isString())
                     .andReturn().getResponse().getContentAsString();
@@ -381,6 +381,7 @@ class ControllerIntegrationTests {
     private String tokenForRole(String email, Role role) {
         User user = userRepository.findByEmail(email).orElseGet(() -> {
             User u = User.builder()
+                    .username(usernameFromEmail(email))
                     .email(email)
                     .password(passwordEncoder.encode("Test@1234"))
                     .name("Test " + role.name())
@@ -391,6 +392,10 @@ class ControllerIntegrationTests {
                     .build();
             return userRepository.save(u);
         });
-        return jwtService.generateToken(user.getEmail());
+        return jwtService.generateToken(user.getId(), role.name());
+    }
+
+    private String usernameFromEmail(String email) {
+        return email.substring(0, email.indexOf('@')).replaceAll("[^A-Za-z0-9]", "");
     }
 }

@@ -6,7 +6,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.UUID;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,9 +66,19 @@ public class FileStorageServiceImpl implements FileStorageService {
 			String checksum = validator.computeChecksum(strippedBytes);
 			log.info("Image checksum (SHA-256): {}", checksum);
 
-			Files.write(targetFile, strippedBytes, StandardOpenOption.CREATE_NEW);
+				Files.write(targetFile, strippedBytes, StandardOpenOption.CREATE_NEW);
+				try {
+					Files.setPosixFilePermissions(
+							targetFile,
+							Set.of(
+									PosixFilePermission.OWNER_READ,
+									PosixFilePermission.OWNER_WRITE,
+									PosixFilePermission.GROUP_READ));
+				} catch (UnsupportedOperationException ignored) {
+					// Non-POSIX filesystems keep default permissions.
+				}
 
-			String relativePath = Path.of(basePath).relativize(targetFile).toString();
+			String relativePath = sandbox.relativize(targetFile).toString();
 			log.info("File stored: {} (checksum: {})", relativePath, checksum);
 
 			return relativePath;

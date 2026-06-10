@@ -12,10 +12,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pt.isep.desofs.vendnet.api.view.ApiError;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
+import pt.isep.desofs.vendnet.domain.exception.CapacityExceededException;
 import pt.isep.desofs.vendnet.domain.exception.DisabledException;
+import pt.isep.desofs.vendnet.domain.exception.ForbiddenOperationException;
 import pt.isep.desofs.vendnet.domain.exception.MachineOfflineException;
 import pt.isep.desofs.vendnet.domain.exception.OutOfStockException;
 import pt.isep.desofs.vendnet.domain.exception.PaymentDeclinedException;
+import pt.isep.desofs.vendnet.domain.exception.RateLimitException;
 import pt.isep.desofs.vendnet.domain.exception.UnauthorizedException;
 
 @Slf4j
@@ -51,24 +54,24 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiError> handleAccountLocked(AccountLockedException ex) {
 		ApiError error =
 				ApiError.builder()
-						.status(HttpStatus.UNAUTHORIZED.value())
+						.status(HttpStatus.LOCKED.value())
 						.error("Account Locked")
 						.message(ex.getMessage())
 						.timestamp(LocalDateTime.now())
 						.build();
-		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+			return ResponseEntity.status(HttpStatus.LOCKED).body(error);
 	}
 
 	@ExceptionHandler(DisabledException.class)
 	public ResponseEntity<ApiError> handleDisabled(DisabledException ex) {
 		ApiError error =
 				ApiError.builder()
-						.status(HttpStatus.UNAUTHORIZED.value())
+						.status(HttpStatus.FORBIDDEN.value())
 						.error("Account Disabled")
 						.message(ex.getMessage())
 						.timestamp(LocalDateTime.now())
 						.build();
-		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
 	}
 
 	@ExceptionHandler(IllegalArgumentException.class)
@@ -149,6 +152,42 @@ public class GlobalExceptionHandler {
 						.timestamp(LocalDateTime.now())
 						.build();
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+	}
+
+	@ExceptionHandler(CapacityExceededException.class)
+	public ResponseEntity<ApiError> handleCapacityExceeded(CapacityExceededException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.UNPROCESSABLE_ENTITY.value())
+						.error("Unprocessable Entity")
+						.message(ex.getMessage())
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
+	}
+
+	@ExceptionHandler(RateLimitException.class)
+	public ResponseEntity<ApiError> handleRateLimit(RateLimitException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.TOO_MANY_REQUESTS.value())
+						.error("Too Many Requests")
+						.message(ex.getMessage())
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
+	}
+
+	@ExceptionHandler(ForbiddenOperationException.class)
+	public ResponseEntity<ApiError> handleForbiddenOperation(ForbiddenOperationException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.FORBIDDEN.value())
+						.error("Forbidden")
+						.message(ex.getMessage())
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
 	}
 
 	@ExceptionHandler(PaymentDeclinedException.class)

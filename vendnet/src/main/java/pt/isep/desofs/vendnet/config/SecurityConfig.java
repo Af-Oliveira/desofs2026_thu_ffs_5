@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -35,6 +36,9 @@ public class SecurityConfig {
     private final IastTaintTrackingFilter iastTaintTrackingFilter;
     private final CorrelationIdFilter correlationIdFilter;
 
+    @Value("${app.telemetry.allow-header-cn:false}")
+    private boolean allowTelemetryHeaderCn;
+
     @Bean
     public FilterRegistrationBean<CorrelationIdFilter> correlationIdFilterRegistration() {
         FilterRegistrationBean<CorrelationIdFilter> registration = new FilterRegistrationBean<>();
@@ -47,8 +51,8 @@ public class SecurityConfig {
     @Bean
     public FilterRegistrationBean<X509MachineAuthenticationFilter> x509FilterRegistration() {
         FilterRegistrationBean<X509MachineAuthenticationFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new X509MachineAuthenticationFilter());
-        registration.addUrlPatterns("/api/telemetry/*");
+        registration.setFilter(new X509MachineAuthenticationFilter(allowTelemetryHeaderCn));
+        registration.addUrlPatterns("/api/telemetry", "/api/telemetry/*", "/api/machines/telemetry");
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
         return registration;
     }
@@ -64,7 +68,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/mfa/verify").permitAll()
                 .requestMatchers("/api/health/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/telemetry").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/telemetry", "/api/machines/telemetry").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/actuator/prometheus").permitAll()

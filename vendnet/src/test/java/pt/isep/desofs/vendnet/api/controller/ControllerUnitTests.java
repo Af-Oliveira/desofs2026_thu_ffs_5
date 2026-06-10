@@ -71,9 +71,10 @@ class ControllerUnitTests {
 	@Test
 	void adminCreateUser_shouldReturnCreated() {
 		LocalDateTime now = LocalDateTime.now();
-		when(userManagementService.createUser(anyString(), anyString(), anyString(), anyString()))
+		when(userManagementService.createUser(anyString(), anyString(), anyString(), anyString(), anyString(), anyLong()))
 				.thenReturn(UserResponse.builder().id(1L).email("test@test.com").name("Test").role("ROLE_CUSTOMER").createdAt(now).build());
-		CreateUserRequest request = new CreateUserRequest("test@test.com", "Pass@1234", "Test", "ROLE_CUSTOMER");
+		CreateUserRequest request =
+				new CreateUserRequest("test", "test@test.com", "Pass@123456", "Test", "ROLE_CUSTOMER");
 		ResponseEntity<UserResponse> response = adminController.createUser(request);
 		assertEquals(HttpStatus.CREATED, response.getStatusCode());
 		assertEquals("test@test.com", response.getBody().getEmail());

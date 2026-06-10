@@ -1,7 +1,9 @@
 package pt.isep.desofs.vendnet.application.service;
 
 import java.math.BigDecimal;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,25 +37,70 @@ public class ProductService {
 	@PreAuthorize("hasRole('ADMINISTRATOR')")
 	public Product createProduct(
 			String name, String description, BigDecimal price, String sku, MultipartFile image) {
-		String imageUrl = null;
-		if (image != null && !image.isEmpty()) {
-			imageUrl = fileStorageService.store(image, "products");
+		return createProduct(name, description, price, "EUR", "GENERAL", sku, image);
+	}
+
+	@PreAuthorize("hasRole('ADMINISTRATOR')")
+	public Product createProduct(
+			String name,
+			String description,
+			BigDecimal price,
+			String currency,
+			String category,
+			String sku,
+			MultipartFile image) {
+		if (name == null || name.isBlank() || name.length() > 100 || containsHtml(name)) {
+			throw new IllegalArgumentException("Invalid product name");
 		}
+		if (description != null && description.length() > 500) {
+			throw new IllegalArgumentException("Invalid product description");
+		}
+		if (price == null || price.compareTo(BigDecimal.ZERO) <= 0 || price.scale() > 2) {
+			throw new IllegalArgumentException("Invalid product price");
+		}
+		if (currency == null || !currency.matches("^[A-Z]{3}$")) {
+			throw new IllegalArgumentException("Invalid currency");
+		}
+		if (category == null || !category.matches("^[A-Z_]{2,50}$")) {
+			throw new IllegalArgumentException("Invalid category");
+		}
+			String imageUrl = null;
+			String imageChecksum = null;
+			if (image != null && !image.isEmpty()) {
+				imageChecksum = checksum(image);
+				imageUrl = fileStorageService.store(image, "products");
+			}
 
 		LocalDateTime now = LocalDateTime.now();
 		Product product =
 				Product.builder()
 						.name(name)
-						.description(description)
-						.price(price)
-						.sku(sku)
-						.imageUrl(imageUrl)
-						.active(true)
+							.description(description)
+							.price(price)
+							.sku(sku)
+							.currency(currency)
+							.category(category)
+							.imageUrl(imageUrl)
+							.imageChecksum(imageChecksum)
+							.active(true)
 						.createdAt(now)
 						.updatedAt(now)
 						.build();
 
-		return productRepository.save(product);
+			return productRepository.save(product);
+		}
+
+	private boolean containsHtml(String value) {
+		String lower = value.toLowerCase();
+		return lower.contains("<script") || lower.contains("</") || lower.contains(">");
+	}
+
+	private String checksum(MultipartFile image) {
+		try {
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(image.getBytes()));
+		} catch (Exception e) {
+			throw new IllegalArgumentException("Unable to checksum image", e);
+		}
 	}
 
 	@PreAuthorize("hasRole('ADMINISTRATOR')")

@@ -136,7 +136,7 @@ class IastIntegrationTest {
     void commandInjectionTaint_isNotDetected_forNormalRequests() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"iast-test@vendnet.com\",\"password\":\"Test@1234\"}"))
+                        .content("{\"username\":\"iasttest\",\"password\":\"Test@1234\"}"))
                 .andExpect(status().isOk());
 
         List<IastTaintTrackingFilter.TaintFlow> flows =
@@ -166,6 +166,7 @@ class IastIntegrationTest {
         userRepository.findByEmail(email).orElseGet(() -> {
             LocalDateTime now = LocalDateTime.now();
             return userRepository.save(User.builder()
+                    .username(usernameFromEmail(email))
                     .email(email)
                     .password(passwordEncoder.encode("Test@1234"))
                     .name(role.name())
@@ -174,6 +175,11 @@ class IastIntegrationTest {
                     .updatedAt(now)
                     .build());
         });
-        return jwtService.generateToken(email, role.name());
+        User user = userRepository.findByEmail(email).orElseThrow();
+        return jwtService.generateToken(user.getId(), role.name());
+    }
+
+    private String usernameFromEmail(String email) {
+        return email.substring(0, email.indexOf('@')).replaceAll("[^A-Za-z0-9]", "");
     }
 }

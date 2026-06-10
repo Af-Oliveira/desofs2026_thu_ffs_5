@@ -34,6 +34,7 @@ public class AuthService {
 	private static final int TOTP_PERIOD = 30;
 	private static final int TOTP_DIGITS = 6;
 	private static final String TOTP_ALGORITHM = "HmacSHA1";
+	private static final int MAX_USERNAME_LENGTH = 30;
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -47,9 +48,11 @@ public class AuthService {
 		}
 
 		LocalDateTime now = LocalDateTime.now();
+		String username = uniqueRegistrationUsername(request.getEmail(), now);
 
 		User user =
 				User.builder()
+						.username(username)
 						.email(request.getEmail())
 						.password(passwordEncoder.encode(request.getPassword()))
 						.name(request.getName())
@@ -61,7 +64,7 @@ public class AuthService {
 
 		userRepository.save(user);
 
-		String token = jwtService.generateToken(user.getEmail());
+		String token = issueAccessToken(user);
 
 		auditLogRepository.save(
 				AuditLog.builder()
@@ -76,20 +79,29 @@ public class AuthService {
 
 		return AuthResponse.builder()
 				.token(token)
-				.email(user.getEmail())
-				.name(user.getName())
-				.role(user.getRole().name())
+				.accessToken(token)
+				.refreshToken(jwtService.generateRefreshToken(user.getId()))
+					.expiresIn(jwtService.getExpirationSeconds())
+					.email(user.getEmail())
+					.username(user.getUsername())
+					.name(user.getName())
+					.role(user.getRole().name())
 				.mfaRequired(false)
 				.build();
 	}
 
 	@PreAuthorize("permitAll()")
 	public AuthResponse login(LoginRequest request) {
-		Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
+		Optional<User> userOpt = userRepository.findByUsername(request.getUsername());
+		if (userOpt.isEmpty() && request.getUsername() != null && request.getUsername().contains("@")) {
+			userOpt = userRepository.findByEmail(request.getUsername());
+		}
 
 		if (userOpt.isEmpty()) {
-			passwordEncoder.encode("dummy-password-for-timing-attack-protection");
-			throw new UnauthorizedException("Invalid email or password");
+			passwordEncoder.matches(
+					request.getPassword(),
+					"$2a$12$RqJbK5l7aXxZ3F9hWZkW3.6bUMq4gmx6PjPS7bi1Yp0LcXRH9R5Qe");
+			throw new UnauthorizedException("Invalid username or password");
 		}
 
 		User user = userOpt.get();
@@ -100,7 +112,7 @@ public class AuthService {
 			auditLogRepository.save(
 					AuditLog.builder()
 							.eventType("LOGIN_DENIED_INACTIVE")
-							.principal(user.getEmail())
+							.principal(user.getUsername())
 							.details("Account is suspended")
 							.resource("User")
 							.action("LOGIN")
@@ -109,6 +121,16 @@ public class AuthService {
 							.build());
 			throw e;
 		} catch (AccountLockedException e) {
+			auditLogRepository.save(
+					AuditLog.builder()
+							.eventType("LOGIN_DENIED_INACTIVE")
+							.principal(user.getUsername())
+							.details("Account is locked")
+							.resource("User")
+							.action("LOGIN")
+							.outcome("DENIED")
+							.timestamp(LocalDateTime.now())
+							.build());
 			throw e;
 		}
 
@@ -120,28 +142,28 @@ public class AuthService {
 				auditLogRepository.save(
 						AuditLog.builder()
 								.eventType("ACCOUNT_LOCKED")
-								.principal(user.getEmail())
+									.principal(user.getUsername())
 								.details("Account locked after " + user.getFailedAttempts() + " failed attempts")
 								.resource("User")
 								.action("LOCK")
 								.outcome("LOCKED")
-								.timestamp(LocalDateTime.now())
-								.build());
-				throw new AccountLockedException(
-						"Account is temporarily locked. Try again in 30 minutes.");
+									.timestamp(LocalDateTime.now())
+									.build());
+					throw new AccountLockedException(
+							"Account is temporarily locked. Try again in 30 minutes.");
 			}
 
 			auditLogRepository.save(
 					AuditLog.builder()
 							.eventType("LOGIN_FAILED")
-							.principal(user.getEmail())
+								.principal(user.getUsername())
 							.details("Invalid password")
 							.resource("User")
 							.action("LOGIN")
 							.outcome("FAILED")
 							.timestamp(LocalDateTime.now())
 							.build());
-			throw new UnauthorizedException("Invalid email or password");
+			throw new UnauthorizedException("Invalid username or password");
 		}
 
 		user.resetFailedAttempts();
@@ -150,7 +172,7 @@ public class AuthService {
 		auditLogRepository.save(
 				AuditLog.builder()
 						.eventType("LOGIN_SUCCESS")
-						.principal(user.getEmail())
+							.principal(user.getUsername())
 						.details("User logged in successfully")
 						.resource("User")
 						.action("LOGIN")
@@ -159,21 +181,26 @@ public class AuthService {
 						.build());
 
 		if (user.getRole() == Role.ROLE_ADMINISTRATOR && user.getTotpSecret() != null) {
-			return AuthResponse.builder()
-					.email(user.getEmail())
-					.name(user.getName())
+				return AuthResponse.builder()
+						.email(user.getEmail())
+						.username(user.getUsername())
+						.name(user.getName())
 					.role(user.getRole().name())
 					.mfaRequired(true)
 					.build();
 		}
 
-		String token = jwtService.generateToken(user.getEmail());
+		String token = issueAccessToken(user);
 
 		return AuthResponse.builder()
 				.token(token)
-				.email(user.getEmail())
-				.name(user.getName())
-				.role(user.getRole().name())
+				.accessToken(token)
+					.refreshToken(jwtService.generateRefreshToken(user.getId()))
+					.expiresIn(jwtService.getExpirationSeconds())
+					.email(user.getEmail())
+					.username(user.getUsername())
+					.name(user.getName())
+					.role(user.getRole().name())
 				.mfaRequired(false)
 				.build();
 	}
@@ -197,11 +224,15 @@ public class AuthService {
 			throw new UnauthorizedException("Invalid MFA code");
 		}
 
-		String token = jwtService.generateToken(user.getEmail());
+		String token = issueAccessToken(user);
 
 		return AuthResponse.builder()
 				.token(token)
+				.accessToken(token)
+				.refreshToken(jwtService.generateRefreshToken(user.getId()))
+				.expiresIn(jwtService.getExpirationSeconds())
 				.email(user.getEmail())
+				.username(user.getUsername())
 				.name(user.getName())
 				.role(user.getRole().name())
 				.mfaRequired(false)
@@ -214,11 +245,49 @@ public class AuthService {
 		return Base64.getEncoder().encodeToString(secret);
 	}
 
+	private String issueAccessToken(User user) {
+		if (user.getId() != null) {
+			return jwtService.generateToken(user.getId(), user.getRole().name());
+		}
+		return jwtService.generateToken(user.getEmail());
+	}
+
+	private String uniqueRegistrationUsername(String email, LocalDateTime now) {
+		int atIndex = email.indexOf('@');
+		String base =
+				(atIndex > 0 ? email.substring(0, atIndex) : email)
+						.replaceAll("[^A-Za-z0-9]", "");
+		if (base.length() < 3) {
+			base = "user" + now.getNano();
+		}
+		base = limitUsername(base);
+
+		String candidate = base;
+		int attempt = 0;
+		while (userRepository.existsByUsername(candidate)) {
+			String suffix = String.valueOf(now.getNano() + attempt++);
+			int prefixLength = Math.max(3, MAX_USERNAME_LENGTH - suffix.length());
+			candidate = limitUsername(base).substring(0, Math.min(base.length(), prefixLength)) + suffix;
+			if (attempt > 1000) {
+				throw new IllegalStateException("Unable to generate unique username");
+			}
+		}
+		return candidate;
+	}
+
+	private String limitUsername(String username) {
+		if (username.length() <= MAX_USERNAME_LENGTH) {
+			return username;
+		}
+		return username.substring(0, MAX_USERNAME_LENGTH);
+	}
+
 	@PreAuthorize("isAuthenticated()")
-	public UserResponse getCurrentUser(String email) {
+	public UserResponse getCurrentUser(String username) {
 		User user =
 				userRepository
-						.findByEmail(email)
+						.findByUsername(username)
+						.or(() -> userRepository.findByEmail(username))
 						.orElseThrow(() -> new IllegalArgumentException("User not found"));
 
 		return UserResponse.builder()

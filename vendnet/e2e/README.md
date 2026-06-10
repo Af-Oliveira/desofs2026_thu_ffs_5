@@ -15,7 +15,7 @@ End-to-end and black-box coverage as an **external HTTP client** (no access to i
 
 When **`bootstrap`** is active, `BootstrapProfileConfig` runs `BootstrapService.seed()` once at startup. That fills:
 
-- **Users (BCrypt passwords):** `admin@vendnet.io` / `Admin@1234`, `operator@vendnet.io` / `Operator@1234`, `customer@vendnet.io` / `Customer@1234`
+- **Users (username / password):** `admin` / `Admin@123456`, `operator` / `Operator@123456`, `customer` / `Customer@123456`
 - **Machines:** e.g. `VM-LIS-001`, `VM-LIS-002`, `VM-PTO-001`, `VM-FAR-001`
 - **Products (SKU examples):** `DRK-001`, `DRK-002`, …
 - **Slots, sample sales, telemetry** as defined in `BootstrapService`

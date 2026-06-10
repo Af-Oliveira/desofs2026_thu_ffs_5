@@ -41,8 +41,19 @@ public class Product {
 	@Column(nullable = false, unique = true, length = 50)
 	private String sku;
 
+	@Column(nullable = false, length = 3)
+	@Builder.Default
+	private String currency = "EUR";
+
+	@Column(nullable = false, length = 50)
+	@Builder.Default
+	private String category = "GENERAL";
+
 	@Column(length = 500)
 	private String imageUrl;
+
+	@Column(length = 64)
+	private String imageChecksum;
 
 	@Column(nullable = false)
 	private boolean active;
@@ -52,4 +63,27 @@ public class Product {
 
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	public Product(
+			Long id,
+			String name,
+			String description,
+			BigDecimal price,
+			String sku,
+			String imageUrl,
+			boolean active,
+			LocalDateTime createdAt,
+			LocalDateTime updatedAt) {
+		this.id = id;
+		this.name = name;
+		this.description = description;
+		this.price = price;
+		this.sku = sku;
+		this.currency = "EUR";
+		this.category = "GENERAL";
+		this.imageUrl = imageUrl;
+		this.active = active;
+		this.createdAt = createdAt;
+		this.updatedAt = updatedAt;
+	}
 }

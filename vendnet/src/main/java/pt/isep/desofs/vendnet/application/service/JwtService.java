@@ -39,6 +39,18 @@ public class JwtService {
 		return buildToken(email, role);
 	}
 
+	public String generateToken(Long userId, String role) {
+		return buildToken(String.valueOf(userId), role);
+	}
+
+	public String generateRefreshToken(Long userId) {
+		return buildToken("refresh:" + userId, null);
+	}
+
+	public long getExpirationSeconds() {
+		return expirationMs / 1000;
+	}
+
 	private String buildToken(String email, String role) {
 		Date now = new Date();
 		Date expiry = new Date(now.getTime() + expirationMs);
@@ -58,6 +70,10 @@ public class JwtService {
 	}
 
 	public String extractEmail(String token) {
+		return extractClaims(token).getSubject();
+	}
+
+	public String extractSubject(String token) {
 		return extractClaims(token).getSubject();
 	}
 
