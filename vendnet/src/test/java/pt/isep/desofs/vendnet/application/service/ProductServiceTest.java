@@ -113,4 +113,126 @@ class ProductServiceTest {
 		when(productRepository.findById(999L)).thenReturn(Optional.empty());
 		assertThrows(IllegalArgumentException.class, () -> productService.updateProduct(999L, new Product()));
 	}
+
+	@Test
+	void createProduct_invalidName_shouldThrow() {
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								null, "desc", new BigDecimal("1.00"), "EUR", "GENERAL", "SKU-1", null));
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"   ", "desc", new BigDecimal("1.00"), "EUR", "GENERAL", "SKU-2", null));
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"a".repeat(101),
+								"desc",
+								new BigDecimal("1.00"),
+								"EUR",
+								"GENERAL",
+								"SKU-3",
+								null));
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"<script>alert(1)</script>",
+								"desc",
+								new BigDecimal("1.00"),
+								"EUR",
+								"GENERAL",
+								"SKU-4",
+								null));
+	}
+
+	@Test
+	void createProduct_invalidDescription_shouldThrow() {
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"Coke",
+								"x".repeat(501),
+								new BigDecimal("1.00"),
+								"EUR",
+								"GENERAL",
+								"SKU-5",
+								null));
+	}
+
+	@Test
+	void createProduct_invalidPrice_shouldThrow() {
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"Coke", "desc", null, "EUR", "GENERAL", "SKU-6", null));
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"Coke", "desc", BigDecimal.ZERO, "EUR", "GENERAL", "SKU-7", null));
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"Coke",
+								"desc",
+								new BigDecimal("1.999"),
+								"EUR",
+								"GENERAL",
+								"SKU-8",
+								null));
+	}
+
+	@Test
+	void createProduct_invalidCurrencyOrCategory_shouldThrow() {
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"Coke", "desc", new BigDecimal("1.00"), "EURO", "GENERAL", "SKU-9", null));
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						productService.createProduct(
+								"Coke", "desc", new BigDecimal("1.00"), "EUR", "bad", "SKU-10", null));
+	}
+
+	@Test
+	void updateProduct_shouldUpdateOptionalFieldsWhenProvided() {
+		Product existing =
+				Product.builder()
+						.id(1L)
+						.name("Coke")
+						.description("Soda")
+						.price(new BigDecimal("1.50"))
+						.sku("SKU-001")
+						.imageUrl("/old.png")
+						.active(true)
+						.createdAt(LocalDateTime.now())
+						.updatedAt(LocalDateTime.now())
+						.build();
+		Product updated =
+				Product.builder()
+						.description("New desc")
+						.sku("SKU-002")
+						.imageUrl("/new.png")
+						.active(false)
+						.build();
+		when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+		when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		Product result = productService.updateProduct(1L, updated);
+
+		assertEquals("New desc", result.getDescription());
+		assertEquals("SKU-002", result.getSku());
+		assertEquals("/new.png", result.getImageUrl());
+		assertEquals(false, result.isActive());
+	}
 }

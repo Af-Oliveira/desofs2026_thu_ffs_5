@@ -3,10 +3,13 @@ package pt.isep.desofs.vendnet.domain.model.user;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
+import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
+import pt.isep.desofs.vendnet.domain.exception.DisabledException;
 
 class UserTest {
 
@@ -130,6 +133,78 @@ class UserTest {
 		assertEquals(now, user.getLockTime());
 		assertEquals(now, user.getLastFailedAttemptTime());
 		assertEquals("totp123", user.getTotpSecret());
+	}
+
+	@Test
+	void checkAccountStatus_suspended_shouldThrowDisabledException() {
+		User user = activeUser();
+		user.setAccountStatus(AccountStatus.SUSPENDED);
+		assertThrows(DisabledException.class, user::checkAccountStatus);
+	}
+
+	@Test
+	void checkAccountStatus_lockExpired_shouldResetAndAllowAccess() {
+		User user = activeUser();
+		user.setAccountStatus(AccountStatus.LOCKED);
+		user.setLockTime(LocalDateTime.now().minusMinutes(31));
+
+		user.checkAccountStatus();
+
+		assertEquals(AccountStatus.ACTIVE, user.getAccountStatus());
+		assertEquals(0, user.getFailedAttempts());
+	}
+
+	@Test
+	void incrementFailedAttempts_outsideWindow_shouldResetCounterBeforeIncrement() {
+		User user = activeUser();
+		user.setFailedAttempts(4);
+		user.setLastFailedAttemptTime(LocalDateTime.now().minusMinutes(20));
+
+		user.incrementFailedAttempts();
+
+		assertEquals(1, user.getFailedAttempts());
+	}
+
+	@Test
+	void incrementFailedAttempts_maxAttempts_shouldLockAccount() {
+		User user = activeUser();
+		user.setFailedAttempts(4);
+
+		user.incrementFailedAttempts();
+
+		assertEquals(AccountStatus.LOCKED, user.getAccountStatus());
+		assertNotNull(user.getLockTime());
+	}
+
+	@Test
+	void checkAccountStatus_lockedWithoutLockTime_shouldThrowAccountLockedException() {
+		User user = activeUser();
+		user.setAccountStatus(AccountStatus.LOCKED);
+		user.setLockTime(null);
+
+		assertThrows(AccountLockedException.class, user::checkAccountStatus);
+	}
+
+	@Test
+	void checkAccountStatus_locked_shouldThrowAccountLockedException() {
+		User user = activeUser();
+		user.setAccountStatus(AccountStatus.LOCKED);
+		user.setLockTime(LocalDateTime.now());
+
+		assertThrows(AccountLockedException.class, user::checkAccountStatus);
+	}
+
+	private User activeUser() {
+		LocalDateTime now = LocalDateTime.now();
+		return User.builder()
+				.email("test@vendnet.com")
+				.password("encodedPassword")
+				.name("Test User")
+				.role(Role.ROLE_CUSTOMER)
+				.accountStatus(AccountStatus.ACTIVE)
+				.createdAt(now)
+				.updatedAt(now)
+				.build();
 	}
 
 	@Test

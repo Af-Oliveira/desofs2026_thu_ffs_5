@@ -157,4 +157,76 @@ class UserManagementServiceTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> userManagementService.updateUser(999L, null, null, null));
 	}
+
+	@Test
+	void createUser_usernameAlreadyTaken_shouldThrowException() {
+		when(userRepository.existsByUsername("taken")).thenReturn(true);
+
+		assertThrows(
+				IllegalArgumentException.class,
+				() ->
+						userManagementService.createUser(
+								"taken", "new@test.com", "pass123", "New User", "ROLE_CUSTOMER", 1L));
+	}
+
+	@Test
+	void updateUser_invalidRole_shouldThrowException() {
+		LocalDateTime now = LocalDateTime.now();
+		User user =
+				User.builder()
+						.id(1L)
+						.email("test@test.com")
+						.name("Test")
+						.role(Role.ROLE_CUSTOMER)
+						.accountStatus(AccountStatus.ACTIVE)
+						.createdAt(now)
+						.updatedAt(now)
+						.build();
+		when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+		assertThrows(
+				IllegalArgumentException.class,
+				() -> userManagementService.updateUser(1L, null, "BAD_ROLE", null));
+	}
+
+	@Test
+	void updateUser_invalidAccountStatus_shouldThrowException() {
+		LocalDateTime now = LocalDateTime.now();
+		User user =
+				User.builder()
+						.id(1L)
+						.email("test@test.com")
+						.name("Test")
+						.role(Role.ROLE_CUSTOMER)
+						.accountStatus(AccountStatus.ACTIVE)
+						.createdAt(now)
+						.updatedAt(now)
+						.build();
+		when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+		assertThrows(
+				IllegalArgumentException.class,
+				() -> userManagementService.updateUser(1L, null, null, "INVALID_STATUS"));
+	}
+
+	@Test
+	void updateUser_shouldUpdateName() {
+		LocalDateTime now = LocalDateTime.now();
+		User user =
+				User.builder()
+						.id(1L)
+						.email("test@test.com")
+						.name("Old")
+						.role(Role.ROLE_CUSTOMER)
+						.accountStatus(AccountStatus.ACTIVE)
+						.createdAt(now)
+						.updatedAt(now)
+						.build();
+		when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+		when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		UserResponse result = userManagementService.updateUser(1L, "New Name", null, null);
+
+		assertEquals("New Name", result.getName());
+	}
 }

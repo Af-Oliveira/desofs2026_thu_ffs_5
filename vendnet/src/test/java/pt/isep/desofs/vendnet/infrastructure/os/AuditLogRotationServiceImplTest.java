@@ -1,5 +1,6 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +38,18 @@ class AuditLogRotationServiceImplTest {
 		service = new AuditLogRotationServiceImpl(pathValidator);
 		ReflectionTestUtils.setField(service, "vendnetRoot", tempDir.toString());
 		Files.createDirectories(tempDir.resolve("logs/audit"));
+	}
+
+	@Test
+	void rotate_invalidSandbox_shouldNotThrow() {
+		when(pathValidator.isValidPath(any(), any())).thenReturn(false);
+		assertDoesNotThrow(() -> service.rotate());
+	}
+
+	@Test
+	void deleteAfterDays_invalidSandbox_shouldNotThrow() {
+		when(pathValidator.isValidPath(any(), any())).thenReturn(false);
+		assertDoesNotThrow(() -> service.deleteAfterDays(7));
 	}
 
 	@Test

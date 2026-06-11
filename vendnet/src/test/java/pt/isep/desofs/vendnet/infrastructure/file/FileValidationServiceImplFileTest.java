@@ -3,6 +3,7 @@ package pt.isep.desofs.vendnet.infrastructure.file;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -59,6 +60,18 @@ class FileValidationServiceImplFileTest {
 		MockMultipartFile file =
 				new MockMultipartFile("image", "broken.jpg", "image/jpeg", truncated);
 		assertThrows(IllegalArgumentException.class, () -> validator.validate(file));
+	}
+
+	@Test
+	void validate_validJpegWithJpegExtension_shouldNotThrow() throws IOException {
+		MockMultipartFile file =
+				new MockMultipartFile("image", "photo.jpeg", "image/jpeg", createJpegBytes());
+		assertDoesNotThrow(() -> validator.validate(file));
+	}
+
+	@Test
+	void isAllowedContentType_uppercase_shouldReturnTrue() {
+		assertTrue(validator.isAllowedContentType("IMAGE/PNG"));
 	}
 
 	@Test
