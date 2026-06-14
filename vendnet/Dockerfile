@@ -1,5 +1,5 @@
 # Build stage: compile the Spring Boot application
-FROM eclipse-temurin:17-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /app
 COPY mvnw pom.xml ./
 COPY .mvn/ .mvn/
@@ -8,7 +8,7 @@ COPY src/ src/
 RUN ./mvnw -B package -DskipTests
 
 # Runtime stage: multi-architecture JRE image
-FROM eclipse-temurin:17-jre-jammy AS runtime
+FROM eclipse-temurin:25-jre-jammy AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends wget default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
