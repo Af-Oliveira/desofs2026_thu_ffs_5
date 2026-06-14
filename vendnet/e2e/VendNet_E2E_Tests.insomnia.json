@@ -27,7 +27,24 @@
         "webhookSecret": "e2e-webhook-secret",
         "adminUsername": "admin",
         "operatorUsername": "operator",
-        "customerUsername": "customer"
+        "customerUsername": "customer",
+        "registeredCustomerEmail": "insomnia-customer-demo@vendnet.io",
+        "adminToken": "paste-or-run-00.02",
+        "operatorToken": "paste-or-run-00.03",
+        "customerToken": "paste-or-run-00.04",
+        "machineCode": "VM-LIS-001",
+        "productSku": "DRK-002",
+        "machineId": "1",
+        "productId": "2",
+        "slotId": "4",
+        "purchaseIdempotencyKey": "insomnia-purchase-demo-001",
+        "createdUserId": "4",
+        "createdMachineCode": "VM-INSOMNIA-001",
+        "createdProductSku": "INSOMNIA-DRK-001",
+        "webhookBody": "{\"saleId\":\"NEWMAN-SALE\",\"status\":\"COMPLETED\"}",
+        "validWebhookSignature": "062e4a9111d7ea770f91cc222aa2bf507ee7979e5cc1cb8c7e1e0f4bf0d6b8e0",
+        "nowIso": "2026-06-14T12:00:00",
+        "nowEpoch": "1781438400"
       },
       "dataPropertyOrder": null,
       "color": null,
@@ -49,7 +66,7 @@
       "_type": "request",
       "parentId": "fld_00_bootstrap_and_authentication",
       "name": "00.01 Health ping",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/health/ping",
       "method": "GET",
       "body": {
@@ -73,7 +90,7 @@
       "_type": "request",
       "parentId": "fld_00_bootstrap_and_authentication",
       "name": "00.02 Login admin seed user",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/auth/login",
       "method": "POST",
       "body": {
@@ -96,14 +113,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst j=insomnia.response.json();\nif (j && j.token) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"adminToken\", j.token); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"adminToken\", j.token); }"
     },
     {
       "_id": "req_00_03_login_operator_seed_user",
       "_type": "request",
       "parentId": "fld_00_bootstrap_and_authentication",
       "name": "00.03 Login operator seed user",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/auth/login",
       "method": "POST",
       "body": {
@@ -126,14 +144,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst j=insomnia.response.json();\nif (j && j.token) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"operatorToken\", j.token); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"operatorToken\", j.token); }"
     },
     {
       "_id": "req_00_04_login_customer_seed_user",
       "_type": "request",
       "parentId": "fld_00_bootstrap_and_authentication",
       "name": "00.04 Login customer seed user",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/auth/login",
       "method": "POST",
       "body": {
@@ -156,14 +175,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst j=insomnia.response.json();\nif (j && j.token) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"customerToken\", j.token); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"customerToken\", j.token); }"
     },
     {
       "_id": "req_00_05_register_unique_customer",
       "_type": "request",
       "parentId": "fld_00_bootstrap_and_authentication",
       "name": "00.05 Register unique customer",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Self-registration endpoint. For repeated manual demos, change registeredCustomerEmail in the VendNet Local environment before rerunning.",
       "url": "{{ _.baseUrl }}/api/auth/register",
       "method": "POST",
       "body": {
@@ -186,14 +206,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst j=insomnia.response.json();\nif (j && j.token) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"registeredCustomerToken\", j.token); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"registeredCustomerToken\", j.token); }"
     },
     {
       "_id": "req_00_06_auth_claims_include_subject_and_role",
       "_type": "request",
       "parentId": "fld_00_bootstrap_and_authentication",
       "name": "00.06 Auth claims include subject and role",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/auth/claims",
       "method": "GET",
       "body": {
@@ -233,7 +254,7 @@
       "_type": "request",
       "parentId": "fld_01_catalog_and_machine_discovery",
       "name": "01.01 List active products and store DRK-002 id",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/products",
       "method": "GET",
       "body": {
@@ -256,14 +277,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst list=insomnia.response.json();\nconst product=Array.isArray(list) ? (list.find(p=>p.sku===\"DRK-002\") || list[0]) : null;\nif (product && product.id) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"productId\", String(product.id)); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"productId\", String(product.id)); }"
     },
     {
       "_id": "req_01_02_get_product_by_sku",
       "_type": "request",
       "parentId": "fld_01_catalog_and_machine_discovery",
       "name": "01.02 Get product by SKU",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/products/{{ _.productSku }}",
       "method": "GET",
       "body": {
@@ -293,7 +315,7 @@
       "_type": "request",
       "parentId": "fld_01_catalog_and_machine_discovery",
       "name": "01.03 List machines and store VM-LIS-001 id",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines",
       "method": "GET",
       "body": {
@@ -316,14 +338,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst list=insomnia.response.json();\nconst machine=Array.isArray(list) ? (list.find(m=>m.code===\"VM-LIS-001\") || list[0]) : null;\nif (machine && machine.id) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"machineId\", String(machine.id)); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"machineId\", String(machine.id)); }"
     },
     {
       "_id": "req_01_04_get_machine_by_code",
       "_type": "request",
       "parentId": "fld_01_catalog_and_machine_discovery",
       "name": "01.04 Get machine by code",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines/{{ _.machineCode }}",
       "method": "GET",
       "body": {
@@ -363,7 +386,7 @@
       "_type": "request",
       "parentId": "fld_02_purchase_product_flow",
       "name": "02.01 Customer purchase succeeds",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/sales/purchase",
       "method": "POST",
       "body": {
@@ -391,14 +414,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 201\",()=>{expect(insomnia.response.code).to.equal(201);});\nconst j=insomnia.response.json();\nif (j && j.saleId) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"saleId\", String(j.saleId)); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"saleId\", String(j.saleId)); }"
     },
     {
       "_id": "req_02_02_duplicate_idempotency_key_is_not_charged_twice",
       "_type": "request",
       "parentId": "fld_02_purchase_product_flow",
       "name": "02.02 Duplicate idempotency key is not charged twice",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/sales/purchase",
       "method": "POST",
       "body": {
@@ -433,12 +457,12 @@
       "_type": "request",
       "parentId": "fld_02_purchase_product_flow",
       "name": "02.03 Client-supplied unitPrice is rejected (SR-24/SR-29)",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/sales/purchase",
       "method": "POST",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"productId\": \"{{ _.productId }}\",\n  \"machineId\": \"{{ _.machineId }}\",\n  \"paymentToken\": \"tok_price_attack\",\n  \"idempotencyKey\": \"price-attack-{{$timestamp}}\",\n  \"unitPrice\": 0.01\n}"
+        "text": "{\n  \"productId\": \"{{ _.productId }}\",\n  \"machineId\": \"{{ _.machineId }}\",\n  \"paymentToken\": \"tok_price_attack\",\n  \"idempotencyKey\": \"price-attack-{{ _.nowEpoch }}\",\n  \"unitPrice\": 0.01\n}"
       },
       "parameters": [],
       "headers": [
@@ -468,12 +492,12 @@
       "_type": "request",
       "parentId": "fld_02_purchase_product_flow",
       "name": "02.04 Client-supplied price is rejected (mass assignment)",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/sales/purchase",
       "method": "POST",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"productId\": \"{{ _.productId }}\",\n  \"machineId\": \"{{ _.machineId }}\",\n  \"paymentToken\": \"tok_price_attack\",\n  \"idempotencyKey\": \"price-attack-2-{{$timestamp}}\",\n  \"price\": -1\n}"
+        "text": "{\n  \"productId\": \"{{ _.productId }}\",\n  \"machineId\": \"{{ _.machineId }}\",\n  \"paymentToken\": \"tok_price_attack\",\n  \"idempotencyKey\": \"price-attack-2-{{ _.nowEpoch }}\",\n  \"price\": -1\n}"
       },
       "parameters": [],
       "headers": [
@@ -503,7 +527,7 @@
       "_type": "request",
       "parentId": "fld_02_purchase_product_flow",
       "name": "02.05 Customer purchase history includes sale",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/sales/me",
       "method": "GET",
       "body": {
@@ -543,7 +567,7 @@
       "_type": "request",
       "parentId": "fld_03_machine_restock_flow",
       "name": "03.01 Operator lists slots and stores a restockable slot",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines/{{ _.machineId }}/slots",
       "method": "GET",
       "body": {
@@ -566,14 +590,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst list=insomnia.response.json();\nconst slot=Array.isArray(list) ? (list.find(s=>(s.currentStock ?? s.quantity ?? 0) < (s.capacity ?? 0)) || list[0]) : null;\nif (slot && slot.id) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"slotId\", String(slot.id)); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"slotId\", String(slot.id)); }"
     },
     {
       "_id": "req_03_02_operator_restocks_one_unit",
       "_type": "request",
       "parentId": "fld_03_machine_restock_flow",
       "name": "03.02 Operator restocks one unit",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines/{{ _.machineId }}/slots/{{ _.slotId }}/restock",
       "method": "PUT",
       "body": {
@@ -608,7 +633,7 @@
       "_type": "request",
       "parentId": "fld_03_machine_restock_flow",
       "name": "03.03 Excessive restock is rejected",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines/{{ _.machineId }}/slots/{{ _.slotId }}/restock",
       "method": "PUT",
       "body": {
@@ -643,7 +668,7 @@
       "_type": "request",
       "parentId": "fld_03_machine_restock_flow",
       "name": "03.04 Customer cannot restock",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines/{{ _.machineId }}/slots/{{ _.slotId }}/restock",
       "method": "PUT",
       "body": {
@@ -688,7 +713,7 @@
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.01 Admin dashboard",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/dashboard",
       "method": "GET",
       "body": {
@@ -718,7 +743,7 @@
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.02 Admin lists users without password hashes",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/users",
       "method": "GET",
       "body": {
@@ -748,12 +773,12 @@
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.03 Admin creates operator user",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/users",
       "method": "POST",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"username\": \"e2eop{{$timestamp}}\",\n  \"email\": \"e2e-operator-{{$timestamp}}@vendnet.io\",\n  \"password\": \"Operator@123456\",\n  \"fullName\": \"E2E Operator\",\n  \"role\": \"ROLE_OPERATOR\"\n}"
+        "text": "{\n  \"username\": \"e2eop{{ _.nowEpoch }}\",\n  \"email\": \"e2e-operator-{{ _.nowEpoch }}@vendnet.io\",\n  \"password\": \"Operator@123456\",\n  \"fullName\": \"E2E Operator\",\n  \"role\": \"ROLE_OPERATOR\"\n}"
       },
       "parameters": [],
       "headers": [
@@ -776,14 +801,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 201\",()=>{expect(insomnia.response.code).to.equal(201);});\nconst j=insomnia.response.json();\nif (j && j.id) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"createdUserId\", String(j.id)); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"createdUserId\", String(j.id)); }"
     },
     {
       "_id": "req_04_04_admin_updates_created_user_role",
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.04 Admin updates created user role",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/users/{{ _.createdUserId }}",
       "method": "PUT",
       "body": {
@@ -818,7 +844,7 @@
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.05 Admin creates machine",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines",
       "method": "POST",
       "body": {
@@ -846,14 +872,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 201\",()=>{expect(insomnia.response.code).to.equal(201);});\nconst j=insomnia.response.json();\nif (j && j.id) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"createdMachineId\", String(j.id)); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"createdMachineId\", String(j.id)); }"
     },
     {
       "_id": "req_04_06_admin_updates_product_price",
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.06 Admin updates product price",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/products/{{ _.productId }}",
       "method": "PUT",
       "body": {
@@ -888,7 +915,7 @@
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.07 Admin creates product with secure image upload",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Multipart image upload case for the secure file-validation pipeline. The sample image path is e2e/assets/sample-product.png relative to the vendnet folder.",
       "url": "{{ _.baseUrl }}/api/admin/products",
       "method": "POST",
       "body": {
@@ -961,14 +988,15 @@
       "settingDisableRenderRequestBody": false,
       "settingEncodeUrl": true,
       "settingRebuildPath": true,
-      "settingFollowRedirects": "global"
+      "settingFollowRedirects": "global",
+      "afterResponseScript": "insomnia.test(\"Status 200\",()=>{expect(insomnia.response.code).to.equal(200);});\nconst j=insomnia.response.json();\nif (j && j.id) { insomnia.environment && insomnia.environment.set && insomnia.environment.set(\"createdProductId\", String(j.id)); insomnia.collectionVariables && insomnia.collectionVariables.set && insomnia.collectionVariables.set(\"createdProductId\", String(j.id)); }"
     },
     {
       "_id": "req_04_08_admin_generates_report_directory",
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.08 Admin generates report directory",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/operations/reports/sales",
       "method": "POST",
       "body": {
@@ -998,7 +1026,7 @@
       "_type": "request",
       "parentId": "fld_04_admin_product_user_and_os_operations",
       "name": "04.09 Admin backup endpoint is protected and reachable",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/backups",
       "method": "POST",
       "body": {
@@ -1038,12 +1066,12 @@
       "_type": "request",
       "parentId": "fld_05_telemetry_and_payment_webhook_security",
       "name": "05.01 Valid telemetry from registered machine is accepted",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines/telemetry",
       "method": "POST",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"serialNumber\": \"VM-LIS-001\",\n  \"temperature\": 22.5,\n  \"stockLevels\": {\n    \"A1\": 10,\n    \"A2\": 12,\n    \"B1\": 8\n  },\n  \"statusCode\": \"ONLINE\",\n  \"errorCodes\": [],\n  \"timestamp\": \"{{$isoTimestamp}}\"\n}"
+        "text": "{\n  \"serialNumber\": \"VM-LIS-001\",\n  \"temperature\": 22.5,\n  \"stockLevels\": {\n    \"A1\": 10,\n    \"A2\": 12,\n    \"B1\": 8\n  },\n  \"statusCode\": \"ONLINE\",\n  \"errorCodes\": [],\n  \"timestamp\": \"{{ _.nowIso }}\"\n}"
       },
       "parameters": [],
       "headers": [
@@ -1073,12 +1101,12 @@
       "_type": "request",
       "parentId": "fld_05_telemetry_and_payment_webhook_security",
       "name": "05.02 Unknown machine telemetry is rejected",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/machines/telemetry",
       "method": "POST",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"serialNumber\": \"VM-UNKNOWN\",\n  \"temperature\": 22.5,\n  \"stockLevels\": {\n    \"A1\": 10\n  },\n  \"statusCode\": \"ONLINE\",\n  \"errorCodes\": [],\n  \"timestamp\": \"{{$isoTimestamp}}\"\n}"
+        "text": "{\n  \"serialNumber\": \"VM-UNKNOWN\",\n  \"temperature\": 22.5,\n  \"stockLevels\": {\n    \"A1\": 10\n  },\n  \"statusCode\": \"ONLINE\",\n  \"errorCodes\": [],\n  \"timestamp\": \"{{ _.nowIso }}\"\n}"
       },
       "parameters": [],
       "headers": [
@@ -1108,7 +1136,7 @@
       "_type": "request",
       "parentId": "fld_05_telemetry_and_payment_webhook_security",
       "name": "05.03 Missing payment webhook signature is rejected",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/webhooks/payment",
       "method": "POST",
       "body": {
@@ -1138,7 +1166,7 @@
       "_type": "request",
       "parentId": "fld_05_telemetry_and_payment_webhook_security",
       "name": "05.04 Valid payment webhook signature is accepted",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/webhooks/payment",
       "method": "POST",
       "body": {
@@ -1173,7 +1201,7 @@
       "_type": "request",
       "parentId": "fld_05_telemetry_and_payment_webhook_security",
       "name": "05.05 Tampered payment webhook body is rejected",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/webhooks/payment",
       "method": "POST",
       "body": {
@@ -1218,7 +1246,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.01 Anonymous protected route returns 401",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/auth/me",
       "method": "GET",
       "body": {
@@ -1242,7 +1270,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.02 Invalid JWT returns 401",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/products",
       "method": "GET",
       "body": {
@@ -1272,7 +1300,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.03 Customer cannot access admin dashboard",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/dashboard",
       "method": "GET",
       "body": {
@@ -1302,7 +1330,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.04 Operator cannot access admin dashboard",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/admin/dashboard",
       "method": "GET",
       "body": {
@@ -1332,7 +1360,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.05 Customer cannot read machine sales",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/api/sales/machine/{{ _.machineId }}",
       "method": "GET",
       "body": {
@@ -1362,7 +1390,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.06 OpenAPI docs are public",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/v3/api-docs",
       "method": "GET",
       "body": {
@@ -1386,7 +1414,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.07 Swagger UI is public",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/swagger-ui/index.html",
       "method": "GET",
       "body": {
@@ -1410,7 +1438,7 @@
       "_type": "request",
       "parentId": "fld_06_rbac_and_public_documentation",
       "name": "06.08 Prometheus metrics endpoint is public",
-      "description": "Generated from Newman collection; assertions are not included in Insomnia.",
+      "description": "Manual Insomnia request aligned with the Newman E2E suite. Run the numbered folders in order; response scripts capture the main demo variables where Insomnia scripting is available.",
       "url": "{{ _.baseUrl }}/actuator/prometheus",
       "method": "GET",
       "body": {

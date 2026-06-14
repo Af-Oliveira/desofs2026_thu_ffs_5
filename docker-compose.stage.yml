@@ -31,18 +31,23 @@ services:
     ports:
       - "${SERVER_PORT:-8180}:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: stage
+      SPRING_PROFILES_ACTIVE: stage,bootstrap
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/vendnet_stage
       SPRING_DATASOURCE_USERNAME: vendnet_user
       SPRING_DATASOURCE_PASSWORD: stage_vendnet_pass
-      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       LOGGING_LEVEL_PT_ISEP_DESOFS_VENDNET: INFO
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE: health,metrics,prometheus
       MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+      MANAGEMENT_OTLP_TRACING_TRANSPORT: http
       JWT_SECRET: "${JWT_SECRET:-stage-jwt-secret-change-me}"
     depends_on:
       mysql:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 15s
@@ -50,7 +55,7 @@ services:
       retries: 5
       start_period: 60s
     volumes:
-      - ./vendnet/logs:/var/vendnet/logs
+      - stage_vendnet_logs:/var/vendnet/logs
     networks:
       - vendnet-stage
 
@@ -65,6 +70,60 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    networks:
+      - vendnet-stage
+    depends_on:
+      vendnet:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki:3.2.2
+    container_name: vendnet-stage-loki
+    ports:
+      - "3101:3100"
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/loki-config.yml
+      - stage_loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    networks:
+      - vendnet-stage
+
+  promtail:
+    image: grafana/promtail:3.2.2
+    container_name: vendnet-stage-promtail
+    volumes:
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml
+      - stage_vendnet_logs:/var/log/vendnet:ro
+    command: -config.file=/etc/promtail/promtail-config.yml
+    networks:
+      - vendnet-stage
+    depends_on:
+      - loki
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    container_name: vendnet-stage-jaeger
+    ports:
+      - "16687:16686"
+      - "4320:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      COLLECTOR_OTLP_HTTP_PORT: 4318
+      COLLECTOR_OTLP_GRPC_PORT: 4317
+    networks:
+      - vendnet-stage
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: vendnet-stage-otel
+    command: ["--config=/etc/otelcol-contrib/otel-collector-config.yml"]
+    volumes:
+      - ./docker/otel/otel-collector-config.yml:/etc/otelcol-contrib/otel-collector-config.yml:ro
+    ports:
+      - "4319:4317"
+      - "8890:8889"
+    depends_on:
+      - jaeger
     networks:
       - vendnet-stage
 
@@ -82,11 +141,17 @@ services:
       - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources
     networks:
       - vendnet-stage
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
 
 volumes:
   stage_mysql_data:
   stage_prometheus_data:
   stage_grafana_data:
+  stage_loki_data:
+  stage_vendnet_logs:
 
 networks:
   vendnet-stage:

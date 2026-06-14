@@ -99,8 +99,23 @@ public class BootstrapService {
 	}
 
 	private void seedUser(String username, String email, String password, String name, Role role, LocalDateTime now) {
-		if (userRepository.existsByUsername(username) || userRepository.existsByEmail(email)) {
-			log.info("User '{}' already exists — skipping", email);
+		if (userRepository.existsByEmail(email)) {
+			User existing = userRepository.findByEmail(email).orElseThrow();
+			existing.setUsername(username);
+			existing.setPassword(passwordEncoder.encode(password));
+			existing.setName(name);
+			existing.setRole(role);
+			existing.setAccountStatus(AccountStatus.ACTIVE);
+			existing.setFailedAttempts(0);
+			existing.setLockTime(null);
+			existing.setLastFailedAttemptTime(null);
+			existing.setUpdatedAt(now);
+			userRepository.save(existing);
+			log.info("Updated seed user: {} ({})", email, role);
+			return;
+		}
+		if (userRepository.existsByUsername(username)) {
+			log.info("User '{}' already exists — skipping", username);
 			return;
 		}
 		User user = User.builder()
