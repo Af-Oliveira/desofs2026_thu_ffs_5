@@ -77,19 +77,18 @@ public class SaleService {
 						.build();
 			}
 
-		Slot slot =
-				slotRepository
-						.findByMachineIdAndProductId(
-								request.getMachineId(), request.getProductId())
-						.orElseThrow(
-								() ->
-										new IllegalArgumentException(
-												"Slot not found for product "
-														+ request.getProductId()
-														+ " in machine "
-														+ request.getMachineId()));
+		List<Slot> slots =
+				slotRepository.findByMachineIdAndProductId(request.getMachineId(), request.getProductId());
+		if (slots.isEmpty()) {
+			throw new IllegalArgumentException(
+					"Slot not found for product "
+							+ request.getProductId()
+							+ " in machine "
+							+ request.getMachineId());
+		}
 
-		if (slot.getCurrentStock() <= 0) {
+		Slot slot = slots.stream().filter(candidate -> candidate.getCurrentStock() > 0).findFirst().orElse(null);
+		if (slot == null) {
 			throw new OutOfStockException("Product out of stock");
 		}
 

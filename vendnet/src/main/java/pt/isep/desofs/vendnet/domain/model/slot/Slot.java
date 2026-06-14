@@ -43,7 +43,8 @@ public class Slot {
 	private int currentStock;
 
 	@Version
-	private Long version;
+	@Column(nullable = false)
+	private long version;
 
 	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "machine_id", nullable = false)

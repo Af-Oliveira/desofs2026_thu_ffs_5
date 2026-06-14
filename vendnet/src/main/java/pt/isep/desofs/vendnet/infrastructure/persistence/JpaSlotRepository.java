@@ -22,8 +22,8 @@ public interface JpaSlotRepository
 	Optional<Slot> findByMachineIdAndId(@Param("machineId") Long machineId, @Param("slotId") Long slotId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("SELECT s FROM Slot s JOIN FETCH s.machine JOIN FETCH s.product WHERE s.machine.id = :machineId AND s.product.id = :productId")
-	Optional<Slot> findByMachineIdAndProductId(@Param("machineId") Long machineId, @Param("productId") Long productId);
+	@Query("SELECT s FROM Slot s JOIN FETCH s.machine JOIN FETCH s.product WHERE s.machine.id = :machineId AND s.product.id = :productId ORDER BY s.id")
+	List<Slot> findByMachineIdAndProductId(@Param("machineId") Long machineId, @Param("productId") Long productId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT s FROM Slot s JOIN FETCH s.machine JOIN FETCH s.product WHERE s.machine.id = :machineId AND s.product.sku = :productSku ORDER BY s.id")

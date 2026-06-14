@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,12 +63,12 @@ class SaleServiceTest {
 	void purchase_shouldCompleteSuccessfully() {
 		Product product = Product.builder().id(1L).sku("SKU-001").price(new BigDecimal("1.50")).active(true).build();
 		VendingMachine machine = VendingMachine.builder().id(1L).code("VM-001").build();
-		Slot slot = Slot.builder().id(1L).position("A1").capacity(20).currentStock(10).product(product).machine(machine).build();
-		PurchaseRequest request = PurchaseRequest.builder()
-				.productId(1L).machineId(1L).paymentToken("tok-123").build();
-		when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-		when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
-		when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(Optional.of(slot));
+			Slot slot = Slot.builder().id(1L).position("A1").capacity(20).currentStock(10).product(product).machine(machine).build();
+			PurchaseRequest request = PurchaseRequest.builder()
+					.productId(1L).machineId(1L).paymentToken("tok-123").idempotencyKey("key-123").build();
+			when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+			when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+			when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(List.of(slot));
 		when(slotRepository.save(any(Slot.class))).thenAnswer(inv -> inv.getArgument(0));
 		when(saleRepository.save(any())).thenAnswer(inv -> {
 			pt.isep.desofs.vendnet.domain.model.sale.Sale s = inv.getArgument(0);
@@ -101,12 +102,12 @@ class SaleServiceTest {
 	void purchase_shouldThrowWhenOutOfStock() {
 		Product product = Product.builder().id(1L).sku("SKU-001").price(new BigDecimal("1.50")).active(true).build();
 		VendingMachine machine = VendingMachine.builder().id(1L).build();
-		Slot slot = Slot.builder().id(1L).capacity(20).currentStock(0).product(product).machine(machine).build();
-		PurchaseRequest request = PurchaseRequest.builder()
-				.productId(1L).machineId(1L).paymentToken("tok").build();
-		when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-		when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
-		when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(Optional.of(slot));
+			Slot slot = Slot.builder().id(1L).capacity(20).currentStock(0).product(product).machine(machine).build();
+			PurchaseRequest request = PurchaseRequest.builder()
+					.productId(1L).machineId(1L).paymentToken("tok").idempotencyKey("key-empty").build();
+			when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+			when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+			when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(List.of(slot));
 		assertThrows(OutOfStockException.class, () -> saleService.purchase(request, 1L));
 	}
 
@@ -114,12 +115,12 @@ class SaleServiceTest {
 	void purchase_shouldThrowPaymentDeclined() {
 		Product product = Product.builder().id(1L).sku("SKU-001").price(new BigDecimal("1.50")).active(true).build();
 		VendingMachine machine = VendingMachine.builder().id(1L).code("VM-001").build();
-		Slot slot = Slot.builder().id(1L).capacity(20).currentStock(10).product(product).machine(machine).build();
-		PurchaseRequest request = PurchaseRequest.builder()
-				.productId(1L).machineId(1L).paymentToken("tok-fail").build();
-		when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-		when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
-		when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(Optional.of(slot));
+			Slot slot = Slot.builder().id(1L).capacity(20).currentStock(10).product(product).machine(machine).build();
+			PurchaseRequest request = PurchaseRequest.builder()
+					.productId(1L).machineId(1L).paymentToken("tok-fail").idempotencyKey("key-fail").build();
+			when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+			when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+			when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(List.of(slot));
 		when(slotRepository.save(any(Slot.class))).thenAnswer(inv -> inv.getArgument(0));
 		when(saleRepository.save(any())).thenAnswer(inv -> {
 			pt.isep.desofs.vendnet.domain.model.sale.Sale s = inv.getArgument(0);
@@ -132,12 +133,12 @@ class SaleServiceTest {
 
 	@Test
 	void purchase_shouldThrowWhenSlotNotFound() {
-		Product product = Product.builder().id(1L).sku("SKU-001").price(new BigDecimal("1.50")).active(true).build();
-		PurchaseRequest request = PurchaseRequest.builder()
-				.productId(1L).machineId(1L).paymentToken("tok").build();
-		when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-		when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
-		when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(Optional.empty());
+			Product product = Product.builder().id(1L).sku("SKU-001").price(new BigDecimal("1.50")).active(true).build();
+			PurchaseRequest request = PurchaseRequest.builder()
+					.productId(1L).machineId(1L).paymentToken("tok").idempotencyKey("key-missing-slot").build();
+			when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+			when(idempotencyRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+			when(slotRepository.findByMachineIdAndProductId(1L, 1L)).thenReturn(List.of());
 		assertThrows(IllegalArgumentException.class, () -> saleService.purchase(request, 1L));
 	}
 

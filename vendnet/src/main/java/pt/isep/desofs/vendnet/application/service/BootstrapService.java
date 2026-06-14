@@ -3,6 +3,7 @@ package pt.isep.desofs.vendnet.application.service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -100,7 +101,12 @@ public class BootstrapService {
 
 	private void seedUser(String username, String email, String password, String name, Role role, LocalDateTime now) {
 		if (userRepository.existsByEmail(email)) {
-			User existing = userRepository.findByEmail(email).orElseThrow();
+			Optional<User> existingUser = userRepository.findByEmail(email);
+			if (existingUser.isEmpty()) {
+				log.warn("User '{}' reported as existing but could not be loaded — skipping repair", email);
+				return;
+			}
+			User existing = existingUser.get();
 			existing.setUsername(username);
 			existing.setPassword(passwordEncoder.encode(password));
 			existing.setName(name);
@@ -172,7 +178,17 @@ public class BootstrapService {
 	}
 
 	private Slot seedSlot(String position, int capacity, int currentStock,
-			VendingMachine machine, Product product, LocalDateTime now) {
+				VendingMachine machine, Product product, LocalDateTime now) {
+		for (Slot existing : slotRepository.findByMachineId(machine.getId())) {
+			if (existing.getPosition().equals(position)
+					&& existing.getProduct().getId().equals(product.getId())) {
+				log.info(
+						"Slot '{}' for machine '{}' already exists — skipping",
+						position,
+						machine.getCode());
+				return existing;
+			}
+		}
 		Slot slot = Slot.builder()
 				.position(position)
 				.capacity(capacity)
@@ -189,6 +205,15 @@ public class BootstrapService {
 	}
 
 	private void seedSale(VendingMachine machine, Product product, BigDecimal price, int quantity, LocalDateTime saleDate) {
+		for (Sale existing : saleRepository.findByMachineId(machine.getId())) {
+			if (existing.getProduct().getId().equals(product.getId()) && existing.getQuantity() == quantity) {
+				log.info(
+						"Sale seed for '{}' / '{}' already exists — skipping",
+						machine.getCode(),
+						product.getSku());
+				return;
+			}
+		}
 		Sale sale = Sale.builder()
 				.machine(machine)
 				.product(product)

@@ -84,7 +84,7 @@ class SlotTest {
 		VendingMachine machine = VendingMachine.builder().id(1L).code("VM-001").build();
 		Product product = Product.builder().id(1L).sku("SKU-001").build();
 
-		Slot slot = new Slot(3L, "C5", 40, 35, null, machine, product, now, now);
+		Slot slot = new Slot(3L, "C5", 40, 35, 0L, machine, product, now, now);
 
 		assertEquals(3L, slot.getId());
 		assertEquals("C5", slot.getPosition());

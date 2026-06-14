@@ -1,5 +1,6 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,6 +40,12 @@ public class BackupServiceImpl implements BackupService {
 
 	@Value("${app.storage.base-path:/var/vendnet}")
 	private String vendnetRoot;
+
+	@Value("${spring.datasource.username:vendnet_user}")
+	private String databaseUsername;
+
+	@Value("${spring.datasource.password:vendnet_pass}")
+	private String databasePassword;
 
 	@Override
 	public BackupResult generateBackup() {
@@ -135,20 +142,27 @@ public class BackupServiceImpl implements BackupService {
 			}
 		}
 
+		String jdbcUrl;
+		try (Connection connection = dataSource.getConnection()) {
+			jdbcUrl = connection.getMetaData().getURL();
+		}
+		MysqlTarget target = MysqlTarget.fromJdbcUrl(jdbcUrl);
 		ProcessBuilder pb =
 				new ProcessBuilder(
 						"mysqldump",
 						"-h",
-						"localhost",
+						target.host(),
+						"-P",
+						target.port(),
 						"-u",
-						"vendnet_user",
-						"--password=vendnet_pass",
+						databaseUsername,
 						"--single-transaction",
 						"--routines",
 						"--triggers",
 						"--databases",
-						"vendnet",
+						target.database(),
 						"--result-file=" + dumpFile.toAbsolutePath().toString());
+		pb.environment().put("MYSQL_PWD", databasePassword);
 		pb.redirectErrorStream(true);
 
 		Process process = pb.start();
@@ -240,6 +254,27 @@ public class BackupServiceImpl implements BackupService {
 			Files.setPosixFilePermissions(path, permissions);
 		} catch (UnsupportedOperationException ignored) {
 			// Non-POSIX filesystems keep default permissions.
+		}
+	}
+
+	private record MysqlTarget(String host, String port, String database) {
+		private static MysqlTarget fromJdbcUrl(String jdbcUrl) {
+			if (jdbcUrl == null || !jdbcUrl.startsWith("jdbc:mysql:")) {
+				return new MysqlTarget("localhost", "3306", "vendnet");
+			}
+			try {
+				URI uri = URI.create(jdbcUrl.substring("jdbc:".length()));
+				String database =
+						uri.getPath() == null || uri.getPath().isBlank()
+								? "vendnet"
+								: uri.getPath().replaceFirst("^/", "");
+				return new MysqlTarget(
+						uri.getHost() == null ? "localhost" : uri.getHost(),
+						uri.getPort() < 0 ? "3306" : String.valueOf(uri.getPort()),
+						database);
+			} catch (IllegalArgumentException ex) {
+				return new MysqlTarget("localhost", "3306", "vendnet");
+			}
 		}
 	}
 }

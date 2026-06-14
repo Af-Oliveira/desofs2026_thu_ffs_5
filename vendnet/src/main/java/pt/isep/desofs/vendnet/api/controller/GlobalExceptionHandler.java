@@ -10,6 +10,7 @@ import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import pt.isep.desofs.vendnet.api.view.ApiError;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
 import pt.isep.desofs.vendnet.domain.exception.CapacityExceededException;
@@ -59,7 +60,7 @@ public class GlobalExceptionHandler {
 						.message(ex.getMessage())
 						.timestamp(LocalDateTime.now())
 						.build();
-			return ResponseEntity.status(HttpStatus.LOCKED).body(error);
+		return ResponseEntity.status(HttpStatus.LOCKED).body(error);
 	}
 
 	@ExceptionHandler(DisabledException.class)
@@ -86,9 +87,8 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.badRequest().body(error);
 	}
 
-	@ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
-	public ResponseEntity<ApiError> handleMessageNotReadable(
-			org.springframework.http.converter.HttpMessageNotReadableException ex) {
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ApiError> handleMessageNotReadable(HttpMessageNotReadableException ex) {
 		ApiError error =
 				ApiError.builder()
 						.status(HttpStatus.BAD_REQUEST.value())
@@ -97,6 +97,18 @@ public class GlobalExceptionHandler {
 						.timestamp(LocalDateTime.now())
 						.build();
 		return ResponseEntity.badRequest().body(error);
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<ApiError> handleNoResourceFound(NoResourceFoundException ex) {
+		ApiError error =
+				ApiError.builder()
+						.status(HttpStatus.NOT_FOUND.value())
+						.error("Not Found")
+						.message("Resource not found")
+						.timestamp(LocalDateTime.now())
+						.build();
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

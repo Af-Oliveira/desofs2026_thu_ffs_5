@@ -1068,7 +1068,7 @@
                 "exec": [
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
                   "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
-                  "pm.test(\"Report path stays inside vendnet data\", () => { pm.expect(body.path).to.include(\"data\"); pm.expect(body.path).to.not.include(\"..\"); });"
+                  "pm.test(\"Report path stays inside vendnet sandbox\", () => { pm.expect(body.path).to.include(\"/var/vendnet/\"); pm.expect(body.path).to.not.include(\"..\"); });"
                 ]
               }
             }

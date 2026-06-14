@@ -16,11 +16,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import pt.isep.desofs.vendnet.api.view.ApiError;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
 import pt.isep.desofs.vendnet.domain.exception.DisabledException;
@@ -112,6 +114,16 @@ class GlobalExceptionHandlerTest {
 		ResponseEntity<ApiError> response = handler.handleMessageNotReadable(ex);
 		assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
 		assertEquals("Invalid request body", response.getBody().getMessage());
+	}
+
+	@Test
+	void handleNoResourceFound_shouldReturn404() {
+		ResponseEntity<ApiError> response =
+				handler.handleNoResourceFound(new NoResourceFoundException(HttpMethod.GET, "/api/health/nope"));
+		assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+		assertEquals(404, response.getBody().getStatus());
+		assertEquals("Not Found", response.getBody().getError());
+		assertEquals("Resource not found", response.getBody().getMessage());
 	}
 
 	@Test

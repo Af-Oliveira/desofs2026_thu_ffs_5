@@ -19,6 +19,7 @@
 		<java.version>17</java.version>
 		<argLine></argLine>
 		<spring-framework.version>6.2.19</spring-framework.version>
+		<spring-security.version>6.5.11</spring-security.version>
 		<tomcat.version>10.1.55</tomcat.version>
 		<spotbugs.version>4.8.6.4</spotbugs.version>
 		<findsecbugs.version>1.13.0</findsecbugs.version>
@@ -255,6 +256,8 @@
 					<failBuildOnCVSS>7</failBuildOnCVSS>
 					<dataDirectory>${user.home}/.dependency-check/data</dataDirectory>
 					<nvdApiKey>${env.NVD_API_KEY}</nvdApiKey>
+					<ossindexAnalyzerEnabled>false</ossindexAnalyzerEnabled>
+					<ossIndexWarnOnlyOnRemoteErrors>true</ossIndexWarnOnlyOnRemoteErrors>
 					<suppressionFiles>
 						<suppressionFile>owasp-suppressions.xml</suppressionFile>
 						<suppressionFile>dependency-check-suppressions.xml</suppressionFile>

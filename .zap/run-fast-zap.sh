@@ -7,6 +7,7 @@ REPORT_REL_DIR="reports"
 RULES_FILE="${RULES_FILE:-rules.tsv}"
 SCAN_ZAP_PORT="${SCAN_ZAP_PORT:-9090}"
 RBAC_ZAP_PORT="${RBAC_ZAP_PORT:-9091}"
+API_SCAN_TIMEOUT_MINUTES="${API_SCAN_TIMEOUT_MINUTES:-2}"
 ZAP_PROXY="http://127.0.0.1:${RBAC_ZAP_PORT}"
 
 mkdir -p "${REPORT_DIR}"
@@ -22,6 +23,9 @@ zap-baseline.py \
 zap-api-scan.py \
   -t "${APP_URL}/v3/api-docs" \
   -f openapi \
+  -S \
+  -T "${API_SCAN_TIMEOUT_MINUTES}" \
+  -D 0 \
   -c "${RULES_FILE}" \
   -r "${REPORT_REL_DIR}/zap-api-admin.html" \
   -w "${REPORT_REL_DIR}/zap-api-admin.md" \

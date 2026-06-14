@@ -314,7 +314,7 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
         if (reportStatus == 200) {
             String reportPath = reportResponse.path("path");
             assertThat(reportPath).doesNotContain("..");
-            assertThat(reportPath.replace('\\', '/')).contains("data");
+            assertThat(reportPath.replace('\\', '/')).contains("/var/vendnet/");
         }
 
         String traversalSku = encodePathSegment("../../etc/passwd");
