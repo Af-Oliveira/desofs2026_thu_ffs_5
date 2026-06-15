@@ -109,6 +109,20 @@ curl_form_product() {
   printf "%s" "$out"
 }
 
+curl_text() {
+  local name="$1"
+  local expected="$2"
+  local path="$3"
+  local out
+  out="$(body_file "$name")"
+  : > "$out"
+
+  local status
+  status="$(curl -sS -o "$out" -w "%{http_code}" -X GET "$BASE_URL$path" -H "Accept: text/plain")"
+  expect_status "$name" "$expected" "$status" "$out"
+  printf "%s" "$out"
+}
+
 require_value() {
   local label="$1"
   local value="$2"
@@ -196,7 +210,7 @@ for pass in $(seq 1 "$PASSES"); do
   curl_json "06.05 Customer machine sales rejected [pass $pass]" "403" GET "/api/sales/machine/$machine_id" "$customer_token" >/dev/null
   curl_json "06.06 OpenAPI docs [pass $pass]" "200" GET "/v3/api-docs" "" >/dev/null
   curl_json "06.07 Swagger UI [pass $pass]" "200" GET "/swagger-ui/index.html" "" >/dev/null
-  curl_json "06.08 Prometheus metrics [pass $pass]" "200" GET "/actuator/prometheus" "" >/dev/null
+  curl_text "06.08 Prometheus metrics [pass $pass]" "200" "/actuator/prometheus" >/dev/null
 done
 
 printf "\nCurl smoke complete: %s requests, %s failures\n" "$total" "$failed"

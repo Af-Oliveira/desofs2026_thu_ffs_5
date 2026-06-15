@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import pt.isep.desofs.vendnet.api.dto.SlotResponse;
 import pt.isep.desofs.vendnet.api.dto.TelemetryRequest;
 import pt.isep.desofs.vendnet.api.dto.TelemetryResponse;
 import pt.isep.desofs.vendnet.api.dto.UserResponse;
@@ -30,7 +31,6 @@ import pt.isep.desofs.vendnet.application.service.UserManagementService;
 import pt.isep.desofs.vendnet.application.service.TelemetryService;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.sale.Sale;
-import pt.isep.desofs.vendnet.domain.model.slot.Slot;
 import pt.isep.desofs.vendnet.infrastructure.os.BackupResult;
 import pt.isep.desofs.vendnet.infrastructure.os.BackupService;
 import pt.isep.desofs.vendnet.infrastructure.os.ReportDirectoryService;
@@ -64,7 +64,7 @@ class MoreControllerUnitTests {
 	void slotController_findByMachine_shouldReturnOk() {
 		SlotController controller = new SlotController(slotService, authService);
 		when(slotService.findByMachineId(1L)).thenReturn(List.of());
-		ResponseEntity<List<Slot>> response = controller.findByMachine(1L);
+		ResponseEntity<List<SlotResponse>> response = controller.findByMachine(1L);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 	}
 

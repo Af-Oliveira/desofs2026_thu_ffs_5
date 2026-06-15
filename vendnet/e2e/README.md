@@ -35,7 +35,7 @@ The REST API covers the use cases that are meaningful for a backend-only deliver
 
 ## Insomnia manual collection
 
-`VendNet_E2E_Tests.insomnia.json` is ordered for a live demo and mirrors the Newman flow:
+`VendNet_E2E_Tests.insomnia.json` is ordered for a live demo and mirrors the Newman flow. Insomnia's project export/import format is JSON; YAML is used for OpenAPI specifications, not for this manual request collection.
 
 - `00` logs in the three seeded roles and captures tokens where Insomnia response scripting is available.
 - `01` discovers product and machine IDs used by later requests.
@@ -46,6 +46,16 @@ The REST API covers the use cases that are meaningful for a backend-only deliver
 - `06` demonstrates RBAC failures plus public OpenAPI/Swagger/metrics endpoints.
 
 The collection includes more than one request for flows that need multiple cases, especially purchase, restock, upload/admin operations, telemetry/webhooks, and RBAC. The multipart image example uses `e2e/assets/sample-product.png`.
+
+Recommended fail-case demo requests:
+
+| Endpoint / flow | Passing case | Rejection case(s) |
+| --- | --- | --- |
+| `/api/sales/purchase` | Customer purchase succeeds | Duplicate idempotency key, client-supplied `unitPrice`, client-supplied `price` |
+| `/api/machines/{machineId}/slots/{slotId}/restock` | Operator restocks one unit | Excessive restock rejected, customer forbidden |
+| `/api/machines/telemetry` | Registered machine telemetry accepted | Unknown machine rejected |
+| `/api/webhooks/payment` | Valid signature accepted | Missing signature, tampered body |
+| Protected admin routes | Admin access succeeds | Anonymous, invalid JWT, customer, and operator denial cases |
 
 ## Preconditions
 

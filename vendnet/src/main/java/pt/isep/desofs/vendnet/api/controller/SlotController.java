@@ -29,8 +29,10 @@ public class SlotController {
 
 	@GetMapping
 	@PreAuthorize("hasAnyRole('OPERATOR', 'ADMINISTRATOR')")
-	public ResponseEntity<List<Slot>> findByMachine(@PathVariable Long machineId) {
-		return ResponseEntity.ok(slotService.findByMachineId(machineId));
+	public ResponseEntity<List<SlotResponse>> findByMachine(@PathVariable Long machineId) {
+		List<SlotResponse> slots =
+				slotService.findByMachineId(machineId).stream().map(SlotResponse::from).toList();
+		return ResponseEntity.ok(slots);
 	}
 
 	@PutMapping("/{slotId}/restock")

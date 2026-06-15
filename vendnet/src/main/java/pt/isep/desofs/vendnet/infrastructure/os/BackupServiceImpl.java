@@ -64,12 +64,12 @@ public class BackupServiceImpl implements BackupService {
 	@Override
 	public BackupResult generateBackup() {
 		String date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
-		Path backupDir = Paths.get(vendnetRoot, "backups", date);
 
 		try {
 			Path root = Paths.get(vendnetRoot);
 			Files.createDirectories(root);
 			Path sandbox = root.toRealPath();
+			Path backupDir = sandbox.resolve("backups").resolve(date);
 			if (!pathValidator.isValidPath(backupDir, sandbox)) {
 				auditLogRepository.save(
 						AuditLog.builder()
