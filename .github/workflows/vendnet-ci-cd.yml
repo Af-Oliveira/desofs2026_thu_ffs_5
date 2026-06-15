@@ -695,7 +695,7 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "name=${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
           echo "full=${{ env.REGISTRY }}/${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
-          echo "dockerhub=${{ env.DOCKERHUB_REGISTRY }}/${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
+          echo "dockerhub=${{ env.DOCKERHUB_REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/vendnet" >> "${GITHUB_OUTPUT}"
 
       - name: "📋 Docker Metadata"
         id: docker_meta
