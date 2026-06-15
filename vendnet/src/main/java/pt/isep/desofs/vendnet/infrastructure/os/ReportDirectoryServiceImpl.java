@@ -32,18 +32,20 @@ public class ReportDirectoryServiceImpl implements ReportDirectoryService {
 			throw new IllegalArgumentException("Invalid report type: " + reportType);
 		}
 
-		LocalDate now = LocalDate.now();
-		Path reportPath =
-				Paths.get(
-						vendnetRoot,
-						"reports",
-						reportType,
-						String.valueOf(now.getYear()),
-						String.format("%02d", now.getMonthValue()),
-						String.format("%02d", now.getDayOfMonth()));
-
 		try {
-			Path sandbox = Paths.get(vendnetRoot).toRealPath();
+			Path root = Paths.get(vendnetRoot);
+			Files.createDirectories(root);
+			Path sandbox = root.toRealPath();
+			LocalDate now = LocalDate.now();
+			Path reportPath =
+					sandbox.resolve(
+									Paths.get(
+											"reports",
+											reportType,
+											String.valueOf(now.getYear()),
+											String.format("%02d", now.getMonthValue()),
+											String.format("%02d", now.getDayOfMonth())))
+							.normalize();
 			if (!pathValidator.isValidPath(reportPath, sandbox)) {
 				throw new SecurityException("Report path outside sandbox: " + reportPath);
 			}
@@ -52,7 +54,6 @@ public class ReportDirectoryServiceImpl implements ReportDirectoryService {
 			log.info("Report directory created: {}", reportPath);
 			return reportPath.toString();
 		} catch (IOException e) {
-			log.error("Failed to create report directory: {}", reportPath, e);
 			throw new RuntimeException("Failed to create report directory: " + e.getMessage(), e);
 		}
 	}
