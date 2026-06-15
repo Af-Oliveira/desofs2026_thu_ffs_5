@@ -125,13 +125,13 @@ public class SaleService {
 			return Optional.empty();
 		}
 
-		IdempotencyRecord record = existing.get();
+		IdempotencyRecord idempotencyRecord = existing.get();
 		log.info("Duplicate purchase request detected: key={}", idempotencyKey);
 		return Optional.of(
 				PurchaseResponse.builder()
-						.saleId(String.valueOf(record.getSaleId()))
+						.saleId(String.valueOf(idempotencyRecord.getSaleId()))
 						.status("DUPLICATE")
-						.transactionRef(record.getResponseBody())
+						.transactionRef(idempotencyRecord.getResponseBody())
 						.message("Purchase already processed")
 						.build());
 	}

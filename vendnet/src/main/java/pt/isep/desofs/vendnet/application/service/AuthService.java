@@ -36,7 +36,7 @@ public class AuthService {
 
 	private static final int TOTP_PERIOD = 30;
 	private static final int TOTP_DIGITS = 6;
-	private static final String TOTP_ALGORITHM = "HmacSHA1";
+	private static final String TOTP_ALGORITHM = "HmacSHA256";
 	private static final int MAX_USERNAME_LENGTH = 30;
 	private static final String LOGIN_ACTION = "LOGIN";
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();

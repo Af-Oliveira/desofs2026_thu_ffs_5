@@ -7,5 +7,5 @@ public interface IdempotencyRepository {
 
 	Optional<IdempotencyRecord> findByIdempotencyKey(String idempotencyKey);
 
-	IdempotencyRecord save(IdempotencyRecord record);
+	IdempotencyRecord save(IdempotencyRecord idempotencyRecord);
 }

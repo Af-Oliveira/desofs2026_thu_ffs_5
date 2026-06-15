@@ -1,7 +1,9 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
-import java.net.URI;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -55,6 +57,9 @@ public class BackupServiceImpl implements BackupService {
 
 	@Value("${spring.datasource.password:vendnet_pass}")
 	private String databasePassword;
+
+	@Value("${app.backup.mysqldump-path:/usr/bin/mysqldump}")
+	private String mysqldumpPath;
 
 	@Override
 	public BackupResult generateBackup() {
@@ -152,9 +157,7 @@ public class BackupServiceImpl implements BackupService {
 		try (Connection connection = dataSource.getConnection()) {
 			String jdbcUrl = connection.getMetaData().getURL();
 			if (jdbcUrl != null && jdbcUrl.startsWith("jdbc:h2:")) {
-				String escapedPath =
-						dumpFile.toAbsolutePath().normalize().toString().replace("'", "''");
-				connection.createStatement().execute("SCRIPT TO '" + escapedPath + "'");
+				createH2DatabaseDump(connection, dumpFile);
 				return;
 			}
 		}
@@ -163,12 +166,13 @@ public class BackupServiceImpl implements BackupService {
 		try (Connection connection = dataSource.getConnection()) {
 			jdbcUrl = connection.getMetaData().getURL();
 		}
-		MysqlTarget target = MysqlTarget.fromJdbcUrl(jdbcUrl);
-		ProcessBuilder pb =
-				new ProcessBuilder(
-						"mysqldump",
-						"-h",
-						target.host(),
+			MysqlTarget target = MysqlTarget.fromJdbcUrl(jdbcUrl);
+			Path mysqldumpExecutable = mysqlDumpExecutable();
+			ProcessBuilder pb =
+					new ProcessBuilder(
+							mysqldumpExecutable.toString(),
+							"-h",
+							target.host(),
 						"-P",
 						target.port(),
 						"-u",
@@ -188,8 +192,38 @@ public class BackupServiceImpl implements BackupService {
 		if (exitCode != 0) {
 			String error = new String(process.getInputStream().readAllBytes());
 			log.error("mysqldump failed (exit {}): {}", exitCode, error);
-			throw new BackupException("Backup failed: mysqldump exited with " + exitCode);
+				throw new BackupException("Backup failed: mysqldump exited with " + exitCode);
+			}
 		}
+
+	private void createH2DatabaseDump(Connection connection, Path dumpFile) throws SQLException {
+		try {
+			Method process =
+					Class.forName("org.h2.tools.Script")
+							.getMethod(
+									"process",
+									Connection.class,
+									String.class,
+									String.class,
+									String.class);
+			process.invoke(null, connection, dumpFile.toAbsolutePath().normalize().toString(), "", "");
+		} catch (InvocationTargetException e) {
+			Throwable cause = e.getCause();
+			if (cause instanceof SQLException sqlException) {
+				throw sqlException;
+			}
+			throw new BackupException("H2 database dump failed", cause);
+		} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException e) {
+			throw new BackupException("H2 database dump tool is unavailable", e);
+		}
+	}
+
+	private Path mysqlDumpExecutable() {
+		Path executable = Paths.get(mysqldumpPath).toAbsolutePath().normalize();
+		if (!Files.isRegularFile(executable) || !Files.isExecutable(executable)) {
+			throw new BackupException("Configured mysqldump executable is not available: " + executable);
+		}
+		return executable;
 	}
 
 	@Override
