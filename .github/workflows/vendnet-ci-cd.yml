@@ -146,11 +146,11 @@ jobs:
           fi
 
           SHORT_SHA="${GITHUB_SHA::7}"
-          # Semver with build metadata: {version}+{short_sha}
-          IMAGE_TAG="${VERSION}+${SHORT_SHA}"
+          # Semver with build metadata: {version}-{short_sha}
+          IMAGE_TAG="${VERSION}-${SHORT_SHA}"
 
-          # Artifact naming: vendnet-{version}+{short_sha}
-          ARTIFACT_NAME="${APP_NAME}-${VERSION}+${SHORT_SHA}"
+          # Artifact naming: vendnet-{version}-{short_sha}
+          ARTIFACT_NAME="${APP_NAME}-${VERSION}-${SHORT_SHA}"
 
           # Boolean flags for conditional jobs
           if [ "${GITHUB_REF}" = "refs/heads/main" ] || [ "${GITHUB_REF_TYPE}" = "tag" ]; then
