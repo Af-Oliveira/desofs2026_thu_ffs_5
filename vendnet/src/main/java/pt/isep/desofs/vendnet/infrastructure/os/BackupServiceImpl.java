@@ -32,6 +32,7 @@ public class BackupServiceImpl implements BackupService {
 
 	private static final int GCM_IV_LENGTH = 12;
 	private static final int GCM_TAG_LENGTH = 128;
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final PathValidator pathValidator;
 	private final AuditLogRepository auditLogRepository;
@@ -222,7 +223,7 @@ public class BackupServiceImpl implements BackupService {
 	private Path encryptFile(Path file) throws Exception {
 		byte[] fileBytes = Files.readAllBytes(file);
 		byte[] iv = new byte[GCM_IV_LENGTH];
-		new SecureRandom().nextBytes(iv);
+		SECURE_RANDOM.nextBytes(iv);
 
 		Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 		cipher.init(Cipher.ENCRYPT_MODE, backupKey, new GCMParameterSpec(GCM_TAG_LENGTH, iv));

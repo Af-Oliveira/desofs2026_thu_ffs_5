@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -172,8 +173,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void healthController_up_shouldReturnOk() {
-		HealthController controller = new HealthController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		HealthController controller = new HealthController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(true);
 		ResponseEntity<String> response = controller.health();
 		assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -182,8 +182,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void healthController_seeding_shouldReturn503() {
-		HealthController controller = new HealthController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		HealthController controller = new HealthController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(false);
 		ResponseEntity<String> response = controller.health();
 		assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
@@ -191,8 +190,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void pingController_ready_shouldReturnOk() {
-		PingController controller = new PingController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		PingController controller = new PingController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(true);
 		ResponseEntity<Map<String, String>> response = controller.ping();
 		assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -201,8 +199,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void pingController_seeding_shouldReturn503() {
-		PingController controller = new PingController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		PingController controller = new PingController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(false);
 		ResponseEntity<Map<String, String>> response = controller.ping();
 		assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());

@@ -22,7 +22,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp");
 
-	private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
+	private static final long MAX_FILE_SIZE = 5L * 1024 * 1024;
 
 	private final Tika tika = new Tika();
 

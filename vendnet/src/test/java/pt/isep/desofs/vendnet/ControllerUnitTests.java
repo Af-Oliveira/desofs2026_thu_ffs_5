@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -475,11 +476,11 @@ class ControllerUnitTests {
     @DisplayName("HealthController")
     class HealthControllerUnitTests {
 
-        @InjectMocks
         private HealthController healthController;
 
         @BeforeEach
         void setUp() {
+            healthController = new HealthController(Optional.empty());
             mockMvc = MockMvcBuilders.standaloneSetup(healthController).build();
         }
 
@@ -504,11 +505,11 @@ class ControllerUnitTests {
     @DisplayName("PingController")
     class PingControllerUnitTests {
 
-        @InjectMocks
         private PingController pingController;
 
         @BeforeEach
         void setUp() {
+            pingController = new PingController(Optional.empty());
             mockMvc = MockMvcBuilders.standaloneSetup(pingController).build();
         }
 

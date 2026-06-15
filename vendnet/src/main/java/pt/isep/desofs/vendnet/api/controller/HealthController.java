@@ -1,6 +1,6 @@
 package pt.isep.desofs.vendnet.api.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,8 +12,11 @@ import pt.isep.desofs.vendnet.config.BootstrapReadyIndicator;
 @RequestMapping("/api/health")
 public class HealthController {
 
-	@Autowired(required = false)
-	private BootstrapReadyIndicator bootstrapReady;
+	private final BootstrapReadyIndicator bootstrapReady;
+
+	public HealthController(Optional<BootstrapReadyIndicator> bootstrapReady) {
+		this.bootstrapReady = bootstrapReady.orElse(null);
+	}
 
 	@GetMapping
 	@PreAuthorize("permitAll()")
