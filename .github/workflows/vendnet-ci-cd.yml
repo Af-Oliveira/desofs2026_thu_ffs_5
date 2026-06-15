@@ -17,7 +17,7 @@
 #    Stage 4 ─ Deep Security      (SpotBugs + Dependency Check + IAST, parallel)
 #    Stage 5 ─ SonarQube Gate     (mandatory, ≥80% coverage, reads JaCoCo XML)
 #    Stage 6 ─ DAST ZAP           (baseline + authenticated RBAC scans)
-#    Stage 7 ─ Docker Build+Push  (depends on all gates, Trivy scan, GHCR + Docker Hub)
+#    Stage 7 ─ Docker Build+Push  (depends on all gates, Trivy scan, GHCR)
 #    Stage 8 ─ Deploy DEV         (Manual overwrite, workflow_dispatch only)
 #    Stage 9 ─ Deploy STAGING     (Blue/Green, zero-downtime, on push to main)
 #    Stage 10 ─ Deploy PROD       (Blue/Green, zero-downtime, on tag/dispatch)
@@ -27,7 +27,7 @@
 #  Key improvements over v1:
 #    - All quality/security gates block docker push (no deploy without passing)
 #    - SonarQube is mandatory — missing secrets fail the pipeline
-#    - Dual-registry push: GHCR + Docker Hub
+#    - Single-registry push: GHCR
 #    - Consistent semver naming: {version}+{short_sha}
 #    - Blue/Green zero-downtime for production (main/tags), manual overwrite for DEV
 #    - Automatic rollback if Nginx health check fails after traffic switch
@@ -80,7 +80,6 @@ env:
   JAVA_VERSION: '17'
   JAVA_DISTRIBUTION: 'temurin'
   REGISTRY: ghcr.io
-  DOCKERHUB_REGISTRY: docker.io
   # Remote server (DEI ISEP private cloud)
   REMOTE_HOST: vs427.dei.isep.ipp.pt
   REMOTE_SSH_PORT: '22'
@@ -674,7 +673,7 @@ jobs:
           exit ${SONAR_EXIT}
 
   # =============================================================================
-  #  JOB 7 — DOCKER BUILD & PUSH (with Trivy scan, push to GHCR + Docker Hub)
+  #  JOB 7 — DOCKER BUILD & PUSH (with Trivy scan, push to GHCR)
   #  Depends on ALL quality and security gates.
   # =============================================================================
   docker-build-push:
@@ -686,7 +685,7 @@ jobs:
       needs.setup-context.outputs.is_develop == 'true'
     outputs:
       image_full: ${{ steps.img.outputs.full }}
-      image_dockerhub: ${{ steps.img.outputs.dockerhub }}
+
       image_tag: ${{ needs.setup-context.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
@@ -701,12 +700,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "🔐 Login to Docker Hub"
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKERHUB_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: "🔡 Compute Lowercase Image Reference"
         id: img
@@ -714,7 +707,6 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "name=${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
           echo "full=${{ env.REGISTRY }}/${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
-          echo "dockerhub=${{ env.DOCKERHUB_REGISTRY }}/${REPO_LOWER}/vendnet" >> "${GITHUB_OUTPUT}"
 
       - name: "📋 Docker Metadata"
         id: docker_meta
@@ -722,7 +714,6 @@ jobs:
         with:
           images: |
             ${{ steps.img.outputs.full }}
-            ${{ steps.img.outputs.dockerhub }}
           tags: |
             type=raw,value=${{ needs.setup-context.outputs.image_tag }}
             type=raw,value=${{ needs.setup-context.outputs.branch }}-latest
@@ -764,7 +755,6 @@ jobs:
             echo "| Property | Value |"
             echo "|----------|-------|"
             echo "| **GHCR Image**    | \`${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}\` |"
-            echo "| **Docker Hub**    | \`${{ steps.img.outputs.dockerhub }}:${{ needs.setup-context.outputs.image_tag }}\` |"
             echo "| **Tag**           | \`${{ needs.setup-context.outputs.image_tag }}\` |"
             echo "| **Branch**        | \`${{ needs.setup-context.outputs.branch }}-latest\` |"
             if [ "${{ needs.setup-context.outputs.is_release }}" = "true" ]; then
@@ -774,12 +764,10 @@ jobs:
             echo "### Pull commands:"
             echo '```bash'
             echo "docker pull ${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}"
-            echo "docker pull ${{ steps.img.outputs.dockerhub }}:${{ needs.setup-context.outputs.image_tag }}"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
           echo "🐳 GHCR: ${{ steps.img.outputs.full }}:${{ needs.setup-context.outputs.image_tag }}"
-          echo "🐳 Docker Hub: ${{ steps.img.outputs.dockerhub }}:${{ needs.setup-context.outputs.image_tag }}"
 
   # =============================================================================
   #  JOB 8 — DAST: OWASP ZAP (Dynamic Application Security Testing)
@@ -1303,18 +1291,14 @@ jobs:
             ## 🚀 VendNet Release ${{ needs.setup-context.outputs.version }}
 
             ### 🔗 Artifacts
-            - **Docker Image (GHCR):** `${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}`
-            - **Docker Image (Docker Hub):** `${{ needs.docker-build-push.outputs.image_dockerhub }}:${{ needs.setup-context.outputs.image_tag }}`
+            - **Docker Image:** `${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}`
             - **Docker Image (latest):** `${{ needs.docker-build-push.outputs.image_full }}:latest`
             - **SBOM:** CycloneDX JSON (attached below)
 
             ### 📦 Pull the Docker Image
             ```bash
-            # From GitHub Container Registry
+            # Pull the Docker Image
             docker pull ${{ needs.docker-build-push.outputs.image_full }}:${{ needs.setup-context.outputs.image_tag }}
-
-            # From Docker Hub
-            docker pull ${{ needs.docker-build-push.outputs.image_dockerhub }}:${{ needs.setup-context.outputs.image_tag }}
             ```
 
             ### 🔒 Security
@@ -1491,8 +1475,6 @@ jobs:
 # ║                                                                              ║
 # ║  🔐 REQUIRED SECRETS (set in Settings → Secrets and variables → Actions):    ║
 # ║    - SSH_PRIVATE_KEY        (deploy key for vs427.dei.isep.ipp.pt)           ║
-# ║    - DOCKERHUB_USERNAME     (Docker Hub username for image push)             ║
-# ║    - DOCKERHUB_TOKEN        (Docker Hub access token/password)               ║
 # ║    - SONAR_HOST_URL         (https://vs-gate.dei.isep.ipp.pt:10427)          ║
 # ║    - SONAR_TOKEN            (SonarQube project token)                        ║
 # ║    - NVD_API_KEY            (NIST NVD API key for dependency check)          ║
@@ -1519,9 +1501,8 @@ jobs:
 # ║    pipeline. The old container is NOT removed unless the health check        ║
 # ║    passes. See: scripts/blue-green-deploy.sh                                ║
 # ║                                                                              ║
-# ║  📦 DOCKER REGISTRIES:                                                       ║
-# ║    - GHCR:       ghcr.io/<org>/vendnet (push via GITHUB_TOKEN)              ║
-# ║    - Docker Hub: docker.io/<org>/vendnet (push via DOCKERHUB_* secrets)     ║
+# ║  📦 DOCKER REGISTRY:                                                        ║
+# ║    - GHCR: ghcr.io/<org>/vendnet (push via GITHUB_TOKEN)                    ║
 # ║    Ensure the GHCR package is "Public" in GitHub Package settings            ║
 # ║    or configure a token with read:packages scope for the server.             ║
 # ║                                                                              ║
