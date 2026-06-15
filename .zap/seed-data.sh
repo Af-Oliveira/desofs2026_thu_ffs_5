@@ -33,7 +33,7 @@ login_and_export_token() {
     local role=$4
     local output_file="$OUTPUT_DIR/$5"
 
-    echo "--- $role ($email) ---"
+    echo "--- $role ($email) --- "
 
     login_resp=$(curl -s -X POST "$BASE_URL/api/auth/login" \
         -H "Content-Type: application/json" \
