@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -16,7 +15,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.multipart.MultipartFile;
@@ -111,97 +109,44 @@ class ProductServiceTest {
 	@Test
 	void updateProduct_shouldThrowWhenNotFound() {
 		when(productRepository.findById(999L)).thenReturn(Optional.empty());
-		assertThrows(IllegalArgumentException.class, () -> productService.updateProduct(999L, new Product()));
+		Product update = new Product();
+		assertThrows(IllegalArgumentException.class, () -> productService.updateProduct(999L, update));
 	}
 
 	@Test
 	void createProduct_invalidName_shouldThrow() {
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								null, "desc", new BigDecimal("1.00"), "EUR", "GENERAL", "SKU-1", null));
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"   ", "desc", new BigDecimal("1.00"), "EUR", "GENERAL", "SKU-2", null));
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"a".repeat(101),
-								"desc",
-								new BigDecimal("1.00"),
-								"EUR",
-								"GENERAL",
-								"SKU-3",
-								null));
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"<script>alert(1)</script>",
-								"desc",
-								new BigDecimal("1.00"),
-								"EUR",
-								"GENERAL",
-								"SKU-4",
-								null));
+		BigDecimal price = new BigDecimal("1.00");
+		String oversizedName = "a".repeat(101);
+
+		assertInvalidProduct(null, "desc", price, "EUR", "GENERAL", "SKU-1");
+		assertInvalidProduct("   ", "desc", price, "EUR", "GENERAL", "SKU-2");
+		assertInvalidProduct(oversizedName, "desc", price, "EUR", "GENERAL", "SKU-3");
+		assertInvalidProduct("<script>alert(1)</script>", "desc", price, "EUR", "GENERAL", "SKU-4");
 	}
 
 	@Test
 	void createProduct_invalidDescription_shouldThrow() {
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"Coke",
-								"x".repeat(501),
-								new BigDecimal("1.00"),
-								"EUR",
-								"GENERAL",
-								"SKU-5",
-								null));
+		BigDecimal price = new BigDecimal("1.00");
+		String oversizedDescription = "x".repeat(501);
+
+		assertInvalidProduct("Coke", oversizedDescription, price, "EUR", "GENERAL", "SKU-5");
 	}
 
 	@Test
 	void createProduct_invalidPrice_shouldThrow() {
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"Coke", "desc", null, "EUR", "GENERAL", "SKU-6", null));
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"Coke", "desc", BigDecimal.ZERO, "EUR", "GENERAL", "SKU-7", null));
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"Coke",
-								"desc",
-								new BigDecimal("1.999"),
-								"EUR",
-								"GENERAL",
-								"SKU-8",
-								null));
+		BigDecimal tooPrecisePrice = new BigDecimal("1.999");
+
+		assertInvalidProduct("Coke", "desc", null, "EUR", "GENERAL", "SKU-6");
+		assertInvalidProduct("Coke", "desc", BigDecimal.ZERO, "EUR", "GENERAL", "SKU-7");
+		assertInvalidProduct("Coke", "desc", tooPrecisePrice, "EUR", "GENERAL", "SKU-8");
 	}
 
 	@Test
 	void createProduct_invalidCurrencyOrCategory_shouldThrow() {
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"Coke", "desc", new BigDecimal("1.00"), "EURO", "GENERAL", "SKU-9", null));
-		assertThrows(
-				IllegalArgumentException.class,
-				() ->
-						productService.createProduct(
-								"Coke", "desc", new BigDecimal("1.00"), "EUR", "bad", "SKU-10", null));
+		BigDecimal price = new BigDecimal("1.00");
+
+		assertInvalidProduct("Coke", "desc", price, "EURO", "GENERAL", "SKU-9");
+		assertInvalidProduct("Coke", "desc", price, "EUR", "bad", "SKU-10");
 	}
 
 	@Test
@@ -234,5 +179,17 @@ class ProductServiceTest {
 		assertEquals("SKU-002", result.getSku());
 		assertEquals("/new.png", result.getImageUrl());
 		assertEquals(false, result.isActive());
+	}
+
+	private void assertInvalidProduct(
+			String name,
+			String description,
+			BigDecimal price,
+			String currency,
+			String category,
+			String sku) {
+		assertThrows(
+				IllegalArgumentException.class,
+				() -> productService.createProduct(name, description, price, currency, category, sku, null));
 	}
 }

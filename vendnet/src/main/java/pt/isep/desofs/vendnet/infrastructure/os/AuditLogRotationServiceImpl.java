@@ -1,5 +1,6 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service;
 public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+	private static final String AUDIT_LOG_DIRECTORY = "audit";
 
 	private final PathValidator pathValidator;
 
@@ -43,7 +45,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 	@Override
 	public void rotate() {
 		try {
-			Path logsDir = Paths.get(vendnetRoot, "logs", "audit").toRealPath();
+			Path logsDir = Paths.get(vendnetRoot, "logs", AUDIT_LOG_DIRECTORY).toRealPath();
 			Path sandbox = Paths.get(vendnetRoot).toRealPath();
 
 			if (!pathValidator.isValidPath(logsDir, sandbox)) {
@@ -59,7 +61,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 			}
 
 			log.info("Audit log rotation completed");
-		} catch (Exception e) {
+		} catch (IOException | SecurityException e) {
 			log.error("Audit log rotation failed", e);
 		}
 	}
@@ -67,7 +69,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 	@Override
 	public void compressAfterDays(int days) {
 		try {
-			Path logsDir = Paths.get(vendnetRoot, "logs", "audit").toRealPath();
+			Path logsDir = Paths.get(vendnetRoot, "logs", AUDIT_LOG_DIRECTORY).toRealPath();
 			Instant cutoff = Instant.now().minus(days, ChronoUnit.DAYS);
 
 			try (Stream<Path> files = Files.list(logsDir)) {
@@ -77,7 +79,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 						.filter(f -> isOlderThan(f, cutoff))
 						.forEach(this::compressAndSign);
 			}
-		} catch (Exception e) {
+		} catch (IOException e) {
 			log.error("Log compression failed", e);
 		}
 	}
@@ -85,7 +87,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 	@Override
 	public void deleteAfterDays(int days) {
 		try {
-			Path logsDir = Paths.get(vendnetRoot, "logs", "audit").toRealPath();
+			Path logsDir = Paths.get(vendnetRoot, "logs", AUDIT_LOG_DIRECTORY).toRealPath();
 			Path sandbox = Paths.get(vendnetRoot).toRealPath();
 
 			if (!pathValidator.isValidPath(logsDir, sandbox)) {
@@ -106,7 +108,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 														attr.lastModifiedTime().toInstant(),
 														ZoneId.systemDefault());
 										return fileTime.isBefore(cutoff);
-									} catch (Exception e) {
+									} catch (IOException e) {
 										return false;
 									}
 								})
@@ -115,14 +117,14 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 									try {
 										Files.deleteIfExists(f);
 										log.info("Deleted old log: {}", f.getFileName());
-									} catch (Exception ignored) {
-										/* ok */
+									} catch (IOException e) {
+										log.debug("Skipping old log during deletion: {}", f, e);
 									}
 								});
 			}
 
 			log.info("Old log deletion completed (retention: {} days)", days);
-		} catch (Exception e) {
+		} catch (IOException | SecurityException e) {
 			log.error("Log deletion failed", e);
 		}
 	}
@@ -135,7 +137,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 		try {
 			BasicFileAttributes attr = Files.readAttributes(file, BasicFileAttributes.class);
 			return attr.lastModifiedTime().toInstant().isBefore(cutoff);
-		} catch (Exception e) {
+		} catch (IOException e) {
 			return false;
 		}
 	}
@@ -156,7 +158,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 
 			Files.deleteIfExists(file);
 			log.info("Compressed and signed: {}", file.getFileName());
-		} catch (Exception e) {
+		} catch (IOException | NoSuchAlgorithmException | InvalidKeyException e) {
 			log.error("Failed to compress/sign: {}", file.getFileName(), e);
 		}
 	}

@@ -3,6 +3,7 @@ package pt.isep.desofs.vendnet;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -80,10 +81,9 @@ class LayeredArchitectureTest {
         boolean hasEnableMethodSecurity = importedClasses.stream()
                 .filter(c -> c.isAnnotatedWith(EnableMethodSecurity.class))
                 .anyMatch(c -> c.getPackageName().startsWith("pt.isep.desofs.vendnet.config"));
-        if (!hasEnableMethodSecurity) {
-            throw new AssertionError(
-                    "@EnableMethodSecurity must be present in security configuration class for method-level RBAC (SR-06)");
-        }
+        assertTrue(
+                hasEnableMethodSecurity,
+                "@EnableMethodSecurity must be present in security configuration class for method-level RBAC (SR-06)");
     }
 
     @Test
@@ -101,10 +101,9 @@ class LayeredArchitectureTest {
                 .filter(c -> c.isAnnotatedWith(Service.class))
                 .allMatch(c -> c.getPackageName().startsWith("pt.isep.desofs.vendnet.application.service") ||
                         c.getPackageName().startsWith("pt.isep.desofs.vendnet.infrastructure"));
-        if (!allServicesInCorrectPackages) {
-            throw new AssertionError(
-                    "@Service classes must be in application.service or infrastructure packages (DDD layered architecture)");
-        }
+        assertTrue(
+                allServicesInCorrectPackages,
+                "@Service classes must be in application.service or infrastructure packages (DDD layered architecture)");
     }
 
     @Test

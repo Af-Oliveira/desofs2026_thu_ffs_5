@@ -41,6 +41,7 @@ class PathValidatorImplTest {
 			Files.createSymbolicLink(link, target);
 			assertTrue(validator.containsSymlink(link));
 		} catch (UnsupportedOperationException e) {
+			// Some filesystems do not support symbolic links in test sandboxes.
 		}
 	}
 

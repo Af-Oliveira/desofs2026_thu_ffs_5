@@ -4,12 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -22,12 +20,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import pt.isep.desofs.vendnet.api.dto.CreateMachineRequest;
 import pt.isep.desofs.vendnet.api.dto.CreateUserRequest;
-import pt.isep.desofs.vendnet.api.dto.MachineResponse;
 import pt.isep.desofs.vendnet.api.dto.UpdateUserRequest;
 import pt.isep.desofs.vendnet.api.dto.UserResponse;
 import pt.isep.desofs.vendnet.application.service.MachineService;
-import pt.isep.desofs.vendnet.application.service.SaleService;
-import pt.isep.desofs.vendnet.application.service.SlotService;
 import pt.isep.desofs.vendnet.application.service.UserManagementService;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 
@@ -36,14 +31,10 @@ class ControllerUnitTests {
 
 	@Mock private UserManagementService userManagementService;
 	@Mock private MachineService machineService;
-	@Mock private SlotService slotService;
-	@Mock private SaleService saleService;
 
 	private AdminController adminController;
 	private MachineController machineController;
-	private SlotController slotController;
 	private PublicController publicController;
-	private OperationsController operationsController;
 
 	@BeforeEach
 	void setUp() {

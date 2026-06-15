@@ -1,5 +1,7 @@
 package pt.isep.desofs.vendnet;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -140,10 +142,10 @@ class AbuseCaseRegressionTest {
             if (f.getName().equals("totalAmount"))
                 hasTotalAmount = true;
         }
-        if (!hasUnitPrice || !hasTotalAmount) {
-            throw new AssertionError("Sale entity must have unitPrice and totalAmount fields. "
-                    + "Price must be resolved server-side from the Product catalog (SR-24).");
-        }
+        assertTrue(
+                hasUnitPrice && hasTotalAmount,
+                "Sale entity must have unitPrice and totalAmount fields. "
+                        + "Price must be resolved server-side from the Product catalog (SR-24).");
     }
 
     // ── AC-05: SQL Injection via Inventory Search ────────────────────────────
@@ -187,10 +189,8 @@ class AbuseCaseRegressionTest {
         capacity.setAccessible(true);
         currentStock.setAccessible(true);
 
-        if (capacity.getType() != int.class || currentStock.getType() != int.class) {
-            throw new AssertionError(
-                    "Slot must have int capacity and currentStock fields for pessimistic locking (SR-15).");
-        }
+        assertEquals(int.class, capacity.getType());
+        assertEquals(int.class, currentStock.getType());
     }
 
     // ── AC-01: OS Command Injection via ProcessBuilder Backup ────────────────

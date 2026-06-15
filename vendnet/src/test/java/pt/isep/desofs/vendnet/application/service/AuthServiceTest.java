@@ -3,12 +3,11 @@ package pt.isep.desofs.vendnet.application.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -209,6 +208,7 @@ class AuthServiceTest {
 			try {
 				authService.login(request);
 			} catch (UnauthorizedException | AccountLockedException ignored) {
+				// Each failed login is expected; this test verifies the accumulated lockout side effect.
 			}
 		}
 
@@ -286,7 +286,7 @@ class AuthServiceTest {
 		String secret = authService.generateTotpSecret();
 
 		assertNotNull(secret);
-		assertTrue(secret.length() > 0);
+		assertFalse(secret.isEmpty());
 	}
 
 	@Test
@@ -296,7 +296,7 @@ class AuthServiceTest {
 
 		assertNotNull(secret1);
 		assertNotNull(secret2);
-		assertTrue(!secret1.equals(secret2));
+		assertNotEquals(secret1, secret2);
 	}
 
 	@Test

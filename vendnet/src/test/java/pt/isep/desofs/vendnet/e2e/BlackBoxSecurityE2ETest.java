@@ -266,17 +266,16 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
                         .then()
                         .extract()
                         .asString();
-        int codeProducts =
-                given()
-                        .urlEncodingEnabled(false)
-                        .header("Authorization", authHeader(token))
-                        .get("/api/products/" + skuPayload)
+	        int codeProducts =
+	                given()
+	                        .urlEncodingEnabled(false)
+	                        .header("Authorization", authHeader(token))
+	                        .get("/api/products/" + skuPayload)
                         .then()
-                        .extract()
-                        .statusCode();
-        assertThat(codeProducts).isIn(400, 404);
-        assertThat(bodyProducts).doesNotContain("java.lang.");
-        assertThat(bodyProducts).doesNotContain("SQLException");
+	                        .extract()
+	                        .statusCode();
+	        assertThat(codeProducts).isIn(400, 404);
+	        assertThat(bodyProducts).doesNotContain("java.lang.", "SQLException");
 
         String idPayload = encodePathSegment("1 UNION SELECT * FROM users--");
         int codeId =
@@ -311,11 +310,10 @@ class BlackBoxSecurityE2ETest extends E2ETestBase {
                         .extract();
         int reportStatus = reportResponse.statusCode();
         assertThat(reportStatus).isIn(200, 500);
-        if (reportStatus == 200) {
-            String reportPath = reportResponse.path("path");
-            assertThat(reportPath).doesNotContain("..");
-            assertThat(reportPath.replace('\\', '/')).contains("/var/vendnet/");
-        }
+	        if (reportStatus == 200) {
+	            String reportPath = reportResponse.path("path");
+	            assertThat(reportPath.replace('\\', '/')).doesNotContain("..").contains("/var/vendnet/");
+	        }
 
         String traversalSku = encodePathSegment("../../etc/passwd");
         int code =

@@ -1,7 +1,9 @@
 package pt.isep.desofs.vendnet.application.service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
@@ -98,7 +100,7 @@ public class ProductService {
 	private String checksum(MultipartFile image) {
 		try {
 			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(image.getBytes()));
-		} catch (Exception e) {
+		} catch (NoSuchAlgorithmException | IOException e) {
 			throw new IllegalArgumentException("Unable to checksum image", e);
 		}
 	}

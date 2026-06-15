@@ -1,6 +1,7 @@
 package pt.isep.desofs.vendnet;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -159,7 +160,7 @@ class SystemFunctionalTests {
                         int backupStatus = mockMvc.perform(post("/api/admin/backups")
                                         .header("Authorization", "Bearer " + token))
                                         .andReturn().getResponse().getStatus();
-                        assertTrue(backupStatus == 201,
+                        assertEquals(201, backupStatus,
                                         "Backup endpoint should create an encrypted backup artifact");
 
                         // AAA: Act & Assert — sales (via hierarchy)

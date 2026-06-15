@@ -80,18 +80,18 @@ class FileStorageServiceImplTest {
 	@Test
 	void store_pathTraversal_shouldThrowSecurityException() throws IOException {
 		when(pathValidator.isValidPath(any(), any())).thenReturn(false);
+		MockMultipartFile file = validPngFile();
 
-		assertThrows(
-				SecurityException.class, () -> service.store(validPngFile(), "../../etc"));
+		assertThrows(SecurityException.class, () -> service.store(file, "../../etc"));
 	}
 
 	@Test
 	void store_symlinkTarget_shouldThrowSecurityException() throws IOException {
 		when(pathValidator.isValidPath(any(), any())).thenReturn(true);
 		when(pathValidator.containsSymlink(any())).thenReturn(true);
+		MockMultipartFile file = validPngFile();
 
-		assertThrows(
-				SecurityException.class, () -> service.store(validPngFile(), "products"));
+		assertThrows(SecurityException.class, () -> service.store(file, "products"));
 	}
 
 	@Test

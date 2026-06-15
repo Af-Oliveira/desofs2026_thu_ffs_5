@@ -29,6 +29,7 @@ import pt.isep.desofs.vendnet.domain.repository.IdempotencyRepository;
 import pt.isep.desofs.vendnet.domain.repository.ProductRepository;
 import pt.isep.desofs.vendnet.domain.repository.SaleRepository;
 import pt.isep.desofs.vendnet.domain.repository.SlotRepository;
+import pt.isep.desofs.vendnet.infrastructure.payment.PaymentGatewayException;
 import pt.isep.desofs.vendnet.infrastructure.payment.PaymentGatewayService;
 
 @ExtendWith(MockitoExtension.class)
@@ -127,7 +128,7 @@ class SaleServiceTest {
 			s.setId(2L);
 			return s;
 		});
-		doThrow(new RuntimeException("Card declined")).when(paymentGatewayService).authorizePayment(anyString(), any(BigDecimal.class));
+		doThrow(new PaymentGatewayException("Card declined")).when(paymentGatewayService).authorizePayment(anyString(), any(BigDecimal.class));
 		assertThrows(PaymentDeclinedException.class, () -> saleService.purchase(request, 1L));
 	}
 
@@ -147,9 +148,10 @@ class SaleServiceTest {
 		Product product = Product.builder().id(1L).sku("SKU-001").price(new BigDecimal("1.50")).active(true).build();
 		PurchaseRequest request = PurchaseRequest.builder()
 				.productId(1L).machineId(1L).paymentToken("tok").idempotencyKey("key-123").build();
-		IdempotencyRecord record = IdempotencyRecord.builder().idempotencyKey("key-123").responseStatus("COMPLETED").saleId(1L).build();
+		IdempotencyRecord idempotencyRecord =
+				IdempotencyRecord.builder().idempotencyKey("key-123").responseStatus("COMPLETED").saleId(1L).build();
 		when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-		when(idempotencyRepository.findByIdempotencyKey("key-123")).thenReturn(Optional.of(record));
+		when(idempotencyRepository.findByIdempotencyKey("key-123")).thenReturn(Optional.of(idempotencyRecord));
 		PurchaseResponse response = saleService.purchase(request, 1L);
 		assertEquals("DUPLICATE", response.getStatus());
 	}

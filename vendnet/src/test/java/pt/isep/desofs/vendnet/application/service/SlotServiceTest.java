@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import pt.isep.desofs.vendnet.domain.model.audit.AuditLog;
 import pt.isep.desofs.vendnet.domain.model.machine.MachineStatus;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
@@ -92,7 +91,6 @@ class SlotServiceTest {
 
 	@Test
 	void restock_machineOffline_shouldThrowException() {
-		LocalDateTime now = LocalDateTime.now();
 		VendingMachine machine = VendingMachine.builder().id(1L).code("VM-001")
 				.status(MachineStatus.OFFLINE).build();
 

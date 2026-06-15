@@ -2,19 +2,9 @@ package pt.isep.desofs.vendnet.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -31,7 +21,6 @@ import pt.isep.desofs.vendnet.domain.exception.OutOfStockException;
 import pt.isep.desofs.vendnet.domain.exception.PaymentDeclinedException;
 import pt.isep.desofs.vendnet.domain.exception.UnauthorizedException;
 
-@ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
 
 	private GlobalExceptionHandler handler;
@@ -144,5 +133,7 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@SuppressWarnings("unused")
-	private void validationTarget(Object obj) {}
+	private void validationTarget(Object obj) {
+		// Reflection-only target used to build MethodParameter for validation tests.
+	}
 }

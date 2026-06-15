@@ -1,16 +1,21 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
 import java.net.URI;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.Set;
@@ -33,6 +38,8 @@ public class BackupServiceImpl implements BackupService {
 	private static final int GCM_IV_LENGTH = 12;
 	private static final int GCM_TAG_LENGTH = 128;
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+	private static final String DEFAULT_MYSQL_HOST = "localhost";
+	private static final String DEFAULT_DATABASE_NAME = "vendnet";
 
 	private final PathValidator pathValidator;
 	private final AuditLogRepository auditLogRepository;
@@ -108,9 +115,17 @@ public class BackupServiceImpl implements BackupService {
 						.checksum(checksum)
 						.timestamp(LocalDateTime.now())
 						.build();
-			} catch (Exception e) {
+		} catch (IOException
+				| SQLException
+				| GeneralSecurityException
+				| InterruptedException
+				| BackupException
+				| SecurityException e) {
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
 			log.error("Backup generation failed", e);
-			throw new RuntimeException("Backup failed: " + e.getMessage(), e);
+			throw new BackupException("Backup failed: " + e.getMessage(), e);
 		}
 	}
 
@@ -127,12 +142,12 @@ public class BackupServiceImpl implements BackupService {
 			KeyGenerator keyGen = KeyGenerator.getInstance("AES");
 			keyGen.init(256);
 			return keyGen.generateKey();
-		} catch (Exception e) {
+		} catch (NoSuchAlgorithmException e) {
 			throw new IllegalStateException("AES-256 backup key initialization failed", e);
 		}
 	}
 
-	private void createDatabaseDump(Path dumpFile) throws Exception {
+	private void createDatabaseDump(Path dumpFile) throws IOException, SQLException, InterruptedException {
 		try (Connection connection = dataSource.getConnection()) {
 			String jdbcUrl = connection.getMetaData().getURL();
 			if (jdbcUrl != null && jdbcUrl.startsWith("jdbc:h2:")) {
@@ -172,7 +187,7 @@ public class BackupServiceImpl implements BackupService {
 		if (exitCode != 0) {
 			String error = new String(process.getInputStream().readAllBytes());
 			log.error("mysqldump failed (exit {}): {}", exitCode, error);
-			throw new RuntimeException("Backup failed: mysqldump exited with " + exitCode);
+			throw new BackupException("Backup failed: mysqldump exited with " + exitCode);
 		}
 	}
 
@@ -190,37 +205,40 @@ public class BackupServiceImpl implements BackupService {
 
 			try (Stream<Path> dirs = Files.list(backupsRoot)) {
 				dirs.filter(Files::isDirectory)
-						.forEach(
-								dir -> {
-									try {
-										LocalDate dirDate =
-												LocalDate.parse(dir.getFileName().toString());
-										if (dirDate.isBefore(cutoff)) {
-											Files.walk(dir)
-													.sorted(Comparator.reverseOrder())
-													.forEach(
-															f -> {
-																try {
-																	Files.deleteIfExists(f);
-																} catch (Exception ignored) {
-																	/* ok */
-																}
-															});
-											log.info(
-													"Rotated backup directory: {}",
-													dir.getFileName());
-										}
-									} catch (Exception ignored) {
-										/* ok */
-									}
-								});
+						.forEach(dir -> rotateBackupDirectory(dir, cutoff));
 			}
-		} catch (Exception e) {
+		} catch (IOException | SecurityException e) {
 			log.error("Backup rotation failed", e);
 		}
 	}
 
-	private Path encryptFile(Path file) throws Exception {
+	private void rotateBackupDirectory(Path dir, LocalDate cutoff) {
+		try {
+			LocalDate dirDate = LocalDate.parse(dir.getFileName().toString());
+			if (dirDate.isBefore(cutoff)) {
+				deleteRecursively(dir);
+				log.info("Rotated backup directory: {}", dir.getFileName());
+			}
+		} catch (DateTimeParseException | IOException e) {
+			log.debug("Skipping backup directory during rotation: {}", dir, e);
+		}
+	}
+
+	private void deleteRecursively(Path root) throws IOException {
+		try (Stream<Path> files = Files.walk(root)) {
+			files.sorted(Comparator.reverseOrder()).forEach(this::deleteIfExists);
+		}
+	}
+
+	private void deleteIfExists(Path file) {
+		try {
+			Files.deleteIfExists(file);
+		} catch (IOException e) {
+			log.debug("Skipping backup path during rotation: {}", file, e);
+		}
+	}
+
+	private Path encryptFile(Path file) throws IOException, GeneralSecurityException {
 		byte[] fileBytes = Files.readAllBytes(file);
 		byte[] iv = new byte[GCM_IV_LENGTH];
 		SECURE_RANDOM.nextBytes(iv);
@@ -245,12 +263,12 @@ public class BackupServiceImpl implements BackupService {
 		return encryptedFile;
 	}
 
-	private String sha256(Path file) throws Exception {
+	private String sha256(Path file) throws IOException, NoSuchAlgorithmException {
 		return HexFormat.of()
 				.formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)));
 	}
 
-	private void setPermissions(Path path, Set<PosixFilePermission> permissions) throws Exception {
+	private void setPermissions(Path path, Set<PosixFilePermission> permissions) throws IOException {
 		try {
 			Files.setPosixFilePermissions(path, permissions);
 		} catch (UnsupportedOperationException ignored) {
@@ -261,20 +279,20 @@ public class BackupServiceImpl implements BackupService {
 	private record MysqlTarget(String host, String port, String database) {
 		private static MysqlTarget fromJdbcUrl(String jdbcUrl) {
 			if (jdbcUrl == null || !jdbcUrl.startsWith("jdbc:mysql:")) {
-				return new MysqlTarget("localhost", "3306", "vendnet");
+				return new MysqlTarget(DEFAULT_MYSQL_HOST, "3306", DEFAULT_DATABASE_NAME);
 			}
 			try {
 				URI uri = URI.create(jdbcUrl.substring("jdbc:".length()));
 				String database =
 						uri.getPath() == null || uri.getPath().isBlank()
-								? "vendnet"
+								? DEFAULT_DATABASE_NAME
 								: uri.getPath().replaceFirst("^/", "");
 				return new MysqlTarget(
-						uri.getHost() == null ? "localhost" : uri.getHost(),
+						uri.getHost() == null ? DEFAULT_MYSQL_HOST : uri.getHost(),
 						uri.getPort() < 0 ? "3306" : String.valueOf(uri.getPort()),
 						database);
 			} catch (IllegalArgumentException ex) {
-				return new MysqlTarget("localhost", "3306", "vendnet");
+				return new MysqlTarget(DEFAULT_MYSQL_HOST, "3306", DEFAULT_DATABASE_NAME);
 			}
 		}
 	}

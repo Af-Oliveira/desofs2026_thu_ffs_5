@@ -67,16 +67,7 @@ public class FileStorageServiceImpl implements FileStorageService {
 			log.info("Image checksum (SHA-256): {}", checksum);
 
 			Files.write(targetFile, strippedBytes, StandardOpenOption.CREATE_NEW);
-			try {
-				Files.setPosixFilePermissions(
-						targetFile,
-						Set.of(
-								PosixFilePermission.OWNER_READ,
-								PosixFilePermission.OWNER_WRITE,
-								PosixFilePermission.GROUP_READ));
-			} catch (UnsupportedOperationException ignored) {
-				// Non-POSIX filesystems keep default permissions.
-			}
+			setStoredFilePermissions(targetFile);
 
 			String relativePath = sandbox.relativize(targetFile).toString();
 			log.info("File stored: {} (checksum: {})", relativePath, checksum);
@@ -84,7 +75,7 @@ public class FileStorageServiceImpl implements FileStorageService {
 			return relativePath;
 		} catch (IOException e) {
 			log.error("File storage failed", e);
-			throw new RuntimeException("Failed to store file: " + e.getMessage(), e);
+			throw new FileStorageException("Failed to store file: " + e.getMessage(), e);
 		}
 	}
 
@@ -102,7 +93,20 @@ public class FileStorageServiceImpl implements FileStorageService {
 			log.info("File deleted: {}", filePath);
 		} catch (IOException e) {
 			log.error("File deletion failed: {}", filePath, e);
-			throw new RuntimeException("Failed to delete file: " + e.getMessage(), e);
+			throw new FileStorageException("Failed to delete file: " + e.getMessage(), e);
+		}
+	}
+
+	private void setStoredFilePermissions(Path targetFile) throws IOException {
+		try {
+			Files.setPosixFilePermissions(
+					targetFile,
+					Set.of(
+							PosixFilePermission.OWNER_READ,
+							PosixFilePermission.OWNER_WRITE,
+							PosixFilePermission.GROUP_READ));
+		} catch (UnsupportedOperationException ignored) {
+			// Non-POSIX filesystems keep default permissions.
 		}
 	}
 }

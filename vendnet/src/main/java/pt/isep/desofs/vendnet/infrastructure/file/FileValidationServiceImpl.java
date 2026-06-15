@@ -63,7 +63,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 		try {
 			String detected = tika.detect(new ByteArrayInputStream(data));
 			return ALLOWED_CONTENT_TYPES.contains(detected);
-		} catch (Exception e) {
+		} catch (IOException e) {
 			log.warn("Magic byte detection failed", e);
 			return false;
 		}
@@ -73,7 +73,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 		try {
 			String detected = tika.detect(file.getInputStream());
 			return ALLOWED_CONTENT_TYPES.contains(detected);
-		} catch (Exception e) {
+		} catch (IOException e) {
 			log.warn("Magic byte detection failed for file: {}", file.getOriginalFilename(), e);
 			return false;
 		}
@@ -130,7 +130,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 			byte[] hash = digest.digest(data);
 			return HexFormat.of().formatHex(hash);
 		} catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException("SHA-256 not available", e);
+			throw new FileValidationException("SHA-256 not available", e);
 		}
 	}
 }

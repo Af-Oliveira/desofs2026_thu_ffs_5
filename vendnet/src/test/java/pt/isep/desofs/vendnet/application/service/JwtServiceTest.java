@@ -1,7 +1,9 @@
 package pt.isep.desofs.vendnet.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,7 +34,7 @@ class JwtServiceTest {
 
 		assertNotNull(token);
 		assertFalse(token.isEmpty());
-		assertTrue(token.split("\\.").length == 3);
+		assertEquals(3, token.split("\\.").length);
 	}
 
 	@Test
@@ -151,7 +153,7 @@ class JwtServiceTest {
 
 	@Test
 	void blocklistToken_shouldNotThrowOnInvalidToken() {
-		jwtService.blocklistToken("invalid.token.value");
+		assertDoesNotThrow(() -> jwtService.blocklistToken("invalid.token.value"));
 	}
 
 	@Test
@@ -161,12 +163,12 @@ class JwtServiceTest {
 
 		assertNotNull(jwtService.extractJti(token1));
 		assertNotNull(jwtService.extractJti(token2));
-		assertFalse(jwtService.extractJti(token1).equals(jwtService.extractJti(token2)));
+		assertNotEquals(jwtService.extractJti(token1), jwtService.extractJti(token2));
 	}
 
 	@Test
 	void revokeUserTokens_shouldCleanExpiredBlocklistEntries() {
-		jwtService.revokeUserTokens("user@vendnet.com");
+		assertDoesNotThrow(() -> jwtService.revokeUserTokens());
 	}
 
 	@Test

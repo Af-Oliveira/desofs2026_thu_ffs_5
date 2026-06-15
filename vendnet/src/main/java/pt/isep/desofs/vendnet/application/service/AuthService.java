@@ -1,6 +1,8 @@
 package pt.isep.desofs.vendnet.application.service;
 
 import java.nio.ByteBuffer;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -35,6 +37,7 @@ public class AuthService {
 	private static final int TOTP_DIGITS = 6;
 	private static final String TOTP_ALGORITHM = "HmacSHA1";
 	private static final int MAX_USERNAME_LENGTH = 30;
+	private static final String LOGIN_ACTION = "LOGIN";
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final UserRepository userRepository;
@@ -116,7 +119,7 @@ public class AuthService {
 							.principal(user.getUsername())
 							.details("Account is suspended")
 							.resource("User")
-							.action("LOGIN")
+							.action(LOGIN_ACTION)
 							.outcome("DENIED")
 							.timestamp(LocalDateTime.now())
 							.build());
@@ -128,7 +131,7 @@ public class AuthService {
 							.principal(user.getUsername())
 							.details("Account is locked")
 							.resource("User")
-							.action("LOGIN")
+							.action(LOGIN_ACTION)
 							.outcome("DENIED")
 							.timestamp(LocalDateTime.now())
 							.build());
@@ -163,7 +166,7 @@ public class AuthService {
 							.principal(user.getUsername())
 							.details("Invalid password")
 							.resource("User")
-							.action("LOGIN")
+							.action(LOGIN_ACTION)
 							.outcome("FAILED")
 							.timestamp(LocalDateTime.now())
 							.build());
@@ -179,7 +182,7 @@ public class AuthService {
 						.principal(user.getUsername())
 						.details("User logged in successfully")
 						.resource("User")
-						.action("LOGIN")
+						.action(LOGIN_ACTION)
 						.outcome("SUCCESS")
 						.timestamp(LocalDateTime.now())
 						.build());
@@ -322,7 +325,7 @@ public class AuthService {
 				}
 			}
 			return false;
-		} catch (Exception e) {
+		} catch (IllegalArgumentException | TotpGenerationException e) {
 			return false;
 		}
 	}
@@ -341,8 +344,8 @@ public class AuthService {
 							| (hash[offset + 3] & 0xFF);
 			int otp = binary % (int) Math.pow(10, TOTP_DIGITS);
 			return String.format("%0" + TOTP_DIGITS + "d", otp);
-		} catch (Exception e) {
-			throw new RuntimeException("Failed to generate TOTP code", e);
+		} catch (NoSuchAlgorithmException | InvalidKeyException e) {
+			throw new TotpGenerationException("Failed to generate TOTP code", e);
 		}
 	}
 }

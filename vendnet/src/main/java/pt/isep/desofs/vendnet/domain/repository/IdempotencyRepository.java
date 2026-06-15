@@ -5,7 +5,7 @@ import pt.isep.desofs.vendnet.domain.model.sale.IdempotencyRecord;
 
 public interface IdempotencyRepository {
 
-	Optional<IdempotencyRecord> findByIdempotencyKey(String key);
+	Optional<IdempotencyRecord> findByIdempotencyKey(String idempotencyKey);
 
 	IdempotencyRecord save(IdempotencyRecord record);
 }

@@ -29,6 +29,8 @@ import pt.isep.desofs.vendnet.domain.repository.VendingMachineRepository;
 @RequiredArgsConstructor
 public class BootstrapService {
 
+	private static final String ONLINE_STATUS = "ONLINE";
+
 	private final UserRepository userRepository;
 	private final ProductRepository productRepository;
 	private final VendingMachineRepository machineRepository;
@@ -91,9 +93,9 @@ public class BootstrapService {
 		seedSale(vm3, cola, cola.getPrice(), 1, now.minusDays(1));
 		seedSale(vm4, nuts, nuts.getPrice(), 1, now.minusHours(5));
 
-			seedTelemetry(vm1, "ONLINE", now.minusMinutes(5));
-			seedTelemetry(vm2, "ONLINE", now.minusMinutes(5));
-			seedTelemetry(vm3, "ONLINE", now.minusMinutes(5));
+			seedTelemetry(vm1, ONLINE_STATUS, now.minusMinutes(5));
+			seedTelemetry(vm2, ONLINE_STATUS, now.minusMinutes(5));
+			seedTelemetry(vm3, ONLINE_STATUS, now.minusMinutes(5));
 			seedTelemetry(vm4, "MAINTENANCE", now.minusMinutes(5));
 
 		log.info("=== Bootstrapping complete ===");
@@ -149,7 +151,7 @@ public class BootstrapService {
 					.price(price)
 					.sku(sku)
 					.currency("EUR")
-					.category(sku.startsWith("DRK") ? "DRINK" : sku.startsWith("SNK") ? "SNACK" : "HOT")
+					.category(categoryForSku(sku))
 					.active(true)
 				.createdAt(now)
 				.updatedAt(now)
@@ -157,6 +159,16 @@ public class BootstrapService {
 		Product saved = productRepository.save(product);
 		log.info("Created product: {} ({})", sku, name);
 		return saved;
+	}
+
+	private String categoryForSku(String sku) {
+		if (sku.startsWith("DRK")) {
+			return "DRINK";
+		}
+		if (sku.startsWith("SNK")) {
+			return "SNACK";
+		}
+		return "HOT";
 	}
 
 	private VendingMachine seedMachine(String code, String location, LocalDateTime now) {

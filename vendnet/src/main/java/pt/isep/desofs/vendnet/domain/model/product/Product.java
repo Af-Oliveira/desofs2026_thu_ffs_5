@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Product {
@@ -64,26 +65,4 @@ public class Product {
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
 
-	public Product(
-			Long id,
-			String name,
-			String description,
-			BigDecimal price,
-			String sku,
-			String imageUrl,
-			boolean active,
-			LocalDateTime createdAt,
-			LocalDateTime updatedAt) {
-		this.id = id;
-		this.name = name;
-		this.description = description;
-		this.price = price;
-		this.sku = sku;
-		this.currency = "EUR";
-		this.category = "GENERAL";
-		this.imageUrl = imageUrl;
-		this.active = active;
-		this.createdAt = createdAt;
-		this.updatedAt = updatedAt;
-	}
 }

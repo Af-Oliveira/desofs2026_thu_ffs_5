@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -54,7 +55,8 @@ public class ReportDirectoryServiceImpl implements ReportDirectoryService {
 			log.info("Report directory created: {}", reportPath);
 			return reportPath.toString();
 		} catch (IOException e) {
-			throw new RuntimeException("Failed to create report directory: " + e.getMessage(), e);
+			throw new ReportDirectoryException(
+					"Failed to create report directory: " + e.getMessage(), e);
 		}
 	}
 
@@ -69,103 +71,76 @@ public class ReportDirectoryServiceImpl implements ReportDirectoryService {
 			}
 
 			LocalDate cutoff = LocalDate.now().minusDays(retentionDays);
-
-			try (Stream<Path> types = Files.list(reportsRoot)) {
-				types.filter(Files::isDirectory)
-						.forEach(
-								typeDir -> {
-									try (Stream<Path> years = Files.list(typeDir)) {
-										years.filter(Files::isDirectory)
-												.forEach(
-														yearDir -> {
-															try (Stream<Path> months =
-																	Files.list(yearDir)) {
-																months.filter(Files::isDirectory)
-																		.forEach(
-																				monthDir -> {
-																					try (Stream<
-																									Path>
-																							days =
-																									Files
-																											.list(
-																													monthDir)) {
-																						days.filter(
-																										Files
-																												::isDirectory)
-																								.forEach(
-																										dayDir -> {
-																											try {
-																												String
-																														year =
-																																yearDir.getFileName()
-																																		.toString();
-																												String
-																														month =
-																																monthDir.getFileName()
-																																		.toString();
-																												String
-																														day =
-																																dayDir.getFileName()
-																																		.toString();
-																												LocalDate
-																														dirDate =
-																																LocalDate
-																																		.parse(
-																																				year
-																																						+ "-"
-																																						+ month
-																																						+ "-"
-																																						+ day);
-
-																												if (dirDate
-																														.isBefore(
-																																cutoff)) {
-																													Files
-																															.walk(
-																																	dayDir)
-																															.sorted(
-																																	Comparator
-																																			.reverseOrder())
-																															.forEach(
-																																	f -> {
-																																		try {
-																																			Files
-																																					.deleteIfExists(
-																																							f);
-																																		} catch (
-																																				Exception
-																																						ignored) {
-																																			/* ok */
-																																		}
-																																	});
-																													log
-																															.info(
-																																	"Cleaned up old report dir: {}",
-																																	dayDir);
-																												}
-																											} catch (
-																													Exception
-																															ignored) {
-																												/* ok */
-																											}
-																										});
-																					} catch (
-																							Exception
-																									ignored) {
-																						/* ok */
-																					}
-																				});
-															} catch (Exception ignored) {
-																/* ok */
-															}
-														});
-									} catch (Exception ignored) {
-										/* ok */
-									}
-								});
-			}
-		} catch (Exception e) {
+			cleanupReportTree(reportsRoot, cutoff);
+		} catch (IOException | SecurityException e) {
 			log.error("Report cleanup failed", e);
+		}
+	}
+
+	private void cleanupReportTree(Path reportsRoot, LocalDate cutoff) throws IOException {
+		try (Stream<Path> types = Files.list(reportsRoot)) {
+			types.filter(Files::isDirectory)
+					.forEach(typeDir -> cleanupTypeDirectory(typeDir, cutoff));
+		}
+	}
+
+	private void cleanupTypeDirectory(Path typeDir, LocalDate cutoff) {
+		try (Stream<Path> years = Files.list(typeDir)) {
+			years.filter(Files::isDirectory)
+					.forEach(yearDir -> cleanupYearDirectory(yearDir, cutoff));
+		} catch (IOException e) {
+			log.debug("Skipping report type directory during cleanup: {}", typeDir, e);
+		}
+	}
+
+	private void cleanupYearDirectory(Path yearDir, LocalDate cutoff) {
+		try (Stream<Path> months = Files.list(yearDir)) {
+			months.filter(Files::isDirectory)
+					.forEach(monthDir -> cleanupMonthDirectory(yearDir, monthDir, cutoff));
+		} catch (IOException e) {
+			log.debug("Skipping report year directory during cleanup: {}", yearDir, e);
+		}
+	}
+
+	private void cleanupMonthDirectory(Path yearDir, Path monthDir, LocalDate cutoff) {
+		try (Stream<Path> days = Files.list(monthDir)) {
+			days.filter(Files::isDirectory)
+					.forEach(dayDir -> cleanupDayDirectory(yearDir, monthDir, dayDir, cutoff));
+		} catch (IOException e) {
+			log.debug("Skipping report month directory during cleanup: {}", monthDir, e);
+		}
+	}
+
+	private void cleanupDayDirectory(Path yearDir, Path monthDir, Path dayDir, LocalDate cutoff) {
+		try {
+			LocalDate dirDate = parseReportDate(yearDir, monthDir, dayDir);
+			if (dirDate.isBefore(cutoff)) {
+				deleteRecursively(dayDir);
+				log.info("Cleaned up old report dir: {}", dayDir);
+			}
+		} catch (DateTimeParseException | IOException e) {
+			log.debug("Skipping report day directory during cleanup: {}", dayDir, e);
+		}
+	}
+
+	private LocalDate parseReportDate(Path yearDir, Path monthDir, Path dayDir) {
+		String year = yearDir.getFileName().toString();
+		String month = monthDir.getFileName().toString();
+		String day = dayDir.getFileName().toString();
+		return LocalDate.parse(year + "-" + month + "-" + day);
+	}
+
+	private void deleteRecursively(Path root) throws IOException {
+		try (Stream<Path> files = Files.walk(root)) {
+			files.sorted(Comparator.reverseOrder()).forEach(this::deleteIfExists);
+		}
+	}
+
+	private void deleteIfExists(Path file) {
+		try {
+			Files.deleteIfExists(file);
+		} catch (IOException e) {
+			log.debug("Skipping report path during cleanup: {}", file, e);
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package pt.isep.desofs.vendnet.application.service;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SecurityException;
@@ -86,33 +87,35 @@ public class JwtService {
 	}
 
 	public boolean isTokenValid(String token) {
+		if (token == null || token.isBlank()) {
+			return false;
+		}
 		try {
 			Claims claims = extractClaims(token);
-			if (isBlocklisted(claims.getId())) {
-				return false;
-			}
-			return true;
-		} catch (Exception e) {
+			return !isBlocklisted(claims.getId());
+		} catch (JwtException | IllegalArgumentException e) {
 			return false;
 		}
 	}
 
 	public void blocklistToken(String token) {
+		if (token == null || token.isBlank()) {
+			return;
+		}
 		try {
 			Claims claims = extractClaims(token);
 			long remainingMs = claims.getExpiration().getTime() - System.currentTimeMillis();
 			if (remainingMs > 0) {
 				blocklist.put(claims.getId(), System.currentTimeMillis() + remainingMs);
 			}
-		} catch (Exception ignored) {
+		} catch (JwtException | IllegalArgumentException ignored) {
 			// token is already invalid — nothing to blocklist
 		}
 	}
 
-	public void revokeUserTokens(String email) {
+	public void revokeUserTokens() {
 		// Full revocation would require persisting blocklist to Redis.
-		// In-memory blocklist is cleared on restart — acceptable for dev phase.
-		// Production: iterate Redis keys matching "jwt:revoked:<email>:*" with TTL.
+		// In-memory blocklist is cleared on restart, which is acceptable for this dev phase.
 		blocklist.entrySet().removeIf(entry -> entry.getValue() < System.currentTimeMillis());
 	}
 
@@ -149,7 +152,7 @@ public class JwtService {
 			}
 		} catch (SecurityException e) {
 			throw e;
-		} catch (Exception ignored) {
+		} catch (IllegalArgumentException ignored) {
 			// header decode failure — treat as non-JWT, let parser reject it
 		}
 	}

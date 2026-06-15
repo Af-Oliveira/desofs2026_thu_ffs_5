@@ -30,6 +30,10 @@ public class TelemetryService {
 	private final AuditLogRepository auditLogRepository;
 
 	private static final int MAX_REQUESTS_PER_MINUTE = 2;
+	private static final String TELEMETRY_RESOURCE = "Telemetry";
+	private static final String INGEST_ACTION = "INGEST";
+	private static final String REJECTED_OUTCOME = "REJECTED";
+	private static final String IDENTITY_CHECK_ACTION = "IDENTITY_CHECK";
 
 	@PreAuthorize("permitAll()")
 	@Transactional
@@ -39,9 +43,9 @@ public class TelemetryService {
 					AuditLog.builder()
 							.eventType("CERTIFICATE_MISSING")
 							.details("Telemetry submitted without client certificate")
-							.resource("Telemetry")
-							.action("INGEST")
-							.outcome("REJECTED")
+							.resource(TELEMETRY_RESOURCE)
+							.action(INGEST_ACTION)
+							.outcome(REJECTED_OUTCOME)
 							.timestamp(LocalDateTime.now())
 							.build());
 			throw new pt.isep.desofs.vendnet.domain.exception.UnauthorizedException(
@@ -58,9 +62,9 @@ public class TelemetryService {
 													.eventType("UNKNOWN_MACHINE")
 													.principal(certificateCn)
 													.details("Machine certificate CN is not registered")
-													.resource("Telemetry")
-													.action("IDENTITY_CHECK")
-													.outcome("REJECTED")
+													.resource(TELEMETRY_RESOURCE)
+													.action(IDENTITY_CHECK_ACTION)
+													.outcome(REJECTED_OUTCOME)
 													.timestamp(LocalDateTime.now())
 													.build());
 									return new ForbiddenOperationException("Machine not registered");
@@ -80,9 +84,9 @@ public class TelemetryService {
 											+ certificateCn
 											+ " != request serial "
 											+ request.getSerialNumber())
-							.resource("Telemetry")
-							.action("IDENTITY_CHECK")
-							.outcome("REJECTED")
+							.resource(TELEMETRY_RESOURCE)
+							.action(IDENTITY_CHECK_ACTION)
+							.outcome(REJECTED_OUTCOME)
 							.timestamp(LocalDateTime.now())
 							.build());
 			throw new ForbiddenOperationException("Identity mismatch");
@@ -97,9 +101,9 @@ public class TelemetryService {
 							.eventType("MACHINE_RATE_LIMIT_EXCEEDED")
 							.principal(machine.getCode())
 							.details("Telemetry rate limit exceeded")
-							.resource("Telemetry")
+							.resource(TELEMETRY_RESOURCE)
 							.action("RATE_LIMIT")
-							.outcome("REJECTED")
+							.outcome(REJECTED_OUTCOME)
 							.timestamp(LocalDateTime.now())
 							.build());
 			throw new RateLimitException("Telemetry rate limit exceeded");
@@ -131,7 +135,7 @@ public class TelemetryService {
 							.eventType("TELEMETRY_ALERT")
 							.principal(machine.getCode())
 							.details(alert)
-							.resource("Telemetry")
+							.resource(TELEMETRY_RESOURCE)
 							.action("ALERT")
 							.outcome("TRIGGERED")
 							.timestamp(LocalDateTime.now())
@@ -143,8 +147,8 @@ public class TelemetryService {
 						.eventType("TELEMETRY_INGESTED")
 						.principal(machine.getCode())
 						.details("Telemetry received from machine, id=" + saved.getId())
-						.resource("Telemetry")
-						.action("INGEST")
+						.resource(TELEMETRY_RESOURCE)
+						.action(INGEST_ACTION)
 						.outcome("SUCCESS")
 						.timestamp(LocalDateTime.now())
 						.build());
@@ -178,9 +182,9 @@ public class TelemetryService {
 												+ certificateCn
 												+ " != machine code "
 												+ machine.getCode())
-								.resource("Telemetry")
-								.action("IDENTITY_CHECK")
-								.outcome("REJECTED")
+								.resource(TELEMETRY_RESOURCE)
+								.action(IDENTITY_CHECK_ACTION)
+								.outcome(REJECTED_OUTCOME)
 								.timestamp(LocalDateTime.now())
 								.build());
 				throw new IllegalArgumentException(
@@ -210,8 +214,8 @@ public class TelemetryService {
 						.eventType("TELEMETRY_INGESTED")
 						.principal(telemetry.getMachine() != null ? telemetry.getMachine().getCode() : "unknown")
 						.details("Telemetry received from machine")
-						.resource("Telemetry")
-						.action("INGEST")
+						.resource(TELEMETRY_RESOURCE)
+						.action(INGEST_ACTION)
 						.outcome("SUCCESS")
 						.timestamp(LocalDateTime.now())
 						.build());
