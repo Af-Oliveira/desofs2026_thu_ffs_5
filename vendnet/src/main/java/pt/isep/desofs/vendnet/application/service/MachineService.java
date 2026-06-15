@@ -48,20 +48,22 @@ public class MachineService {
 	}
 
 	@PreAuthorize("hasRole('ADMINISTRATOR')")
-	public VendingMachine updateMachine(Long id, VendingMachine updated) {
+	public VendingMachine updateMachine(Long id, String code, String location, Boolean active) {
 		VendingMachine existing =
 				machineRepository
 						.findById(id)
 						.orElseThrow(
 								() -> new IllegalArgumentException("Machine not found: " + id));
 
-		if (updated.getCode() != null) {
-			existing.setCode(updated.getCode());
+		if (code != null) {
+			existing.setCode(code);
 		}
-		if (updated.getLocation() != null) {
-			existing.setLocation(updated.getLocation());
+		if (location != null) {
+			existing.setLocation(location);
 		}
-		existing.setActive(updated.isActive());
+		if (active != null) {
+			existing.setActive(active);
+		}
 		existing.setUpdatedAt(LocalDateTime.now());
 
 		return machineRepository.save(existing);

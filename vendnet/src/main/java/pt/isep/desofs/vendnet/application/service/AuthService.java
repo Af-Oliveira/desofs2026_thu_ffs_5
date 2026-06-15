@@ -35,7 +35,7 @@ public class AuthService {
 	private static final int TOTP_DIGITS = 6;
 	private static final String TOTP_ALGORITHM = "HmacSHA1";
 	private static final int MAX_USERNAME_LENGTH = 30;
-	private static final String MISSING_USER_DUMMY_PASSWORD = "MissingUserTimingPassword@2026";
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -82,11 +82,11 @@ public class AuthService {
 				.token(token)
 				.accessToken(token)
 				.refreshToken(jwtService.generateRefreshToken(user.getId()))
-					.expiresIn(jwtService.getExpirationSeconds())
-					.email(user.getEmail())
-					.username(user.getUsername())
-					.name(user.getName())
-					.role(user.getRole().name())
+				.expiresIn(jwtService.getExpirationSeconds())
+				.email(user.getEmail())
+				.username(user.getUsername())
+				.name(user.getName())
+				.role(user.getRole().name())
 				.mfaRequired(false)
 				.build();
 	}
@@ -94,13 +94,14 @@ public class AuthService {
 	@PreAuthorize("permitAll()")
 	public AuthResponse login(LoginRequest request) {
 		Optional<User> userOpt = userRepository.findByUsername(request.getUsername());
-		if (userOpt.isEmpty() && request.getUsername() != null && request.getUsername().contains("@")) {
+		if (userOpt.isEmpty()
+				&& request.getUsername() != null
+				&& request.getUsername().contains("@")) {
 			userOpt = userRepository.findByEmail(request.getUsername());
 		}
 
 		if (userOpt.isEmpty()) {
-			passwordEncoder.matches(
-					request.getPassword(), passwordEncoder.encode(MISSING_USER_DUMMY_PASSWORD));
+			passwordEncoder.matches(request.getPassword(), passwordEncoder.encode(dummyPassword()));
 			throw new UnauthorizedException("Invalid username or password");
 		}
 
@@ -142,21 +143,24 @@ public class AuthService {
 				auditLogRepository.save(
 						AuditLog.builder()
 								.eventType("ACCOUNT_LOCKED")
-									.principal(user.getUsername())
-								.details("Account locked after " + user.getFailedAttempts() + " failed attempts")
+								.principal(user.getUsername())
+								.details(
+										"Account locked after "
+												+ user.getFailedAttempts()
+												+ " failed attempts")
 								.resource("User")
 								.action("LOCK")
 								.outcome("LOCKED")
-									.timestamp(LocalDateTime.now())
-									.build());
-					throw new AccountLockedException(
-							"Account is temporarily locked. Try again in 30 minutes.");
+								.timestamp(LocalDateTime.now())
+								.build());
+				throw new AccountLockedException(
+						"Account is temporarily locked. Try again in 30 minutes.");
 			}
 
 			auditLogRepository.save(
 					AuditLog.builder()
 							.eventType("LOGIN_FAILED")
-								.principal(user.getUsername())
+							.principal(user.getUsername())
 							.details("Invalid password")
 							.resource("User")
 							.action("LOGIN")
@@ -172,7 +176,7 @@ public class AuthService {
 		auditLogRepository.save(
 				AuditLog.builder()
 						.eventType("LOGIN_SUCCESS")
-							.principal(user.getUsername())
+						.principal(user.getUsername())
 						.details("User logged in successfully")
 						.resource("User")
 						.action("LOGIN")
@@ -181,10 +185,10 @@ public class AuthService {
 						.build());
 
 		if (user.getRole() == Role.ROLE_ADMINISTRATOR && user.getTotpSecret() != null) {
-				return AuthResponse.builder()
-						.email(user.getEmail())
-						.username(user.getUsername())
-						.name(user.getName())
+			return AuthResponse.builder()
+					.email(user.getEmail())
+					.username(user.getUsername())
+					.name(user.getName())
 					.role(user.getRole().name())
 					.mfaRequired(true)
 					.build();
@@ -195,12 +199,12 @@ public class AuthService {
 		return AuthResponse.builder()
 				.token(token)
 				.accessToken(token)
-					.refreshToken(jwtService.generateRefreshToken(user.getId()))
-					.expiresIn(jwtService.getExpirationSeconds())
-					.email(user.getEmail())
-					.username(user.getUsername())
-					.name(user.getName())
-					.role(user.getRole().name())
+				.refreshToken(jwtService.generateRefreshToken(user.getId()))
+				.expiresIn(jwtService.getExpirationSeconds())
+				.email(user.getEmail())
+				.username(user.getUsername())
+				.name(user.getName())
+				.role(user.getRole().name())
 				.mfaRequired(false)
 				.build();
 	}
@@ -241,7 +245,13 @@ public class AuthService {
 
 	public String generateTotpSecret() {
 		byte[] secret = new byte[20];
-		new SecureRandom().nextBytes(secret);
+		SECURE_RANDOM.nextBytes(secret);
+		return Base64.getEncoder().encodeToString(secret);
+	}
+
+	private String dummyPassword() {
+		byte[] secret = new byte[32];
+		SECURE_RANDOM.nextBytes(secret);
 		return Base64.getEncoder().encodeToString(secret);
 	}
 
@@ -255,8 +265,7 @@ public class AuthService {
 	private String uniqueRegistrationUsername(String email, LocalDateTime now) {
 		int atIndex = email.indexOf('@');
 		String base =
-				(atIndex > 0 ? email.substring(0, atIndex) : email)
-						.replaceAll("[^A-Za-z0-9]", "");
+				(atIndex > 0 ? email.substring(0, atIndex) : email).replaceAll("[^A-Za-z0-9]", "");
 		if (base.length() < 3) {
 			base = "user" + now.getNano();
 		}
@@ -267,7 +276,9 @@ public class AuthService {
 		while (userRepository.existsByUsername(candidate)) {
 			String suffix = String.valueOf(now.getNano() + attempt++);
 			int prefixLength = Math.max(3, MAX_USERNAME_LENGTH - suffix.length());
-			candidate = limitUsername(base).substring(0, Math.min(base.length(), prefixLength)) + suffix;
+			candidate =
+					limitUsername(base).substring(0, Math.min(base.length(), prefixLength))
+							+ suffix;
 			if (attempt > 1000) {
 				throw new IllegalStateException("Unable to generate unique username");
 			}

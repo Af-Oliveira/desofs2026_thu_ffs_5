@@ -1,15 +1,18 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
@@ -25,10 +28,17 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
 	private final PathValidator pathValidator;
 
 	@Value("${app.storage.base-path:/var/vendnet}")
 	private String vendnetRoot;
+
+	@Value("${app.audit-log.hmac-secret:}")
+	private String hmacSecret;
+
+	private String generatedHmacSecret;
 
 	@Override
 	public void rotate() {
@@ -152,11 +162,26 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 	}
 
 	private String computeHmac(byte[] data) throws NoSuchAlgorithmException, InvalidKeyException {
-		String secret = "hmac-signing-key-placeholder";
 		Mac mac = Mac.getInstance("HmacSHA256");
-		SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes(), "HmacSHA256");
+		SecretKeySpec keySpec =
+				new SecretKeySpec(
+						resolveHmacSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
 		mac.init(keySpec);
 		byte[] hmacBytes = mac.doFinal(data);
 		return HexFormat.of().formatHex(hmacBytes);
+	}
+
+	private String resolveHmacSecret() {
+		if (hmacSecret != null && !hmacSecret.isBlank()) {
+			return hmacSecret;
+		}
+		if (generatedHmacSecret != null) {
+			return generatedHmacSecret;
+		}
+
+		byte[] generatedSecret = new byte[32];
+		SECURE_RANDOM.nextBytes(generatedSecret);
+		generatedHmacSecret = Base64.getEncoder().encodeToString(generatedSecret);
+		return generatedHmacSecret;
 	}
 }

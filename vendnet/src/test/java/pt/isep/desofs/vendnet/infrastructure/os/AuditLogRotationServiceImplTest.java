@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -25,11 +26,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class AuditLogRotationServiceImplTest {
 
-	@TempDir
-	Path tempDir;
+	@TempDir Path tempDir;
 
-	@Mock
-	private PathValidator pathValidator;
+	@Mock private PathValidator pathValidator;
 
 	private AuditLogRotationServiceImpl service;
 
@@ -37,6 +36,7 @@ class AuditLogRotationServiceImplTest {
 	void setUp() throws IOException {
 		service = new AuditLogRotationServiceImpl(pathValidator);
 		ReflectionTestUtils.setField(service, "vendnetRoot", tempDir.toString());
+		ReflectionTestUtils.setField(service, "hmacSecret", UUID.randomUUID().toString());
 		Files.createDirectories(tempDir.resolve("logs/audit"));
 	}
 
@@ -57,8 +57,7 @@ class AuditLogRotationServiceImplTest {
 		when(pathValidator.isValidPath(any(), any())).thenReturn(true);
 		Path logFile = tempDir.resolve("logs/audit/app.log");
 		Files.writeString(logFile, "audit entry");
-		Files.setLastModifiedTime(
-				logFile, FileTime.from(Instant.now().minus(2, ChronoUnit.DAYS)));
+		Files.setLastModifiedTime(logFile, FileTime.from(Instant.now().minus(2, ChronoUnit.DAYS)));
 
 		service.rotate();
 
@@ -82,8 +81,7 @@ class AuditLogRotationServiceImplTest {
 	void compressAfterDays_oldLogFile_shouldCompress() throws IOException {
 		Path logFile = tempDir.resolve("logs/audit/archive.log");
 		Files.writeString(logFile, "archive entry");
-		Files.setLastModifiedTime(
-				logFile, FileTime.from(Instant.now().minus(5, ChronoUnit.DAYS)));
+		Files.setLastModifiedTime(logFile, FileTime.from(Instant.now().minus(5, ChronoUnit.DAYS)));
 
 		service.compressAfterDays(3);
 
@@ -96,8 +94,7 @@ class AuditLogRotationServiceImplTest {
 		when(pathValidator.isValidPath(any(), any())).thenReturn(true);
 		Path logFile = tempDir.resolve("logs/audit/old.log");
 		Files.writeString(logFile, "old entry");
-		Files.setLastModifiedTime(
-				logFile, FileTime.from(Instant.now().minus(10, ChronoUnit.DAYS)));
+		Files.setLastModifiedTime(logFile, FileTime.from(Instant.now().minus(10, ChronoUnit.DAYS)));
 
 		service.deleteAfterDays(7);
 
