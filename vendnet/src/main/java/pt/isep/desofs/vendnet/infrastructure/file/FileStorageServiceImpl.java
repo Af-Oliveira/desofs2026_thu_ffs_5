@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pt.isep.desofs.vendnet.domain.exception.FileStorageException;
 import pt.isep.desofs.vendnet.infrastructure.os.PathValidator;
 
 @Slf4j

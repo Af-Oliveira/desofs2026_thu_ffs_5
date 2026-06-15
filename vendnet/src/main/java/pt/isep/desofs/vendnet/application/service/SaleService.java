@@ -14,6 +14,7 @@ import pt.isep.desofs.vendnet.api.dto.PurchaseRequest;
 import pt.isep.desofs.vendnet.api.dto.PurchaseResponse;
 import pt.isep.desofs.vendnet.domain.exception.OutOfStockException;
 import pt.isep.desofs.vendnet.domain.exception.PaymentDeclinedException;
+import pt.isep.desofs.vendnet.domain.exception.PaymentGatewayException;
 import pt.isep.desofs.vendnet.domain.model.product.PaymentInfo;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.sale.IdempotencyRecord;
@@ -24,7 +25,6 @@ import pt.isep.desofs.vendnet.domain.repository.IdempotencyRepository;
 import pt.isep.desofs.vendnet.domain.repository.ProductRepository;
 import pt.isep.desofs.vendnet.domain.repository.SaleRepository;
 import pt.isep.desofs.vendnet.domain.repository.SlotRepository;
-import pt.isep.desofs.vendnet.infrastructure.payment.PaymentGatewayException;
 import pt.isep.desofs.vendnet.infrastructure.payment.PaymentGatewayService;
 
 @Slf4j

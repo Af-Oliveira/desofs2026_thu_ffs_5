@@ -1,4 +1,4 @@
-package pt.isep.desofs.vendnet.application.service;
+package pt.isep.desofs.vendnet.domain.exception;
 
 public class TotpGenerationException extends RuntimeException {
 

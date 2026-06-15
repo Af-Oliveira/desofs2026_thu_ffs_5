@@ -1,4 +1,4 @@
-package pt.isep.desofs.vendnet.infrastructure.file;
+package pt.isep.desofs.vendnet.domain.exception;
 
 public class FileValidationException extends RuntimeException {
 

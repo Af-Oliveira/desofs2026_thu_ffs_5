@@ -21,6 +21,7 @@ import pt.isep.desofs.vendnet.api.dto.RegisterRequest;
 import pt.isep.desofs.vendnet.api.dto.UserResponse;
 import pt.isep.desofs.vendnet.domain.exception.AccountLockedException;
 import pt.isep.desofs.vendnet.domain.exception.DisabledException;
+import pt.isep.desofs.vendnet.domain.exception.TotpGenerationException;
 import pt.isep.desofs.vendnet.domain.exception.UnauthorizedException;
 import pt.isep.desofs.vendnet.domain.model.audit.AuditLog;
 import pt.isep.desofs.vendnet.domain.model.user.AccountStatus;

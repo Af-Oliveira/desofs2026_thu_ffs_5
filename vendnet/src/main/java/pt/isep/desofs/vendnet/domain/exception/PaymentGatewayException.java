@@ -1,4 +1,4 @@
-package pt.isep.desofs.vendnet.infrastructure.payment;
+package pt.isep.desofs.vendnet.domain.exception;
 
 public class PaymentGatewayException extends RuntimeException {
 

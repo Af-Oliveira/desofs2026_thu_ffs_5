@@ -28,6 +28,7 @@ import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import pt.isep.desofs.vendnet.domain.exception.BackupException;
 import pt.isep.desofs.vendnet.domain.model.audit.AuditLog;
 import pt.isep.desofs.vendnet.domain.repository.AuditLogRepository;
 

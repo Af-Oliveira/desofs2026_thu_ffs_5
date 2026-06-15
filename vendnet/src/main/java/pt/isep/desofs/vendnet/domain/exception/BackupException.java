@@ -1,4 +1,4 @@
-package pt.isep.desofs.vendnet.infrastructure.os;
+package pt.isep.desofs.vendnet.domain.exception;
 
 public class BackupException extends RuntimeException {
 
