@@ -4,16 +4,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.UUID;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import pt.isep.desofs.vendnet.infrastructure.os.PathValidator;
 
 @Slf4j
@@ -43,10 +44,9 @@ public class FileStorageServiceImpl implements FileStorageService {
 			Files.createDirectories(targetDir);
 
 			String originalName = file.getOriginalFilename();
-			String extension =
-					originalName != null && originalName.contains(".")
-							? originalName.substring(originalName.lastIndexOf("."))
-							: "";
+			String extension = originalName != null && originalName.contains(".")
+					? originalName.substring(originalName.lastIndexOf("."))
+					: "";
 			String storedName = UUID.randomUUID().toString() + extension;
 			Path targetFile = targetDir.resolve(storedName);
 
@@ -66,17 +66,17 @@ public class FileStorageServiceImpl implements FileStorageService {
 			String checksum = validator.computeChecksum(strippedBytes);
 			log.info("Image checksum (SHA-256): {}", checksum);
 
-				Files.write(targetFile, strippedBytes, StandardOpenOption.CREATE_NEW);
-				try {
-					Files.setPosixFilePermissions(
-							targetFile,
-							Set.of(
-									PosixFilePermission.OWNER_READ,
-									PosixFilePermission.OWNER_WRITE,
-									PosixFilePermission.GROUP_READ));
-				} catch (UnsupportedOperationException ignored) {
-					// Non-POSIX filesystems keep default permissions.
-				}
+			Files.write(targetFile, strippedBytes, StandardOpenOption.CREATE_NEW);
+			try {
+				Files.setPosixFilePermissions(
+						targetFile,
+						Set.of(
+								PosixFilePermission.OWNER_READ,
+								PosixFilePermission.OWNER_WRITE,
+								PosixFilePermission.GROUP_READ));
+			} catch (UnsupportedOperationException ignored) {
+				// Non-POSIX filesystems keep default permissions.
+			}
 
 			String relativePath = sandbox.relativize(targetFile).toString();
 			log.info("File stored: {} (checksum: {})", relativePath, checksum);

@@ -1,22 +1,20 @@
 package pt.isep.desofs.vendnet;
 
-import com.tngtech.archunit.core.domain.JavaClass;
-import com.tngtech.archunit.core.domain.JavaClasses;
-import com.tngtech.archunit.core.importer.ClassFileImporter;
-import com.tngtech.archunit.core.importer.ImportOption;
-import com.tngtech.archunit.lang.ArchRule;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.stereotype.Controller;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
 
 class LayeredArchitectureTest {
 
@@ -46,7 +44,8 @@ class LayeredArchitectureTest {
                 .that().resideInAPackage("pt.isep.desofs.vendnet.api..")
                 .or().resideInAPackage("pt.isep.desofs.vendnet.application..")
                 .should().dependOnClassesThat().resideInAPackage("pt.isep.desofs.vendnet.infrastructure.persistence..")
-                .because("API and Application layers must depend only on repository interfaces, not JPA implementations")
+                .because(
+                        "API and Application layers must depend only on repository interfaces, not JPA implementations")
                 .check(importedClasses);
     }
 
@@ -66,11 +65,13 @@ class LayeredArchitectureTest {
                 .and().arePublic()
                 .and().areNotStatic()
                 .and().areNotAnnotatedWith(org.springframework.web.bind.annotation.ExceptionHandler.class)
-                .and().areDeclaredInClassesThat().areNotAnnotatedWith(org.springframework.web.bind.annotation.RestControllerAdvice.class)
+                .and().areDeclaredInClassesThat()
+                .areNotAnnotatedWith(org.springframework.web.bind.annotation.RestControllerAdvice.class)
                 .should().beAnnotatedWith(PreAuthorize.class)
                 .orShould().beAnnotatedWith(org.springframework.security.access.annotation.Secured.class)
                 .orShould().beAnnotatedWith(jakarta.annotation.security.RolesAllowed.class)
-                .because("Every public controller method must declare its access policy via @PreAuthorize, @Secured, or @RolesAllowed (SR-06)")
+                .because(
+                        "Every public controller method must declare its access policy via @PreAuthorize, @Secured, or @RolesAllowed (SR-06)")
                 .check(importedClasses);
     }
 
@@ -81,7 +82,7 @@ class LayeredArchitectureTest {
                 .anyMatch(c -> c.getPackageName().startsWith("pt.isep.desofs.vendnet.config"));
         if (!hasEnableMethodSecurity) {
             throw new AssertionError(
-                "@EnableMethodSecurity must be present in security configuration class for method-level RBAC (SR-06)");
+                    "@EnableMethodSecurity must be present in security configuration class for method-level RBAC (SR-06)");
         }
     }
 
@@ -98,12 +99,11 @@ class LayeredArchitectureTest {
     void services_reside_in_application_service_or_infrastructure_packages() {
         boolean allServicesInCorrectPackages = importedClasses.stream()
                 .filter(c -> c.isAnnotatedWith(Service.class))
-                .allMatch(c ->
-                    c.getPackageName().startsWith("pt.isep.desofs.vendnet.application.service") ||
-                    c.getPackageName().startsWith("pt.isep.desofs.vendnet.infrastructure"));
+                .allMatch(c -> c.getPackageName().startsWith("pt.isep.desofs.vendnet.application.service") ||
+                        c.getPackageName().startsWith("pt.isep.desofs.vendnet.infrastructure"));
         if (!allServicesInCorrectPackages) {
             throw new AssertionError(
-                "@Service classes must be in application.service or infrastructure packages (DDD layered architecture)");
+                    "@Service classes must be in application.service or infrastructure packages (DDD layered architecture)");
         }
     }
 

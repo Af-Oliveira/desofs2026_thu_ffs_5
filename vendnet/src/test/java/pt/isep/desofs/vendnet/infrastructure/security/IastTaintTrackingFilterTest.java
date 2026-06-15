@@ -1,16 +1,17 @@
 package pt.isep.desofs.vendnet.infrastructure.security;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -36,7 +37,8 @@ class IastTaintTrackingFilterTest {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		request.setRequestURI("/api/products");
 		MockHttpServletResponse response = new MockHttpServletResponse();
-		FilterChain filterChain = (req, resp) -> {};
+		FilterChain filterChain = (req, resp) -> {
+		};
 
 		filter.doFilterInternal(request, response, filterChain);
 
@@ -50,7 +52,8 @@ class IastTaintTrackingFilterTest {
 		request.setRequestURI("/api/products");
 		request.addParameter("q", "' OR 1=1");
 		MockHttpServletResponse response = new MockHttpServletResponse();
-		FilterChain filterChain = (req, resp) -> {};
+		FilterChain filterChain = (req, resp) -> {
+		};
 
 		filter.doFilterInternal(request, response, filterChain);
 
@@ -62,7 +65,8 @@ class IastTaintTrackingFilterTest {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		request.setRequestURI("/api/files/../../etc/passwd");
 		MockHttpServletResponse response = new MockHttpServletResponse();
-		FilterChain filterChain = (req, resp) -> {};
+		FilterChain filterChain = (req, resp) -> {
+		};
 
 		filter.doFilterInternal(request, response, filterChain);
 
@@ -82,7 +86,8 @@ class IastTaintTrackingFilterTest {
 		request.setRequestURI("/api/products");
 		request.addParameter("q", "' OR 1=1");
 		MockHttpServletResponse response = new MockHttpServletResponse();
-		FilterChain filterChain = (req, resp) -> {};
+		FilterChain filterChain = (req, resp) -> {
+		};
 
 		filter.doFilterInternal(request, response, filterChain);
 		assertFalse(IastTaintTrackingFilter.getDetectedFlows().isEmpty());

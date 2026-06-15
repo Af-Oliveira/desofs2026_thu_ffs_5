@@ -1,12 +1,9 @@
 package pt.isep.desofs.vendnet.infrastructure.file;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,7 +38,8 @@ class FileValidationServiceImplTest {
 
 	@Test
 	void validate_invalidContentType_shouldThrow() {
-		MockMultipartFile file = new MockMultipartFile("file", "test.exe", "application/octet-stream", "data".getBytes());
+		MockMultipartFile file = new MockMultipartFile("file", "test.exe", "application/octet-stream",
+				"data".getBytes());
 		assertThrows(IllegalArgumentException.class, () -> validator.validate(file));
 	}
 
@@ -78,7 +76,7 @@ class FileValidationServiceImplTest {
 
 	@Test
 	void hasValidMagicBytes_jpeg_shouldReturnTrue() {
-		byte[] jpegBytes = new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10};
+		byte[] jpegBytes = new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10 };
 		assertTrue(validator.hasValidMagicBytes(jpegBytes));
 	}
 

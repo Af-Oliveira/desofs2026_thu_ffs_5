@@ -1,31 +1,33 @@
 package pt.isep.desofs.vendnet;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.HexFormat;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import pt.isep.desofs.vendnet.application.service.JwtService;
 import pt.isep.desofs.vendnet.domain.model.user.Role;
 import pt.isep.desofs.vendnet.domain.model.user.User;
 import pt.isep.desofs.vendnet.domain.repository.UserRepository;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.util.HexFormat;
-import java.util.Map;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
@@ -61,8 +63,8 @@ class AbuseCaseRegressionTest {
         String body = "{\"saleId\":\"SALE_001\",\"status\":\"COMPLETED\"}";
 
         mockMvc.perform(post("/api/webhooks/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("Invalid signature"));
     }
@@ -72,9 +74,9 @@ class AbuseCaseRegressionTest {
         String body = "{\"saleId\":\"SALE_001\",\"status\":\"COMPLETED\"}";
 
         mockMvc.perform(post("/api/webhooks/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body)
-                        .header("X-Payment-Signature", "0000000000000000000000000000000000000000000000000000000000000000"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .header("X-Payment-Signature", "0000000000000000000000000000000000000000000000000000000000000000"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("Invalid signature"));
     }
@@ -86,9 +88,9 @@ class AbuseCaseRegressionTest {
         String forgedSignature = computeHmacSha256(originalBody, "wrong-secret-key");
 
         mockMvc.perform(post("/api/webhooks/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(originalBody)
-                        .header("X-Payment-Signature", forgedSignature))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(originalBody)
+                .header("X-Payment-Signature", forgedSignature))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("Invalid signature"));
     }
@@ -101,9 +103,9 @@ class AbuseCaseRegressionTest {
         String signature = computeHmacSha256(originalBody, "webhook-secret-placeholder");
 
         mockMvc.perform(post("/api/webhooks/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(modifiedBody)
-                        .header("X-Payment-Signature", signature))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(modifiedBody)
+                .header("X-Payment-Signature", signature))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("Invalid signature"));
     }
@@ -115,11 +117,13 @@ class AbuseCaseRegressionTest {
         String header = java.util.Base64.getUrlEncoder().withoutPadding()
                 .encodeToString("{\"alg\":\"none\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
         String payload = java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString("{\"sub\":\"admin@vendnet.com\",\"role\":\"ROLE_ADMINISTRATOR\",\"iat\":0,\"exp\":9999999999}".getBytes(StandardCharsets.UTF_8));
+                .encodeToString(
+                        "{\"sub\":\"admin@vendnet.com\",\"role\":\"ROLE_ADMINISTRATOR\",\"iat\":0,\"exp\":9999999999}"
+                                .getBytes(StandardCharsets.UTF_8));
         String algNoneToken = header + "." + payload + ".";
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/dashboard")
-                        .header("Authorization", "Bearer " + algNoneToken))
+                .header("Authorization", "Bearer " + algNoneToken))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -131,8 +135,10 @@ class AbuseCaseRegressionTest {
         boolean hasUnitPrice = false;
         boolean hasTotalAmount = false;
         for (java.lang.reflect.Field f : fields) {
-            if (f.getName().equals("unitPrice")) hasUnitPrice = true;
-            if (f.getName().equals("totalAmount")) hasTotalAmount = true;
+            if (f.getName().equals("unitPrice"))
+                hasUnitPrice = true;
+            if (f.getName().equals("totalAmount"))
+                hasTotalAmount = true;
         }
         if (!hasUnitPrice || !hasTotalAmount) {
             throw new AssertionError("Sale entity must have unitPrice and totalAmount fields. "
@@ -147,7 +153,7 @@ class AbuseCaseRegressionTest {
         String customerToken = tokenForRole("ac05-customer@vendnet.com", Role.ROLE_CUSTOMER);
 
         mockMvc.perform(get("/api/products/" + java.net.URLEncoder.encode("' OR '1'='1", StandardCharsets.UTF_8))
-                        .header("Authorization", "Bearer " + customerToken))
+                .header("Authorization", "Bearer " + customerToken))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
                     if (status != 404 && status != 400) {
@@ -161,7 +167,7 @@ class AbuseCaseRegressionTest {
     @Test
     void fileStorage_rejectsPathTraversal_returns400or404() throws Exception {
         mockMvc.perform(get("/api/products/" + java.net.URLEncoder.encode("../../etc/passwd", StandardCharsets.UTF_8))
-                        .header("Authorization", "Bearer " + adminToken))
+                .header("Authorization", "Bearer " + adminToken))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
                     if (status != 400 && status != 404) {
@@ -174,13 +180,16 @@ class AbuseCaseRegressionTest {
 
     @Test
     void slotEntity_hasCapacityAndCurrentStock_fields() throws Exception {
-        java.lang.reflect.Field capacity = pt.isep.desofs.vendnet.domain.model.slot.Slot.class.getDeclaredField("capacity");
-        java.lang.reflect.Field currentStock = pt.isep.desofs.vendnet.domain.model.slot.Slot.class.getDeclaredField("currentStock");
+        java.lang.reflect.Field capacity = pt.isep.desofs.vendnet.domain.model.slot.Slot.class
+                .getDeclaredField("capacity");
+        java.lang.reflect.Field currentStock = pt.isep.desofs.vendnet.domain.model.slot.Slot.class
+                .getDeclaredField("currentStock");
         capacity.setAccessible(true);
         currentStock.setAccessible(true);
 
         if (capacity.getType() != int.class || currentStock.getType() != int.class) {
-            throw new AssertionError("Slot must have int capacity and currentStock fields for pessimistic locking (SR-15).");
+            throw new AssertionError(
+                    "Slot must have int capacity and currentStock fields for pessimistic locking (SR-15).");
         }
     }
 
@@ -195,7 +204,7 @@ class AbuseCaseRegressionTest {
     @Test
     void backupEndpoint_adminCanTrigger() throws Exception {
         mockMvc.perform(post("/api/admin/operations/backup")
-                        .header("Authorization", "Bearer " + adminToken))
+                .header("Authorization", "Bearer " + adminToken))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
                     if (status == 403 || status == 401) {
@@ -211,8 +220,8 @@ class AbuseCaseRegressionTest {
         String telemetryBody = "{\"machineCode\":\"VM-001\",\"cpuUsage\":45.0,\"memoryUsage\":60.0,\"status\":\"ONLINE\",\"uptimeSeconds\":3600,\"temperatureCelsius\":22.5}";
 
         mockMvc.perform(post("/api/telemetry")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(telemetryBody))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(telemetryBody))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
                     if (status == 401) {

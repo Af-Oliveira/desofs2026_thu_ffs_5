@@ -1,7 +1,6 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,8 @@ class ReportDirectoryServiceImplTest {
 	@TempDir
 	Path tempDir;
 
-	@Mock private PathValidator pathValidator;
+	@Mock
+	private PathValidator pathValidator;
 
 	private ReportDirectoryServiceImpl service;
 	private Path vendnetRoot;

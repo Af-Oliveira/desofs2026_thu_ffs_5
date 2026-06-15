@@ -3,18 +3,18 @@ package pt.isep.desofs.vendnet.infrastructure.security;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import jakarta.servlet.FilterChain;
-import java.util.List;
 import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import jakarta.servlet.FilterChain;
 import pt.isep.desofs.vendnet.application.service.JwtService;
 import pt.isep.desofs.vendnet.domain.model.user.AccountStatus;
 import pt.isep.desofs.vendnet.domain.model.user.Role;
