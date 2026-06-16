@@ -12,9 +12,12 @@ public class PathValidatorImpl implements PathValidator {
 	@Override
 	public boolean isValidPath(Path path, Path sandboxRoot) {
 		try {
-			Path realPath = path.toRealPath();
 			Path realRoot = sandboxRoot.toRealPath();
-			return realPath.startsWith(realRoot);
+			Path normalizedPath =
+					Files.exists(path)
+							? path.toRealPath()
+							: path.toAbsolutePath().normalize();
+			return normalizedPath.startsWith(realRoot);
 		} catch (Exception e) {
 			log.warn("Path validation failed: {}", e.getMessage());
 			return false;

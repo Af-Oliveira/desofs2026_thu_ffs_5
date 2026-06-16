@@ -2,8 +2,8 @@ package pt.isep.desofs.vendnet.api.controller;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +14,11 @@ import pt.isep.desofs.vendnet.config.BootstrapReadyIndicator;
 @RestController
 public class PingController {
 
-	@Autowired(required = false)
-	private BootstrapReadyIndicator bootstrapReady;
+	private final BootstrapReadyIndicator bootstrapReady;
+
+	public PingController(Optional<BootstrapReadyIndicator> bootstrapReady) {
+		this.bootstrapReady = bootstrapReady.orElse(null);
+	}
 
 	@GetMapping("/api/health/ping")
 	@PreAuthorize("permitAll()")

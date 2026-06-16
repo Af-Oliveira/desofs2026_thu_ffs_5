@@ -16,6 +16,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import pt.isep.desofs.vendnet.domain.exception.CapacityExceededException;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 
@@ -42,7 +43,8 @@ public class Slot {
 	private int currentStock;
 
 	@Version
-	private Long version;
+	@Column(nullable = false)
+	private long version;
 
 	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "machine_id", nullable = false)
@@ -77,7 +79,7 @@ public class Slot {
 		}
 		int newStock = this.currentStock + quantity;
 		if (newStock > this.capacity) {
-			throw new IllegalArgumentException(
+			throw new CapacityExceededException(
 					"Exceeds slot capacity: " + newStock + " > " + this.capacity);
 		}
 		this.currentStock = newStock;

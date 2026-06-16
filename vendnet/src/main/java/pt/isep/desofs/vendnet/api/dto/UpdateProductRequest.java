@@ -1,9 +1,9 @@
 package pt.isep.desofs.vendnet.api.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import java.math.BigDecimal;
+
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

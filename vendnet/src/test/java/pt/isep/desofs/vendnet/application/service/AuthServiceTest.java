@@ -3,16 +3,18 @@ package pt.isep.desofs.vendnet.application.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 import pt.isep.desofs.vendnet.api.dto.AuthResponse;
 import pt.isep.desofs.vendnet.api.dto.LoginRequest;
 import pt.isep.desofs.vendnet.api.dto.MfaVerifyRequest;
@@ -205,6 +208,7 @@ class AuthServiceTest {
 			try {
 				authService.login(request);
 			} catch (UnauthorizedException | AccountLockedException ignored) {
+				// Each failed login is expected; this test verifies the accumulated lockout side effect.
 			}
 		}
 
@@ -282,7 +286,7 @@ class AuthServiceTest {
 		String secret = authService.generateTotpSecret();
 
 		assertNotNull(secret);
-		assertTrue(secret.length() > 0);
+		assertFalse(secret.isEmpty());
 	}
 
 	@Test
@@ -292,7 +296,142 @@ class AuthServiceTest {
 
 		assertNotNull(secret1);
 		assertNotNull(secret2);
-		assertTrue(!secret1.equals(secret2));
+		assertNotEquals(secret1, secret2);
+	}
+
+	@Test
+	void login_shouldFallbackToEmailWhenUsernameNotFound() {
+		LoginRequest request = new LoginRequest("user@vendnet.com", "correctPass");
+		User user = buildUser("user@vendnet.com", "hashedPass", Role.ROLE_CUSTOMER, AccountStatus.ACTIVE);
+
+		when(userRepository.findByUsername("user@vendnet.com")).thenReturn(Optional.empty());
+		when(userRepository.findByEmail("user@vendnet.com")).thenReturn(Optional.of(user));
+		when(passwordEncoder.matches("correctPass", "hashedPass")).thenReturn(true);
+		when(jwtService.generateToken("user@vendnet.com")).thenReturn("jwt-token");
+
+		AuthResponse response = authService.login(request);
+
+		assertEquals("jwt-token", response.getToken());
+	}
+
+	@Test
+	void verifyMfa_shouldReturnTokenWhenValidCode() {
+		String secret = authService.generateTotpSecret();
+		byte[] secretBytes = Base64.getDecoder().decode(secret);
+		long timeWindow = Instant.now().getEpochSecond() / 30;
+		String code =
+				ReflectionTestUtils.invokeMethod(
+						authService, "generateTotpCode", secretBytes, timeWindow);
+
+		User user =
+				buildUser("admin@vendnet.com", "hashedPass", Role.ROLE_ADMINISTRATOR, AccountStatus.ACTIVE);
+		user.setId(1L);
+		user.setTotpSecret(secret);
+
+		when(userRepository.findByEmail("admin@vendnet.com")).thenReturn(Optional.of(user));
+		when(jwtService.generateToken(1L, "ROLE_ADMINISTRATOR")).thenReturn("jwt-token");
+		when(jwtService.generateRefreshToken(1L)).thenReturn("refresh");
+		when(jwtService.getExpirationSeconds()).thenReturn(3600L);
+
+		AuthResponse response =
+				authService.verifyMfa(new MfaVerifyRequest("admin@vendnet.com", code));
+
+		assertEquals("jwt-token", response.getToken());
+		assertFalse(response.isMfaRequired());
+	}
+
+	@Test
+	void register_shouldRetryWhenGeneratedUsernameTaken() {
+		RegisterRequest request =
+				new RegisterRequest("john.doe@vendnet.com", "password123", "John Doe");
+		when(userRepository.existsByEmail("john.doe@vendnet.com")).thenReturn(false);
+		when(userRepository.existsByUsername("johndoe")).thenReturn(true);
+		when(userRepository.existsByUsername(org.mockito.ArgumentMatchers.argThat(
+						username -> username != null && !username.equals("johndoe"))))
+				.thenReturn(false);
+		when(passwordEncoder.encode("password123")).thenReturn("hashed");
+		when(jwtService.generateToken(any(Long.class), any())).thenReturn("jwt-token");
+		when(jwtService.generateRefreshToken(any(Long.class))).thenReturn("refresh");
+		when(jwtService.getExpirationSeconds()).thenReturn(3600L);
+		when(userRepository.save(any(User.class)))
+				.thenAnswer(
+						inv -> {
+							User saved = inv.getArgument(0);
+							saved.setId(42L);
+							return saved;
+						});
+		when(auditLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		AuthResponse response = authService.register(request);
+
+		assertNotNull(response.getToken());
+	}
+
+	@Test
+	void register_longEmailLocalPart_shouldTruncateGeneratedUsername() {
+		String longEmail = "abcdefghijklmnopqrstuvwxyz0123456789@vendnet.com";
+		RegisterRequest request = new RegisterRequest(longEmail, "password123", "Long Name");
+		when(userRepository.existsByEmail(longEmail)).thenReturn(false);
+		when(userRepository.existsByUsername(any())).thenReturn(false);
+		when(passwordEncoder.encode("password123")).thenReturn("hashed");
+		when(jwtService.generateToken(longEmail)).thenReturn("jwt-token");
+		when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+		when(auditLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		AuthResponse response = authService.register(request);
+
+		assertNotNull(response.getToken());
+		assertTrue(response.getUsername().length() <= 30);
+	}
+
+	@Test
+	void login_shouldFindUserByUsername() {
+		LoginRequest request = new LoginRequest("sysoperator", "correctPass");
+		User user = buildUser("op@vendnet.com", "hashedPass", Role.ROLE_OPERATOR, AccountStatus.ACTIVE);
+		user.setUsername("sysoperator");
+
+		when(userRepository.findByUsername("sysoperator")).thenReturn(Optional.of(user));
+		when(passwordEncoder.matches("correctPass", "hashedPass")).thenReturn(true);
+		when(jwtService.generateToken("op@vendnet.com")).thenReturn("jwt-token");
+
+		AuthResponse response = authService.login(request);
+
+		assertEquals("jwt-token", response.getToken());
+	}
+
+	@Test
+	void register_shortEmail_shouldGenerateFallbackUsername() {
+		RegisterRequest request = new RegisterRequest("a@b.com", "password123", "Short");
+		when(userRepository.existsByEmail("a@b.com")).thenReturn(false);
+		when(userRepository.existsByUsername(any())).thenReturn(false);
+		when(passwordEncoder.encode("password123")).thenReturn("hashed");
+		when(jwtService.generateToken(any(Long.class), any())).thenReturn("jwt-token");
+		when(jwtService.generateRefreshToken(any(Long.class))).thenReturn("refresh");
+		when(jwtService.getExpirationSeconds()).thenReturn(3600L);
+		when(userRepository.save(any(User.class)))
+				.thenAnswer(
+						inv -> {
+							User saved = inv.getArgument(0);
+							saved.setId(42L);
+							return saved;
+						});
+		when(auditLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		AuthResponse response = authService.register(request);
+
+		assertNotNull(response.getToken());
+	}
+
+	@Test
+	void getCurrentUser_shouldFindByUsername() {
+		User user = buildUser("user@vendnet.com", "hashedPass", Role.ROLE_CUSTOMER, AccountStatus.ACTIVE);
+		user.setId(7L);
+		user.setUsername("customer1");
+		when(userRepository.findByUsername("customer1")).thenReturn(Optional.of(user));
+
+		UserResponse response = authService.getCurrentUser("customer1");
+
+		assertEquals(7L, response.getId());
 	}
 
 	// ── Helpers ─────────────────────────────────────────────────────────────

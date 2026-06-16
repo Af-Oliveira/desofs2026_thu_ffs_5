@@ -44,15 +44,15 @@ class CriticalFlowE2ETest extends E2ETestBase {
 
 		String token =
 				given()
-						.contentType(ContentType.JSON)
-						.body(Map.of("email", email, "password", password))
-						.post("/api/auth/login")
-						.then()
-						.statusCode(200)
-						.body("token", not(emptyOrNullString()))
-						.body("email", org.hamcrest.Matchers.equalTo(email))
-						.extract()
-						.path("token");
+							.contentType(ContentType.JSON)
+							.body(Map.of("username", usernameFromEmail(email), "password", password))
+							.post("/api/auth/login")
+							.then()
+							.statusCode(200)
+							.body("accessToken", not(emptyOrNullString()))
+							.body("email", org.hamcrest.Matchers.equalTo(email))
+							.extract()
+							.path("accessToken");
 
 		given()
 				.header("Authorization", authHeader(token))
@@ -139,27 +139,27 @@ class CriticalFlowE2ETest extends E2ETestBase {
 
 		for (int i = 0; i < 3; i++) {
 			given()
-					.contentType(ContentType.JSON)
-					.body(Map.of("email", email, "password", "WrongPass!"))
-					.post("/api/auth/login")
+						.contentType(ContentType.JSON)
+						.body(Map.of("username", usernameFromEmail(email), "password", "WrongPass!"))
+						.post("/api/auth/login")
 					.then()
 					.statusCode(401);
 		}
 
 		given()
-				.contentType(ContentType.JSON)
-				.body(Map.of("email", email, "password", password))
-				.post("/api/auth/login")
+					.contentType(ContentType.JSON)
+					.body(Map.of("username", usernameFromEmail(email), "password", password))
+					.post("/api/auth/login")
 				.then()
 				.statusCode(200)
-				.body("token", not(emptyOrNullString()));
+					.body("accessToken", not(emptyOrNullString()));
 	}
 
 	/**
 	 * [E2E-03] Lockout após 5 falhas
 	 *
 	 * <p>Precondições: utilizador registado.
-	 * Resultado esperado: 5×401; 6.º login correcto → 401 {@code Account Locked}.
+	 * Resultado esperado: 4×401; 5.º login bloqueia com 423; login correcto continua bloqueado.
 	 * Referência: FR-07 / SR account lockout.
 	 */
 	@Test
@@ -174,22 +174,30 @@ class CriticalFlowE2ETest extends E2ETestBase {
 				.then()
 				.statusCode(200);
 
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < 4; i++) {
 			given()
-					.contentType(ContentType.JSON)
-					.body(Map.of("email", email, "password", "WrongPass!"))
-					.post("/api/auth/login")
+						.contentType(ContentType.JSON)
+						.body(Map.of("username", usernameFromEmail(email), "password", "WrongPass!"))
+						.post("/api/auth/login")
 					.then()
 					.statusCode(401);
 		}
 
 		given()
-				.contentType(ContentType.JSON)
-				.body(Map.of("email", email, "password", password))
-				.post("/api/auth/login")
+					.contentType(ContentType.JSON)
+					.body(Map.of("username", usernameFromEmail(email), "password", "WrongPass!"))
+					.post("/api/auth/login")
 				.then()
-				.statusCode(401)
+				.statusCode(423)
 				.body("error", org.hamcrest.Matchers.equalTo("Account Locked"));
+
+		given()
+					.contentType(ContentType.JSON)
+					.body(Map.of("username", usernameFromEmail(email), "password", password))
+					.post("/api/auth/login")
+					.then()
+					.statusCode(423)
+					.body("error", org.hamcrest.Matchers.equalTo("Account Locked"));
 	}
 
 	/**
@@ -287,9 +295,9 @@ class CriticalFlowE2ETest extends E2ETestBase {
 								"idempotencyKey",
 								idempotencyKey))
 				.post("/api/sales/purchase")
-				.then()
-				.statusCode(201)
-				.body("status", org.hamcrest.Matchers.equalTo("DUPLICATE"))
+					.then()
+					.statusCode(200)
+					.body("status", org.hamcrest.Matchers.equalTo("DUPLICATE"))
 				.body("saleId", org.hamcrest.Matchers.equalTo(firstSaleId));
 	}
 }

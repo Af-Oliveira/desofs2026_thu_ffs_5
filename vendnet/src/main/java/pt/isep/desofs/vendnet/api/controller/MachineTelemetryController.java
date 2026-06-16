@@ -2,30 +2,28 @@ package pt.isep.desofs.vendnet.api.controller;
 
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pt.isep.desofs.vendnet.api.dto.TelemetryRequest;
+import pt.isep.desofs.vendnet.api.dto.TelemetryResponse;
 import pt.isep.desofs.vendnet.application.service.TelemetryService;
-import pt.isep.desofs.vendnet.domain.model.telemetry.MachineTelemetry;
 
 @RestController
-@RequestMapping("/api/telemetry")
 @RequiredArgsConstructor
 public class MachineTelemetryController {
 
 	private final TelemetryService telemetryService;
 
-	@PostMapping
+	@PostMapping({"/api/machines/telemetry", "/api/telemetry"})
 	@PreAuthorize("permitAll()")
-	public ResponseEntity<Map<String, String>> ingest(
-			@Valid @RequestBody MachineTelemetry telemetry, HttpServletRequest request) {
+	public ResponseEntity<TelemetryResponse> ingest(
+			@Valid @RequestBody TelemetryRequest telemetry, HttpServletRequest request) {
 		String certificateCn = (String) request.getAttribute("X509_CN");
-		telemetryService.save(telemetry, certificateCn);
-		return ResponseEntity.ok(Map.of("status", "telemetry ingested"));
+		TelemetryResponse response = telemetryService.ingest(telemetry, certificateCn);
+		return ResponseEntity.ok(response);
 	}
 }

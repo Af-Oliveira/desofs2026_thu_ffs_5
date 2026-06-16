@@ -40,6 +40,7 @@ class AuthControllerIntegrationTest {
 	@Autowired private JwtService jwtService;
 
 	private static final String TEST_EMAIL = "auth-test@vendnet.com";
+	private static final String TEST_USERNAME = "authtest";
 	private static final String TEST_PASSWORD = "Test@1234";
 
 	@BeforeEach
@@ -58,6 +59,7 @@ class AuthControllerIntegrationTest {
 			LocalDateTime now = LocalDateTime.now();
 			User user =
 					User.builder()
+							.username(TEST_USERNAME)
 							.email(TEST_EMAIL)
 							.password(passwordEncoder.encode(TEST_PASSWORD))
 							.name("Auth Test User")
@@ -72,7 +74,7 @@ class AuthControllerIntegrationTest {
 	@Test
 	void login_validCredentials_returns200WithJwt() throws Exception {
 		// Arrange
-		Map<String, String> body = Map.of("email", TEST_EMAIL, "password", TEST_PASSWORD);
+		Map<String, String> body = Map.of("username", TEST_USERNAME, "password", TEST_PASSWORD);
 
 		// Act & Assert
 		mockMvc.perform(
@@ -87,7 +89,7 @@ class AuthControllerIntegrationTest {
 	@Test
 	void login_invalidPassword_returns401() throws Exception {
 		// Arrange
-		Map<String, String> body = Map.of("email", TEST_EMAIL, "password", "WrongPassword1!");
+		Map<String, String> body = Map.of("username", TEST_USERNAME, "password", "WrongPassword1!");
 
 		// Act & Assert
 		mockMvc.perform(
@@ -100,7 +102,7 @@ class AuthControllerIntegrationTest {
 	@Test
 	void login_nonExistentUser_returns401() throws Exception {
 		// Arrange
-		Map<String, String> body = Map.of("email", "nobody@vendnet.com", "password", "Any@1234");
+		Map<String, String> body = Map.of("username", "nobody", "password", "Any@1234");
 
 		// Act & Assert
 		mockMvc.perform(
@@ -113,7 +115,8 @@ class AuthControllerIntegrationTest {
 	@Test
 	void request_withValidJwt_allowsAccess() throws Exception {
 		// Arrange
-		String token = jwtService.generateToken(TEST_EMAIL, Role.ROLE_CUSTOMER.name());
+		User user = userRepository.findByEmail(TEST_EMAIL).orElseThrow();
+		String token = jwtService.generateToken(user.getId(), Role.ROLE_CUSTOMER.name());
 
 		// Act & Assert
 		mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
@@ -157,11 +160,13 @@ class AuthControllerIntegrationTest {
 	void accountLockout_after5FailedAttempts_returns401WithLockMessage() throws Exception {
 		// Arrange — ensure a fresh user exists for the lockout test
 		String lockoutEmail = "lockout-test@vendnet.com";
+		String lockoutUsername = "lockouttest";
 		userRepository.findByEmail(lockoutEmail).ifPresent(u -> userRepository.save(resetUser(u)));
 		if (userRepository.findByEmail(lockoutEmail).isEmpty()) {
 			LocalDateTime now = LocalDateTime.now();
 			User user =
 					User.builder()
+							.username(lockoutUsername)
 							.email(lockoutEmail)
 							.password(passwordEncoder.encode("Correct@1234"))
 							.name("Lockout Test")
@@ -173,14 +178,19 @@ class AuthControllerIntegrationTest {
 		}
 
 		// Act — submit 5 failed login attempts to trigger lockout
-		Map<String, String> wrongCreds = Map.of("email", lockoutEmail, "password", "Wrong@9999");
-		for (int i = 0; i < 5; i++) {
+		Map<String, String> wrongCreds = Map.of("username", lockoutUsername, "password", "Wrong@9999");
+		for (int i = 0; i < 4; i++) {
 			mockMvc.perform(
 							post("/api/auth/login")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(objectMapper.writeValueAsString(wrongCreds)))
 					.andExpect(status().isUnauthorized());
 		}
+		mockMvc.perform(
+						post("/api/auth/login")
+								.contentType(MediaType.APPLICATION_JSON)
+								.content(objectMapper.writeValueAsString(wrongCreds)))
+				.andExpect(status().isLocked());
 
 		// Assert — 6th attempt with correct password is rejected because account is locked
 		mockMvc.perform(
@@ -189,11 +199,11 @@ class AuthControllerIntegrationTest {
 								.content(
 										objectMapper.writeValueAsString(
 												Map.of(
-														"email",
-														lockoutEmail,
+														"username",
+														lockoutUsername,
 														"password",
 														"Correct@1234"))))
-				.andExpect(status().isUnauthorized())
+				.andExpect(status().isLocked())
 				.andExpect(jsonPath("$.error").value("Account Locked"));
 	}
 

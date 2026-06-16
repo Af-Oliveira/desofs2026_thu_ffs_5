@@ -14,11 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import pt.isep.desofs.vendnet.domain.model.audit.AuditLog;
 import pt.isep.desofs.vendnet.domain.model.machine.MachineStatus;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.slot.Slot;
+import pt.isep.desofs.vendnet.domain.exception.CapacityExceededException;
 import pt.isep.desofs.vendnet.domain.repository.AuditLogRepository;
 import pt.isep.desofs.vendnet.domain.repository.SlotRepository;
 import pt.isep.desofs.vendnet.domain.repository.VendingMachineRepository;
@@ -91,7 +91,6 @@ class SlotServiceTest {
 
 	@Test
 	void restock_machineOffline_shouldThrowException() {
-		LocalDateTime now = LocalDateTime.now();
 		VendingMachine machine = VendingMachine.builder().id(1L).code("VM-001")
 				.status(MachineStatus.OFFLINE).build();
 
@@ -115,7 +114,7 @@ class SlotServiceTest {
 		when(machineRepository.findById(1L)).thenReturn(Optional.of(machine));
 		when(slotRepository.findByMachineIdAndId(1L, 1L)).thenReturn(Optional.of(slot));
 
-		assertThrows(IllegalArgumentException.class,
+		assertThrows(CapacityExceededException.class,
 				() -> slotService.restock(1L, 1L, 5, 100L));
 	}
 

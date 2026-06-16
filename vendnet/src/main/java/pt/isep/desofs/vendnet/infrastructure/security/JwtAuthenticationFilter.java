@@ -46,24 +46,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			return;
 		}
 
-		String email = jwtService.extractEmail(token);
+		String subject = jwtService.extractSubject(token);
 
-		User user = userRepository.findByEmail(email).orElse(null);
+		User user = resolveUser(subject);
 		if (user == null) {
-			log.warn("JWT valid but user not found in DB: {}", email);
+			log.warn("JWT valid but user not found in DB: {}", subject);
 			filterChain.doFilter(request, response);
 			return;
 		}
 
 		if (user.getAccountStatus() == AccountStatus.SUSPENDED) {
-			log.warn("Blocked request from suspended account: {}", email);
+			log.warn("Blocked request from suspended account: {}", user.getUsername());
 			jwtService.blocklistToken(token);
 			filterChain.doFilter(request, response);
 			return;
 		}
 
 		if (user.getAccountStatus() == AccountStatus.LOCKED) {
-			log.debug("Blocked request from locked account: {}", email);
+			log.debug("Blocked request from locked account: {}", user.getUsername());
 			filterChain.doFilter(request, response);
 			return;
 		}
@@ -72,11 +72,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 		UsernamePasswordAuthenticationToken authentication =
 				new UsernamePasswordAuthenticationToken(
-						email, null, List.of(new SimpleGrantedAuthority(role)));
+						user.getUsername(), null, List.of(new SimpleGrantedAuthority(role)));
 		authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 		SecurityContextHolder.getContext().setAuthentication(authentication);
-		log.debug("Authenticated user {} with role {}", email, role);
+		log.debug("Authenticated user {} with role {}", user.getUsername(), role);
 
 		filterChain.doFilter(request, response);
+	}
+
+	private User resolveUser(String subject) {
+		try {
+			return userRepository.findById(Long.valueOf(subject)).orElse(null);
+		} catch (NumberFormatException ignored) {
+			return userRepository
+					.findByUsername(subject)
+					.or(() -> userRepository.findByEmail(subject))
+					.orElse(null);
+		}
 	}
 }

@@ -21,10 +21,10 @@ class PaymentInfoTest {
 	}
 
 	@Test
-	void setters_shouldModifyFields() {
-		PaymentInfo info = new PaymentInfo();
+	void builder_shouldAllowPartialPaymentInfo() {
+		PaymentInfo info = PaymentInfo.builder().method("CREDIT_CARD").build();
 
-		assertNull(info.getMethod());
+		assertEquals("CREDIT_CARD", info.getMethod());
 		assertNull(info.getTransactionRef());
 		assertNull(info.getStatus());
 	}

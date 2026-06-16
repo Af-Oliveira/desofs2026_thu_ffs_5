@@ -11,7 +11,7 @@ public interface SlotRepository {
 
 	Optional<Slot> findByMachineIdAndId(Long machineId, Long slotId);
 
-	Optional<Slot> findByMachineIdAndProductId(Long machineId, Long productId);
+	List<Slot> findByMachineIdAndProductId(Long machineId, Long productId);
 
 	List<Slot> lockSlotsForPurchase(Long machineId, String productSku);
 

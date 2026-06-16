@@ -71,6 +71,7 @@ echo ""
 
 newman run "$COLLECTION" \
     --environment "$ENVIRONMENT" \
+    --working-dir "$SCRIPT_DIR/.." \
     --reporters cli,htmlextra \
     --reporter-htmlextra-export "$REPORT_DIR/e2e-report.html" \
     --color on \

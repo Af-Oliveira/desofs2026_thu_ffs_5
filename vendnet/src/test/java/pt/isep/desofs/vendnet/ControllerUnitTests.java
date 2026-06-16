@@ -1,7 +1,6 @@
 package pt.isep.desofs.vendnet;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +11,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -23,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
 import pt.isep.desofs.vendnet.api.controller.AdminController;
 import pt.isep.desofs.vendnet.api.controller.AuthController;
 import pt.isep.desofs.vendnet.api.controller.HealthController;
@@ -32,9 +34,7 @@ import pt.isep.desofs.vendnet.api.controller.PingController;
 import pt.isep.desofs.vendnet.api.controller.ProductController;
 import pt.isep.desofs.vendnet.api.controller.PublicController;
 import pt.isep.desofs.vendnet.api.controller.SaleController;
-import pt.isep.desofs.vendnet.api.controller.UserController;
 import pt.isep.desofs.vendnet.api.dto.AuthResponse;
-import pt.isep.desofs.vendnet.api.dto.ClaimsResponse;
 import pt.isep.desofs.vendnet.api.dto.UserResponse;
 import pt.isep.desofs.vendnet.application.service.AuthService;
 import pt.isep.desofs.vendnet.application.service.MachineService;
@@ -44,15 +44,20 @@ import pt.isep.desofs.vendnet.application.service.UserManagementService;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.sale.Sale;
+import pt.isep.desofs.vendnet.infrastructure.os.BackupResult;
 import pt.isep.desofs.vendnet.infrastructure.os.BackupService;
 import pt.isep.desofs.vendnet.infrastructure.os.ReportDirectoryService;
 
 /**
  * // Test Category: Unit Tests
- * // Box Type: White Box (full knowledge of controller internals, mocked dependencies)
- * // Strategy: MockMvc standalone — each controller tested in isolation with all services mocked.
+ * // Box Type: White Box (full knowledge of controller internals, mocked
+ * dependencies)
+ * // Strategy: MockMvc standalone — each controller tested in isolation with
+ * all services mocked.
  *
- * <p>Each test method documents: SUT (System Under Test), AAA phases, test type, and box type.
+ * <p>
+ * Each test method documents: SUT (System Under Test), AAA phases, test type,
+ * and box type.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Controller Unit Tests (White Box)")
@@ -96,8 +101,8 @@ class ControllerUnitTests {
             // AAA: Act — POST /api/auth/login
             // AAA: Assert — expect 200, token, email, role
             mockMvc.perform(post("/api/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"user@vendnet.io\",\"password\":\"Test@1234\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"username\":\"user\",\"password\":\"Test@1234\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.token").value("jwt-token-abc123"))
                     .andExpect(jsonPath("$.email").value("user@vendnet.io"))
@@ -123,8 +128,8 @@ class ControllerUnitTests {
             // AAA: Act — POST /api/auth/register
             // AAA: Assert
             mockMvc.perform(post("/api/auth/register")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"new@vendnet.io\",\"password\":\"NewUser@1234\",\"name\":\"New User\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"new@vendnet.io\",\"password\":\"NewUser@1234\",\"name\":\"New User\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.token").value("jwt-token-new"))
                     .andExpect(jsonPath("$.email").value("new@vendnet.io"))
@@ -140,8 +145,8 @@ class ControllerUnitTests {
             // AAA: Act — POST /api/auth/register with bad data
             // AAA: Assert — expect 400 (validation fails before service call)
             mockMvc.perform(post("/api/auth/register")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"bad\",\"password\":\"ab\",\"name\":\"\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"bad\",\"password\":\"ab\",\"name\":\"\"}"))
                     .andExpect(status().isBadRequest());
         }
     }
@@ -377,7 +382,8 @@ class ControllerUnitTests {
                     .price(new BigDecimal("1.50")).active(true)
                     .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
             Sale sale = Sale.builder().id(1L).machine(vm).product(p)
-                    .price(new BigDecimal("1.50")).quantity(2).totalAmount(new BigDecimal("3.00")).unitPrice(new BigDecimal("1.50"))
+                    .price(new BigDecimal("1.50")).quantity(2).totalAmount(new BigDecimal("3.00"))
+                    .unitPrice(new BigDecimal("1.50"))
                     .saleDate(LocalDateTime.now()).createdAt(LocalDateTime.now()).build();
             when(saleService.findByMachineId(1L)).thenReturn(List.of(sale));
 
@@ -425,12 +431,20 @@ class ControllerUnitTests {
         void triggerBackup_returnsInitiated() throws Exception {
             // SUT: OperationsController.triggerBackup()
             // Unit Test / White Box
-            // AAA: Arrange — backupService.generateBackup() is void, no mock setup needed
+            // AAA: Arrange
+            when(backupService.generateBackup())
+                    .thenReturn(BackupResult.builder()
+                            .filename("vendnet-backup.sql.enc")
+                            .size(42L)
+                            .checksum("a".repeat(64))
+                            .timestamp(LocalDateTime.now())
+                            .build());
             // AAA: Act
             // AAA: Assert
             mockMvc.perform(post("/api/admin/operations/backup"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("backup initiated"));
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.filename").exists())
+                    .andExpect(jsonPath("$.checksum").exists());
         }
 
         @Test
@@ -466,11 +480,11 @@ class ControllerUnitTests {
     @DisplayName("HealthController")
     class HealthControllerUnitTests {
 
-        @InjectMocks
         private HealthController healthController;
 
         @BeforeEach
         void setUp() {
+            healthController = new HealthController(Optional.empty());
             mockMvc = MockMvcBuilders.standaloneSetup(healthController).build();
         }
 
@@ -495,11 +509,11 @@ class ControllerUnitTests {
     @DisplayName("PingController")
     class PingControllerUnitTests {
 
-        @InjectMocks
         private PingController pingController;
 
         @BeforeEach
         void setUp() {
+            pingController = new PingController(Optional.empty());
             mockMvc = MockMvcBuilders.standaloneSetup(pingController).build();
         }
 

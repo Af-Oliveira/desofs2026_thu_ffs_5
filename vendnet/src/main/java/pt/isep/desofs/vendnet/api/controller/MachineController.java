@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pt.isep.desofs.vendnet.api.dto.CreateMachineRequest;
+import pt.isep.desofs.vendnet.api.dto.UpdateMachineRequest;
 import pt.isep.desofs.vendnet.application.service.MachineService;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 
@@ -47,8 +48,10 @@ public class MachineController {
 	@PutMapping("/{id}")
 	@PreAuthorize("hasRole('ADMINISTRATOR')")
 	public ResponseEntity<VendingMachine> update(
-			@PathVariable Long id, @RequestBody VendingMachine updatedMachine) {
-		VendingMachine machine = machineService.updateMachine(id, updatedMachine);
+			@PathVariable Long id, @Valid @RequestBody UpdateMachineRequest request) {
+		VendingMachine machine =
+				machineService.updateMachine(
+						id, request.getCode(), request.getLocation(), request.getActive());
 		return ResponseEntity.ok(machine);
 	}
 }

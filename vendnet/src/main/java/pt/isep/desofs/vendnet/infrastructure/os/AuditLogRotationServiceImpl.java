@@ -1,15 +1,19 @@
 package pt.isep.desofs.vendnet.infrastructure.os;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
@@ -25,15 +29,23 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+	private static final String AUDIT_LOG_DIRECTORY = "audit";
+
 	private final PathValidator pathValidator;
 
 	@Value("${app.storage.base-path:/var/vendnet}")
 	private String vendnetRoot;
 
+	@Value("${app.audit-log.hmac-secret:}")
+	private String hmacSecret;
+
+	private String generatedHmacSecret;
+
 	@Override
 	public void rotate() {
 		try {
-			Path logsDir = Paths.get(vendnetRoot, "logs", "audit").toRealPath();
+			Path logsDir = Paths.get(vendnetRoot, "logs", AUDIT_LOG_DIRECTORY).toRealPath();
 			Path sandbox = Paths.get(vendnetRoot).toRealPath();
 
 			if (!pathValidator.isValidPath(logsDir, sandbox)) {
@@ -49,7 +61,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 			}
 
 			log.info("Audit log rotation completed");
-		} catch (Exception e) {
+		} catch (IOException | SecurityException e) {
 			log.error("Audit log rotation failed", e);
 		}
 	}
@@ -57,7 +69,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 	@Override
 	public void compressAfterDays(int days) {
 		try {
-			Path logsDir = Paths.get(vendnetRoot, "logs", "audit").toRealPath();
+			Path logsDir = Paths.get(vendnetRoot, "logs", AUDIT_LOG_DIRECTORY).toRealPath();
 			Instant cutoff = Instant.now().minus(days, ChronoUnit.DAYS);
 
 			try (Stream<Path> files = Files.list(logsDir)) {
@@ -67,7 +79,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 						.filter(f -> isOlderThan(f, cutoff))
 						.forEach(this::compressAndSign);
 			}
-		} catch (Exception e) {
+		} catch (IOException e) {
 			log.error("Log compression failed", e);
 		}
 	}
@@ -75,7 +87,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 	@Override
 	public void deleteAfterDays(int days) {
 		try {
-			Path logsDir = Paths.get(vendnetRoot, "logs", "audit").toRealPath();
+			Path logsDir = Paths.get(vendnetRoot, "logs", AUDIT_LOG_DIRECTORY).toRealPath();
 			Path sandbox = Paths.get(vendnetRoot).toRealPath();
 
 			if (!pathValidator.isValidPath(logsDir, sandbox)) {
@@ -96,7 +108,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 														attr.lastModifiedTime().toInstant(),
 														ZoneId.systemDefault());
 										return fileTime.isBefore(cutoff);
-									} catch (Exception e) {
+									} catch (IOException e) {
 										return false;
 									}
 								})
@@ -105,14 +117,14 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 									try {
 										Files.deleteIfExists(f);
 										log.info("Deleted old log: {}", f.getFileName());
-									} catch (Exception ignored) {
-										/* ok */
+									} catch (IOException e) {
+										log.debug("Skipping old log during deletion: {}", f, e);
 									}
 								});
 			}
 
 			log.info("Old log deletion completed (retention: {} days)", days);
-		} catch (Exception e) {
+		} catch (IOException | SecurityException e) {
 			log.error("Log deletion failed", e);
 		}
 	}
@@ -125,7 +137,7 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 		try {
 			BasicFileAttributes attr = Files.readAttributes(file, BasicFileAttributes.class);
 			return attr.lastModifiedTime().toInstant().isBefore(cutoff);
-		} catch (Exception e) {
+		} catch (IOException e) {
 			return false;
 		}
 	}
@@ -146,17 +158,32 @@ public class AuditLogRotationServiceImpl implements AuditLogRotationService {
 
 			Files.deleteIfExists(file);
 			log.info("Compressed and signed: {}", file.getFileName());
-		} catch (Exception e) {
+		} catch (IOException | NoSuchAlgorithmException | InvalidKeyException e) {
 			log.error("Failed to compress/sign: {}", file.getFileName(), e);
 		}
 	}
 
 	private String computeHmac(byte[] data) throws NoSuchAlgorithmException, InvalidKeyException {
-		String secret = "hmac-signing-key-placeholder";
 		Mac mac = Mac.getInstance("HmacSHA256");
-		SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes(), "HmacSHA256");
+		SecretKeySpec keySpec =
+				new SecretKeySpec(
+						resolveHmacSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
 		mac.init(keySpec);
 		byte[] hmacBytes = mac.doFinal(data);
 		return HexFormat.of().formatHex(hmacBytes);
+	}
+
+	private String resolveHmacSecret() {
+		if (hmacSecret != null && !hmacSecret.isBlank()) {
+			return hmacSecret;
+		}
+		if (generatedHmacSecret != null) {
+			return generatedHmacSecret;
+		}
+
+		byte[] generatedSecret = new byte[32];
+		SECURE_RANDOM.nextBytes(generatedSecret);
+		generatedHmacSecret = Base64.getEncoder().encodeToString(generatedSecret);
+		return generatedHmacSecret;
 	}
 }

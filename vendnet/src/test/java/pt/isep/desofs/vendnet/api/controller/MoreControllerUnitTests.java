@@ -1,19 +1,16 @@
 package pt.isep.desofs.vendnet.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.BeforeEach;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,8 +18,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import pt.isep.desofs.vendnet.api.dto.PurchaseRequest;
-import pt.isep.desofs.vendnet.api.dto.PurchaseResponse;
+import pt.isep.desofs.vendnet.api.dto.SlotResponse;
+import pt.isep.desofs.vendnet.api.dto.TelemetryRequest;
+import pt.isep.desofs.vendnet.api.dto.TelemetryResponse;
 import pt.isep.desofs.vendnet.api.dto.UserResponse;
 import pt.isep.desofs.vendnet.application.service.AuthService;
 import pt.isep.desofs.vendnet.application.service.MachineService;
@@ -31,11 +29,9 @@ import pt.isep.desofs.vendnet.application.service.SaleService;
 import pt.isep.desofs.vendnet.application.service.SlotService;
 import pt.isep.desofs.vendnet.application.service.UserManagementService;
 import pt.isep.desofs.vendnet.application.service.TelemetryService;
-import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.sale.Sale;
-import pt.isep.desofs.vendnet.domain.model.slot.Slot;
-import pt.isep.desofs.vendnet.domain.model.telemetry.MachineTelemetry;
+import pt.isep.desofs.vendnet.infrastructure.os.BackupResult;
 import pt.isep.desofs.vendnet.infrastructure.os.BackupService;
 import pt.isep.desofs.vendnet.infrastructure.os.ReportDirectoryService;
 import pt.isep.desofs.vendnet.infrastructure.payment.PaymentGatewayService;
@@ -68,7 +64,7 @@ class MoreControllerUnitTests {
 	void slotController_findByMachine_shouldReturnOk() {
 		SlotController controller = new SlotController(slotService, authService);
 		when(slotService.findByMachineId(1L)).thenReturn(List.of());
-		ResponseEntity<List<Slot>> response = controller.findByMachine(1L);
+		ResponseEntity<List<SlotResponse>> response = controller.findByMachine(1L);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 	}
 
@@ -127,23 +123,35 @@ class MoreControllerUnitTests {
 	@Test
 	void telemetryController_ingest_shouldReturnOk() {
 		MachineTelemetryController controller = new MachineTelemetryController(telemetryService);
-		MachineTelemetry telemetry = MachineTelemetry.builder()
-				.cpuUsage(new BigDecimal("45.5")).memoryUsage(new BigDecimal("60.0"))
-				.status("ONLINE").timestamp(LocalDateTime.now()).build();
-		when(telemetryService.save(any(MachineTelemetry.class), anyString())).thenReturn(telemetry);
+		TelemetryRequest telemetry = TelemetryRequest.builder()
+				.serialNumber("VM-001")
+				.temperature(new BigDecimal("22.5"))
+				.statusCode("ONLINE")
+				.timestamp(LocalDateTime.now())
+				.build();
+		when(telemetryService.ingest(any(TelemetryRequest.class), anyString()))
+				.thenReturn(TelemetryResponse.builder().accepted(true).alertsRaised(0).build());
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		request.setAttribute("X509_CN", "VM-001");
-		ResponseEntity<Map<String, String>> response = controller.ingest(telemetry, request);
+		ResponseEntity<TelemetryResponse> response = controller.ingest(telemetry, request);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
-		assertEquals("telemetry ingested", response.getBody().get("status"));
+		assertEquals(0, response.getBody().getAlertsRaised());
 	}
 
 	@Test
 	void operationsController_backup_shouldReturnOk() {
 		OperationsController controller = new OperationsController(backupService, reportDirectoryService);
-		ResponseEntity<Map<String, String>> response = controller.triggerBackup();
-		assertEquals(HttpStatus.OK, response.getStatusCode());
-		assertEquals("backup initiated", response.getBody().get("status"));
+		when(backupService.generateBackup())
+				.thenReturn(
+						BackupResult.builder()
+								.filename("vendnet_backup.sql.enc")
+								.size(128L)
+								.checksum("abc")
+								.timestamp(LocalDateTime.now())
+								.build());
+		ResponseEntity<BackupResult> response = controller.triggerBackup();
+		assertEquals(HttpStatus.CREATED, response.getStatusCode());
+		assertEquals("vendnet_backup.sql.enc", response.getBody().getFilename());
 	}
 
 	@Test
@@ -157,8 +165,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void healthController_up_shouldReturnOk() {
-		HealthController controller = new HealthController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		HealthController controller = new HealthController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(true);
 		ResponseEntity<String> response = controller.health();
 		assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -167,8 +174,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void healthController_seeding_shouldReturn503() {
-		HealthController controller = new HealthController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		HealthController controller = new HealthController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(false);
 		ResponseEntity<String> response = controller.health();
 		assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
@@ -176,8 +182,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void pingController_ready_shouldReturnOk() {
-		PingController controller = new PingController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		PingController controller = new PingController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(true);
 		ResponseEntity<Map<String, String>> response = controller.ping();
 		assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -186,8 +191,7 @@ class MoreControllerUnitTests {
 
 	@Test
 	void pingController_seeding_shouldReturn503() {
-		PingController controller = new PingController();
-		org.springframework.test.util.ReflectionTestUtils.setField(controller, "bootstrapReady", bootstrapReadyIndicator);
+		PingController controller = new PingController(Optional.of(bootstrapReadyIndicator));
 		when(bootstrapReadyIndicator.isReady()).thenReturn(false);
 		ResponseEntity<Map<String, String>> response = controller.ping();
 		assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());

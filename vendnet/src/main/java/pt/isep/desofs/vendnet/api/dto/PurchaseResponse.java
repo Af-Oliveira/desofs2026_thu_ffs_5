@@ -14,5 +14,6 @@ public class PurchaseResponse {
 	private String saleId;
 	private String status;
 	private String transactionRef;
+	private String statusUrl;
 	private String message;
 }

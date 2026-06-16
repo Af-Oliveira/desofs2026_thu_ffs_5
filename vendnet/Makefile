@@ -142,11 +142,11 @@ certs:
 setup: certs db-up
 	@printf "\n$(C_OK) Setup complete. Run 'make run' to start.\n"
 
-db-reset:
+db-reset: db-up
 	@$(DC) exec mysql mysql -u vendnet_user -pvendnet_pass -e "DROP DATABASE IF EXISTS vendnet; CREATE DATABASE vendnet;" 2>/dev/null
 	@printf "$(C_OK) Database reset\n"
 
-db-clean:
+db-clean: db-up
 	@$(DC) exec mysql mysql -u vendnet_user -pvendnet_pass vendnet \
 		-e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE TABLE machine_telemetry; TRUNCATE TABLE sales; TRUNCATE TABLE slots; TRUNCATE TABLE vending_machines; TRUNCATE TABLE products; TRUNCATE TABLE users; TRUNCATE TABLE audit_logs; SET FOREIGN_KEY_CHECKS=1;" 2>/dev/null
 	@printf "$(C_OK) Database cleaned (all tables truncated)\n"

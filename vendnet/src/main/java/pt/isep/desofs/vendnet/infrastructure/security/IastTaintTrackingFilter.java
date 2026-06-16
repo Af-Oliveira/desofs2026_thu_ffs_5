@@ -19,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class IastTaintTrackingFilter extends OncePerRequestFilter {
 
+    private static final String COMMAND_INJECTION = "COMMAND_INJECTION";
+    private static final String HTTP_PARAMETER_PREFIX = "HTTP parameter '";
     private static final Map<String, List<TaintFlow>> detectedFlows = new ConcurrentHashMap<>();
     private static final List<TaintFlow> confirmedExploitableFlows = new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -39,7 +41,7 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, responseWrapper);
             analyzeFlows(requestId, request, responseWrapper);
-        } catch (Exception e) {
+        } catch (IOException | ServletException | RuntimeException e) {
             log.error("IAST filter error for request {}: {}", requestId, e.getMessage());
             throw e;
         }
@@ -64,7 +66,7 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
             // COMMAND_INJECTION reaching a 2xx response = confirmed exploitable.
             // SQL injection is protected by JPA parameterized queries (not confirmed).
             // Path traversal is protected by PathValidator (not confirmed).
-            boolean confirmed = "COMMAND_INJECTION".equals(raw.type) && twoXx;
+            boolean confirmed = COMMAND_INJECTION.equals(raw.type) && twoXx;
             enriched.add(new TaintFlow(raw.type, raw.source, raw.sink, uri, confirmed));
         }
 
@@ -90,7 +92,7 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
             for (String value : entry.getValue()) {
                 if (containsSqlPattern(value)) {
                     flows.add(new TaintFlow("SQL_INJECTION",
-                            "HTTP parameter '" + entry.getKey() + "'",
+                            HTTP_PARAMETER_PREFIX + entry.getKey() + "'",
                             "JPA/native query execution"));
                 }
             }
@@ -116,7 +118,7 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
             for (String value : entry.getValue()) {
                 if (value.contains("../") || value.contains("..\\")) {
                     flows.add(new TaintFlow("PATH_TRAVERSAL",
-                            "HTTP parameter '" + entry.getKey() + "'",
+                            HTTP_PARAMETER_PREFIX + entry.getKey() + "'",
                             "File system operations (NIO)"));
                 }
             }
@@ -128,8 +130,8 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
         for (Map.Entry<String, String[]> entry : params.entrySet()) {
             for (String value : entry.getValue()) {
                 if (containsShellMetacharacters(value)) {
-                    flows.add(new TaintFlow("COMMAND_INJECTION",
-                            "HTTP parameter '" + entry.getKey() + "'",
+                    flows.add(new TaintFlow(COMMAND_INJECTION,
+                            HTTP_PARAMETER_PREFIX + entry.getKey() + "'",
                             "ProcessBuilder / OS command execution"));
                 }
             }
@@ -141,11 +143,12 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
                 String body = request.getReader().lines()
                         .reduce("", (a, b) -> a + b);
                 if (containsShellMetacharacters(body)) {
-                    flows.add(new TaintFlow("COMMAND_INJECTION",
+                    flows.add(new TaintFlow(COMMAND_INJECTION,
                             "HTTP request body",
                             "ProcessBuilder / OS command execution"));
                 }
-            } catch (Exception ignored) {
+            } catch (IOException | IllegalStateException ignored) {
+                // Request body may already be consumed by the application; skip body taint checks.
             }
         }
     }
@@ -198,7 +201,7 @@ public class IastTaintTrackingFilter extends OncePerRequestFilter {
         public final String sink;
         /** Request URI — maps to a specific controller method for source-line correlation. */
         public final String requestUri;
-        /** True when {@code COMMAND_INJECTION} taint reached a 2xx response. */
+        /** True when command-injection taint reached a 2xx response. */
         public final boolean confirmedExploitable;
 
         /** Used internally by detect methods; {@code requestUri} and {@code confirmedExploitable} enriched in analyzeFlows. */

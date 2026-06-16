@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pt.isep.desofs.vendnet.api.dto.RestockRequest;
+import pt.isep.desofs.vendnet.api.dto.SlotResponse;
 import pt.isep.desofs.vendnet.application.service.AuthService;
 import pt.isep.desofs.vendnet.application.service.SlotService;
 import pt.isep.desofs.vendnet.domain.model.slot.Slot;
@@ -28,13 +29,15 @@ public class SlotController {
 
 	@GetMapping
 	@PreAuthorize("hasAnyRole('OPERATOR', 'ADMINISTRATOR')")
-	public ResponseEntity<List<Slot>> findByMachine(@PathVariable Long machineId) {
-		return ResponseEntity.ok(slotService.findByMachineId(machineId));
+	public ResponseEntity<List<SlotResponse>> findByMachine(@PathVariable Long machineId) {
+		List<SlotResponse> slots =
+				slotService.findByMachineId(machineId).stream().map(SlotResponse::from).toList();
+		return ResponseEntity.ok(slots);
 	}
 
 	@PutMapping("/{slotId}/restock")
 	@PreAuthorize("hasAnyRole('OPERATOR', 'ADMINISTRATOR')")
-	public ResponseEntity<Slot> restock(
+	public ResponseEntity<SlotResponse> restock(
 			@PathVariable Long machineId,
 			@PathVariable Long slotId,
 			@Valid @RequestBody RestockRequest request) {
@@ -43,6 +46,6 @@ public class SlotController {
 		var user = authService.getCurrentUser(auth.getName());
 
 		Slot updated = slotService.restock(machineId, slotId, request.getQuantity(), user.getId());
-		return ResponseEntity.ok(updated);
+		return ResponseEntity.ok(SlotResponse.from(updated));
 	}
 }

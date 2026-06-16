@@ -28,11 +28,11 @@ import org.springframework.test.context.ActiveProfiles;
 public abstract class E2ETestBase {
 
     protected static final String ADMIN_EMAIL = "admin@vendnet.io";
-    protected static final String ADMIN_PASS = "Admin@1234";
+    protected static final String ADMIN_PASS = "Admin@123456";
     protected static final String OPERATOR_EMAIL = "operator@vendnet.io";
-    protected static final String OPERATOR_PASS = "Operator@1234";
+    protected static final String OPERATOR_PASS = "Operator@123456";
     protected static final String CUSTOMER_EMAIL = "customer@vendnet.io";
-    protected static final String CUSTOMER_PASS = "Customer@1234";
+    protected static final String CUSTOMER_PASS = "Customer@123456";
     protected static final String WEBHOOK_SECRET = "e2e-webhook-secret";
 
     @LocalServerPort
@@ -46,15 +46,24 @@ public abstract class E2ETestBase {
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
     }
 
-    protected String loginAndGetToken(String email, String password) {
+    protected String loginAndGetToken(String usernameOrEmail, String password) {
         return given()
                 .contentType(ContentType.JSON)
-                .body(Map.of("email", email, "password", password))
+                .body(Map.of("username", usernameFromEmail(usernameOrEmail), "password", password))
                 .post("/api/auth/login")
                 .then()
                 .statusCode(200)
                 .extract()
-                .path("token");
+                .path("accessToken");
+    }
+
+    protected String usernameFromEmail(String usernameOrEmail) {
+        String username =
+                usernameOrEmail.contains("@")
+                        ? usernameOrEmail.substring(0, usernameOrEmail.indexOf('@'))
+                        : usernameOrEmail;
+        String sanitized = username.replaceAll("[^A-Za-z0-9]", "");
+        return sanitized.length() <= 30 ? sanitized : sanitized.substring(0, 30);
     }
 
     protected String authHeader(String token) {

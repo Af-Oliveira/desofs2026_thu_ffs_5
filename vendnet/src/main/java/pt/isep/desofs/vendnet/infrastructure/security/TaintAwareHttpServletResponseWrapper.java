@@ -31,7 +31,9 @@ public class TaintAwareHttpServletResponseWrapper extends HttpServletResponseWra
                 public boolean isReady() { return true; }
 
                 @Override
-                public void setWriteListener(WriteListener listener) {}
+                public void setWriteListener(WriteListener listener) {
+                    // Synchronous wrapper only; async write callbacks are delegated to the container response.
+                }
 
                 @Override
                 public void write(int b) throws IOException {

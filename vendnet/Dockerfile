@@ -7,9 +7,12 @@ RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 COPY src/ src/
 RUN ./mvnw -B package -DskipTests
 
-# Runtime stage: minimal JRE Alpine image
-FROM eclipse-temurin:17-jre-alpine AS runtime
-RUN addgroup -S vendnet && adduser -S vendnet -G vendnet
+# Runtime stage: multi-architecture JRE image
+FROM eclipse-temurin:17-jre-jammy AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget default-mysql-client \
+    && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system vendnet && useradd --system --gid vendnet --home-dir /app vendnet
 RUN mkdir -p /var/vendnet /var/vendnet/logs /var/vendnet/backups /var/vendnet/reports \
     && chown -R vendnet:vendnet /var/vendnet
 WORKDIR /app

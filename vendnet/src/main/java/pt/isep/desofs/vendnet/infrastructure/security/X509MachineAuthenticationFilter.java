@@ -16,6 +16,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Slf4j
 public class X509MachineAuthenticationFilter extends OncePerRequestFilter {
 
+	private final boolean allowHeaderCn;
+
+	public X509MachineAuthenticationFilter() {
+		this(false);
+	}
+
+	public X509MachineAuthenticationFilter(boolean allowHeaderCn) {
+		this.allowHeaderCn = allowHeaderCn;
+	}
+
 	@Override
 	protected void doFilterInternal(
 			HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -35,15 +45,24 @@ public class X509MachineAuthenticationFilter extends OncePerRequestFilter {
 				return;
 			}
 
-			UsernamePasswordAuthenticationToken authentication =
-					new UsernamePasswordAuthenticationToken(
-							cn, null, List.of(new SimpleGrantedAuthority("ROLE_MACHINE")));
+				UsernamePasswordAuthenticationToken authentication =
+						new UsernamePasswordAuthenticationToken(
+								cn, null, List.of(new SimpleGrantedAuthority("ROLE_MACHINE")));
 
-			SecurityContextHolder.getContext().setAuthentication(authentication);
-			log.debug("Machine authenticated via mTLS: {}", cn);
-		}
+				request.setAttribute("X509_CN", cn);
+				SecurityContextHolder.getContext().setAuthentication(authentication);
+				log.debug("Machine authenticated via mTLS: {}", cn);
+			} else if (allowHeaderCn && request.getHeader("X-Machine-CN") != null) {
+				String cn = request.getHeader("X-Machine-CN");
+				request.setAttribute("X509_CN", cn);
+				UsernamePasswordAuthenticationToken authentication =
+						new UsernamePasswordAuthenticationToken(
+								cn, null, List.of(new SimpleGrantedAuthority("ROLE_MACHINE")));
+				SecurityContextHolder.getContext().setAuthentication(authentication);
+				log.debug("Machine authenticated via e2e header: {}", cn);
+			}
 
-		filterChain.doFilter(request, response);
+			filterChain.doFilter(request, response);
 	}
 
 	private String extractCN(String dn) {

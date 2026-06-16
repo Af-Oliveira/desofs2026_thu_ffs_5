@@ -1,7 +1,8 @@
 {
   "info": {
-    "name": "VendNet \u2014 End-to-End API Tests",
-    "description": "# VendNet E2E Test Suite\n\nComprehensive end-to-end tests for all VendNet REST API endpoints.\n\n**Test patterns used:**\n- **SUT**: System Under Test comment on every request\n- **AAA**: Arrange \u2192 Act \u2192 Assert comments in test scripts\n\n**Roles tested:**\n- Public (unauthenticated)\n- Customer\n- Operator\n- Administrator\n\n**Run with:** `make e2e` or `newman run e2e/VendNet_E2E_Tests.postman_collection.json -e e2e/vendnet-local.postman_environment.json`",
+    "_postman_id": "3f2a2f44-99ef-4ad9-aed0-vendnet-e2e",
+    "name": "VendNet C4+1 / SSDS E2E Tests",
+    "description": "Newman/Postman suite aligned with VendNet C4 Level 3 PUML flows and SSDS controls.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -15,7 +16,7 @@
     },
     {
       "key": "adminPassword",
-      "value": "Admin@1234"
+      "value": "Admin@123456"
     },
     {
       "key": "operatorEmail",
@@ -23,7 +24,7 @@
     },
     {
       "key": "operatorPassword",
-      "value": "Operator@1234"
+      "value": "Operator@123456"
     },
     {
       "key": "customerEmail",
@@ -31,19 +32,11 @@
     },
     {
       "key": "customerPassword",
-      "value": "Customer@1234"
+      "value": "Customer@123456"
     },
     {
-      "key": "adminToken",
-      "value": ""
-    },
-    {
-      "key": "operatorToken",
-      "value": ""
-    },
-    {
-      "key": "customerToken",
-      "value": ""
+      "key": "webhookSecret",
+      "value": "e2e-webhook-secret"
     },
     {
       "key": "machineCode",
@@ -51,93 +44,75 @@
     },
     {
       "key": "productSku",
-      "value": "DRK-001"
+      "value": "DRK-002"
     },
     {
-      "key": "webhookSecret",
-      "value": "webhook-secret-placeholder"
+      "key": "adminUsername",
+      "value": "admin"
+    },
+    {
+      "key": "operatorUsername",
+      "value": "operator"
+    },
+    {
+      "key": "customerUsername",
+      "value": "customer"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"No stack traces leak in error responses\", () => {",
+          "  const text = pm.response.text();",
+          "  pm.expect(text).to.not.include(\"java.lang.\");",
+          "  pm.expect(text).to.not.include(\"SQLException\");",
+          "});"
+        ]
+      }
     }
   ],
   "item": [
     {
-      "name": "\u25b8 SETUP \u2014 Register & Authenticate",
-      "description": "# SUT: Authentication & User Registration\n\nRegisters users for all three roles and retrieves JWT tokens.\nUsed by all subsequent test folders.",
+      "name": "00 Bootstrap And Authentication",
       "item": [
         {
-          "name": "S01 \u25cf Register Admin",
+          "name": "00.01 Health ping",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 credentials defined in collection variables",
-                  "// AAA: Act \u2014 performed via POST request",
-                  "// AAA: Assert",
-                  "pm.test(\"Status is 200, 400, or 409 (register/duplicate)\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 409]);",
-                  "});",
-                  "if (pm.response.code === 200) {",
-                  "    pm.test(\"Response contains token\", () => {",
-                  "        pm.expect(pm.response.json().token).to.exist;",
-                  "    });",
-                  "    pm.collectionVariables.set(\"adminToken\", pm.response.json().token);",
-                  "}"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Health endpoint returns status\", () => pm.expect(body).to.have.property(\"status\"));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"name\": \"System Administrator\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "register"
-              ]
-            },
-            "description": "// SUT: POST /api/auth/register\n// Registers or confirms an Administrator account exists."
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health/ping"
           }
         },
         {
-          "name": "S02 \u25cf Login Admin",
+          "name": "00.02 Login admin seed user",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin credentials",
-                  "// AAA: Act \u2014 POST /api/auth/login",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Login successful\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns JWT token\", () => {",
-                  "    const token = pm.response.json().token;",
-                  "    pm.expect(token).to.be.a('string').with.lengthOf.at.least(10);",
-                  "    pm.collectionVariables.set(\"adminToken\", token);",
-                  "});",
-                  "pm.test(\"Returns email and role\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body.email).to.eq(pm.collectionVariables.get(\"adminEmail\"));",
-                  "    pm.expect(body.role).to.match(/ADMIN/);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Token returned\", () => pm.expect(body.token).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"adminToken\", body.token);",
+                  "pm.test(\"Admin role returned\", () => pm.expect(body.role).to.equal(\"ROLE_ADMINISTRATOR\"));"
+                ]
               }
             }
           ],
@@ -149,40 +124,32 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            },
-            "description": "// SUT: POST /api/auth/login\n// Authenticates Administrator and stores JWT token."
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "S03 \u25cf Register Operator",
+          "name": "00.03 Login operator seed user",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Assert",
-                  "pm.test(\"Status is 200 or 409\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 409]);",
-                  "});",
-                  "if (pm.response.code === 200) {",
-                  "    pm.collectionVariables.set(\"operatorToken\", pm.response.json().token);",
-                  "}"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Token returned\", () => pm.expect(body.token).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"operatorToken\", body.token);",
+                  "pm.test(\"Operator role returned\", () => pm.expect(body.role).to.equal(\"ROLE_OPERATOR\"));"
+                ]
               }
             }
           ],
@@ -194,45 +161,32 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{operatorEmail}}\",\n  \"password\": \"{{operatorPassword}}\",\n  \"name\": \"Machine Operator\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "register"
-              ]
-            },
-            "description": "// SUT: POST /api/auth/register\n// Registers or confirms an Operator account."
+              "raw": "{\n  \"username\": \"{{operatorUsername}}\",\n  \"password\": \"{{operatorPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "S04 \u25cf Login Operator",
+          "name": "00.04 Login customer seed user",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 operator credentials",
-                  "// AAA: Act \u2014 POST /api/auth/login",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Login successful\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns JWT token with OPERATOR role\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body.token).to.be.a('string').with.lengthOf.at.least(10);",
-                  "    pm.expect(body.role).to.match(/OPERATOR/);",
-                  "    pm.collectionVariables.set(\"operatorToken\", body.token);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Token returned\", () => pm.expect(body.token).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"customerToken\", body.token);",
+                  "pm.test(\"Customer role returned\", () => pm.expect(body.role).to.equal(\"ROLE_CUSTOMER\"));"
+                ]
               }
             }
           ],
@@ -244,36 +198,41 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{operatorEmail}}\",\n  \"password\": \"{{operatorPassword}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            },
-            "description": "// SUT: POST /api/auth/login\n// Authenticates Operator and stores JWT token."
+              "raw": "{\n  \"username\": \"{{customerUsername}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "S05 \u25cf Register Customer",
+          "name": "00.05 Register unique customer",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"registeredCustomerEmail\", \"newman-customer-\" + Date.now() + \"-\" + Math.floor(Math.random() * 100000) + \"@vendnet.io\");"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 200 or 409\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 409]);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Token returned\", () => pm.expect(body.token).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"registeredCustomerToken\", body.token);",
+                  "pm.test(\"Registered account uses customer role\", () => pm.expect(body.role).to.equal(\"ROLE_CUSTOMER\"));"
+                ]
               }
             }
           ],
@@ -285,651 +244,347 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/auth/register",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\",\n  \"name\": \"Regular Customer\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "register"
-              ]
-            },
-            "description": "// SUT: POST /api/auth/register\n// Registers or confirms a Customer account."
+              "raw": "{\n  \"email\": \"{{registeredCustomerEmail}}\",\n  \"password\": \"Newman@1234\",\n  \"name\": \"Newman Customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "S06 \u25cf Login Customer",
+          "name": "00.06 Auth claims include subject and role",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 customer credentials",
-                  "// AAA: Act \u2014 POST /api/auth/login",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Login successful\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns JWT token with CUSTOMER role\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body.token).to.be.a('string').with.lengthOf.at.least(10);",
-                  "    pm.expect(body.role).to.match(/CUSTOMER/);",
-                  "    pm.collectionVariables.set(\"customerToken\", body.token);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Claims include subject and role\", () => { pm.expect(body.subject).to.equal(pm.collectionVariables.get(\"customerUsername\")); pm.expect(body.role).to.equal(\"ROLE_CUSTOMER\"); });"
+                ]
               }
             }
           ],
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            },
-            "description": "// SUT: POST /api/auth/login\n// Authenticates Customer and stores JWT token."
+            "url": "{{baseUrl}}/api/auth/claims"
           }
         }
       ]
     },
     {
-      "name": "\u25b8 PUBLIC ENDPOINTS",
-      "description": "# SUT: Publicly accessible endpoints\n\nThese endpoints require no authentication.\nDefined in SecurityConfig.java permitAll() rules.",
+      "name": "01 Catalog And Machine Discovery",
       "item": [
         {
-          "name": "P01 GET /api/health",
+          "name": "01.01 List active products and store DRK-002 id",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 no auth needed",
-                  "// AAA: Act \u2014 GET /api/health",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Body is 'UP'\", () => {",
-                  "    pm.expect(pm.response.text()).to.include(\"UP\");",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON array\", () => pm.expect(body).to.be.an(\"array\"));",
+                  "const product = body.find(p => p.sku === pm.collectionVariables.get(\"productSku\")) || body[0];",
+                  "pm.test(\"At least one active product is exposed\", () => pm.expect(product).to.exist);",
+                  "pm.test(\"Product has server-side price\", () => pm.expect(product.price).to.exist);",
+                  "pm.collectionVariables.set(\"productId\", product.id);",
+                  "pm.collectionVariables.set(\"productSku\", product.sku);"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "health"
-              ]
-            },
-            "description": "// SUT: HealthController \u2014 GET /api/health\n// Returns simple UP status, no auth required."
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/products"
           }
         },
         {
-          "name": "P02 GET /api/health/ping",
+          "name": "01.02 Get product by SKU",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 no auth needed",
-                  "// AAA: Act \u2014 GET /api/health/ping",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Contains status, message, timestamp, uptime\", () => {",
-                  "    pm.expect(body).to.have.property(\"status\");",
-                  "    pm.expect(body).to.have.property(\"message\");",
-                  "    pm.expect(body).to.have.property(\"timestamp\");",
-                  "    pm.expect(body).to.have.property(\"uptime\");",
-                  "});",
-                  "pm.test(\"Uptime is present (string like '1234ms')\", () => {",
-                  "    pm.expect(body.uptime).to.be.a('string').that.matches(/^\\d+ms$/);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Returned product matches SKU\", () => pm.expect(body.sku).to.equal(pm.collectionVariables.get(\"productSku\")));"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/health/ping",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "health",
-                "ping"
-              ]
-            },
-            "description": "// SUT: PingController \u2014 GET /api/health/ping\n// Returns detailed status with uptime in milliseconds."
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/products/{{productSku}}"
           }
         },
         {
-          "name": "P03 GET /api/public/info",
+          "name": "01.03 List machines and store VM-LIS-001 id",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 no auth needed",
-                  "// AAA: Act \u2014 GET /api/public/info",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Contains app name and version\", () => {",
-                  "    pm.expect(body).to.have.property(\"app\");",
-                  "    pm.expect(body).to.have.property(\"version\");",
-                  "    pm.expect(body).to.have.property(\"desc\");",
-                  "    pm.expect(body.app).to.match(/vendnet/i);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON array\", () => pm.expect(body).to.be.an(\"array\"));",
+                  "const machine = body.find(m => m.code === pm.collectionVariables.get(\"machineCode\")) || body[0];",
+                  "pm.test(\"At least one machine is exposed\", () => pm.expect(machine).to.exist);",
+                  "pm.collectionVariables.set(\"machineId\", machine.id);",
+                  "pm.collectionVariables.set(\"machineCode\", machine.code);"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/info",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "info"
-              ]
-            },
-            "description": "// SUT: PublicController \u2014 GET /api/public/info\n// Returns application metadata."
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/machines"
           }
         },
         {
-          "name": "P04 GET /actuator/health",
+          "name": "01.04 Get machine by code",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 no auth needed (permitAll in SecurityConfig)",
-                  "// AAA: Act \u2014 GET /actuator/health",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Status is UP\", () => {",
-                  "    pm.expect(pm.response.json().status).to.eq(\"UP\");",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Returned machine matches code\", () => pm.expect(body.code).to.equal(pm.collectionVariables.get(\"machineCode\")));"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/actuator/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "actuator",
-                "health"
-              ]
-            },
-            "description": "// SUT: Spring Actuator \u2014 GET /actuator/health\n// Health check endpoint, permitAll()."
-          }
-        },
-        {
-          "name": "P05 POST /api/auth/register \u2014 Validation",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 invalid email, short password",
-                  "// AAA: Act \u2014 POST /api/auth/register with bad data",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 400 \u2014 Bad Request for invalid input\", () => {",
-                  "    pm.response.to.have.status(400);",
-                  "});",
-                  "pm.test(\"Returns validation error\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body.error).to.be.oneOf([\"Bad Request\", \"Validation Error\"]);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"ab\",\n  \"name\": \"\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "register"
-              ]
-            },
-            "description": "// SUT: AuthController \u2014 POST /api/auth/register\n// Verifies input validation (@Valid) rejects malformed data."
-          }
-        },
-        {
-          "name": "P06 POST /api/auth/login \u2014 Bad Credentials",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 bogus credentials",
-                  "// AAA: Act \u2014 POST /api/auth/login",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 401 \u2014 Unauthorized for bad credentials\", () => {",
-                  "    pm.response.to.have.status(401);",
-                  "});",
-                  "pm.test(\"Returns error message\", () => {",
-                  "    pm.expect(pm.response.json().error).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"nonexistent@vendnet.io\",\n  \"password\": \"wrongpass123\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            },
-            "description": "// SUT: AuthController \u2014 POST /api/auth/login\n// Verifies bad credentials return 401."
-          }
-        },
-        {
-          "name": "P07 POST /api/telemetry",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 telemetry payload (permitAll endpoint)",
-                  "// AAA: Act \u2014 POST /api/telemetry",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Telemetry ingested\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns ingestion confirmation\", () => {",
-                  "    pm.expect(pm.response.json().status).to.include(\"ingested\");",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"machine\": { \"code\": \"VM-LIS-001\" },\n  \"cpuUsage\": 42.5,\n  \"memoryUsage\": 68.3,\n  \"diskUsage\": 55.0,\n  \"status\": \"ONLINE\",\n  \"uptimeSeconds\": 864000,\n  \"totalSalesToday\": 42,\n  \"temperatureCelsius\": 23.1,\n  \"timestamp\": \"2026-05-15T10:00:00\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/telemetry",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "telemetry"
-              ]
-            },
-            "description": "// SUT: MachineTelemetryController \u2014 POST /api/telemetry\n// Telemetry ingestion endpoint, permitAll()."
-          }
-        },
-        {
-          "name": "P08 POST /api/auth/mfa/verify \u2014 No MFA Setup",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 fake MFA code (users have no TOTP secret by default)",
-                  "// AAA: Act \u2014 POST /api/auth/mfa/verify",
-                  "// AAA: Assert",
-                  "pm.test(\"Returns error \u2014 no MFA configured\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([400, 401, 500]);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"code\": \"123456\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/mfa/verify",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "mfa",
-                "verify"
-              ]
-            },
-            "description": "// SUT: AuthController \u2014 POST /api/auth/mfa/verify\n// MFA verification endpoint, permitAll(). No TOTP secret configured for bootstrap users."
+            "url": "{{baseUrl}}/api/machines/{{machineCode}}"
           }
         }
       ]
     },
     {
-      "name": "\u25b8 CUSTOMER ENDPOINTS",
-      "description": "# SUT: Endpoints accessible by CUSTOMER role\n\nAuthorization: isAuthenticated() or hasAnyRole('CUSTOMER','OPERATOR','ADMINISTRATOR')",
+      "name": "02 Purchase Product Flow",
       "item": [
         {
-          "name": "C01 GET /api/auth/me",
+          "name": "02.01 Customer purchase succeeds",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"purchaseIdempotencyKey\", \"newman-purchase-\" + Date.now());"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 customer JWT token from setup",
-                  "// AAA: Act \u2014 GET /api/auth/me",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Returns customer profile\", () => {",
-                  "    pm.expect(body.email).to.eq(pm.collectionVariables.get(\"customerEmail\"));",
-                  "    pm.expect(body.name).to.be.a('string');",
-                  "    pm.expect(body.role).to.match(/CUSTOMER/);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Purchase is completed\", () => pm.expect(body.status).to.equal(\"COMPLETED\"));",
+                  "pm.collectionVariables.set(\"saleId\", body.saleId);"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{customerToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "me"
-              ]
-            },
-            "description": "// SUT: UserController \u2014 GET /api/auth/me\n// Returns authenticated user profile. isAuthenticated()."
+            "url": "{{baseUrl}}/api/sales/purchase",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"machineId\": \"{{machineId}}\",\n  \"paymentToken\": \"tok_newman_valid\",\n  \"idempotencyKey\": \"{{purchaseIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "C02 GET /api/auth/claims",
+          "name": "02.02 Duplicate idempotency key is not charged twice",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 customer JWT token",
-                  "// AAA: Act \u2014 GET /api/auth/claims",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Returns JWT claims\", () => {",
-                  "    pm.expect(body).to.have.property(\"subject\");",
-                  "    pm.expect(body).to.have.property(\"role\");",
-                  "    pm.expect(body).to.have.property(\"issuedAt\");",
-                  "});",
-                  "pm.test(\"Claims contain correct role\", () => {",
-                  "    pm.expect(body.role).to.match(/CUSTOMER/);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Duplicate request is detected\", () => pm.expect(body.status).to.equal(\"DUPLICATE\"));",
+                  "pm.test(\"Duplicate references original sale\", () => pm.expect(String(body.saleId)).to.equal(String(pm.collectionVariables.get(\"saleId\"))));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{customerToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/claims",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "claims"
-              ]
-            },
-            "description": "// SUT: UserController \u2014 GET /api/auth/claims\n// Returns decoded JWT token claims. isAuthenticated()."
+            "url": "{{baseUrl}}/api/sales/purchase",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"machineId\": \"{{machineId}}\",\n  \"paymentToken\": \"tok_newman_valid\",\n  \"idempotencyKey\": \"{{purchaseIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "C03 GET /api/products",
+          "name": "02.03 Client-supplied unitPrice is rejected (SR-24/SR-29)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 customer JWT token",
-                  "// AAA: Act \u2014 GET /api/products",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Returns a list of products\", () => {",
-                  "    pm.expect(body).to.be.an('array');",
-                  "});",
-                  "pm.test(\"Each product has required fields\", () => {",
-                  "    if (body.length > 0) {",
-                  "        pm.expect(body[0]).to.have.property(\"id\");",
-                  "        pm.expect(body[0]).to.have.property(\"name\");",
-                  "        pm.expect(body[0]).to.have.property(\"price\");",
-                  "        pm.expect(body[0]).to.have.property(\"sku\");",
-                  "        pm.expect(body[0]).to.have.property(\"active\");",
-                  "    }",
-                  "});",
-                  "// Store product SKU for subsequent tests",
-                  "if (body.length > 0) {",
-                  "    pm.collectionVariables.set(\"productSku\", body[0].sku);",
-                  "}"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Strict JSON rejects unknown unitPrice\", () => { pm.expect(body.error).to.equal(\"Bad Request\"); pm.expect(body.message).to.equal(\"Invalid request body\"); });"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{customerToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/products",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "products"
-              ]
-            },
-            "description": "// SUT: ProductController \u2014 GET /api/products\n// Lists all active products. isAuthenticated()."
+            "url": "{{baseUrl}}/api/sales/purchase",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"machineId\": \"{{machineId}}\",\n  \"paymentToken\": \"tok_price_attack\",\n  \"idempotencyKey\": \"price-attack-{{$timestamp}}\",\n  \"unitPrice\": 0.01\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "C04 GET /api/products/{sku}",
+          "name": "02.04 Client-supplied price is rejected (mass assignment)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 product SKU from C03 or default",
-                  "// AAA: Act \u2014 GET /api/products/{{productSku}}",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Returns correct product\", () => {",
-                  "    pm.expect(body.sku).to.eq(pm.collectionVariables.get(\"productSku\"));",
-                  "    pm.expect(body.name).to.be.a('string');",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Strict JSON rejects unknown price\", () => pm.expect(body.message).to.equal(\"Invalid request body\"));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{customerToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/products/{{productSku}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "products",
-                "{{productSku}}"
-              ]
-            },
-            "description": "// SUT: ProductController \u2014 GET /api/products/{sku}\n// Returns single product by SKU. isAuthenticated()."
+            "url": "{{baseUrl}}/api/sales/purchase",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"machineId\": \"{{machineId}}\",\n  \"paymentToken\": \"tok_price_attack\",\n  \"idempotencyKey\": \"price-attack-2-{{$timestamp}}\",\n  \"price\": -1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "C05 GET /api/machines",
+          "name": "02.05 Customer purchase history includes sale",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 customer JWT token",
-                  "// AAA: Act \u2014 GET /api/machines",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Returns a list of machines\", () => {",
-                  "    pm.expect(body).to.be.an('array');",
-                  "});",
-                  "pm.test(\"Each machine has code and location\", () => {",
-                  "    if (body.length > 0) {",
-                  "        pm.expect(body[0]).to.have.property(\"code\");",
-                  "        pm.expect(body[0]).to.have.property(\"location\");",
-                  "        pm.collectionVariables.set(\"machineCode\", body[0].code);",
-                  "    }",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON array\", () => pm.expect(body).to.be.an(\"array\"));",
+                  "const saleId = String(pm.collectionVariables.get(\"saleId\"));",
+                  "pm.test(\"History includes completed purchase\", () => pm.expect(body.some(s => String(s.id) === saleId)).to.equal(true));",
+                  "const sale = body.find(s => String(s.id) === saleId);",
+                  "pm.test(\"Sale keeps unitPrice snapshot\", () => pm.expect(sale.unitPrice).to.exist);"
+                ]
               }
             }
           ],
@@ -941,91 +596,30 @@
                 "value": "Bearer {{customerToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/machines",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 GET /api/machines\n// Lists all vending machines. hasAnyRole('CUSTOMER','OPERATOR','ADMINISTRATOR')."
-          }
-        },
-        {
-          "name": "C06 GET /api/machines/{code}",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 machine code from C05 or default",
-                  "// AAA: Act \u2014 GET /api/machines/{{machineCode}}",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "const body = pm.response.json();",
-                  "pm.test(\"Returns correct machine\", () => {",
-                  "    pm.expect(body.code).to.eq(pm.collectionVariables.get(\"machineCode\"));",
-                  "    pm.expect(body.location).to.be.a('string');",
-                  "});",
-                  "pm.test(\"Has active flag\", () => {",
-                  "    pm.expect(body).to.have.property(\"active\");",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{customerToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/machines/{{machineCode}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines",
-                "{{machineCode}}"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 GET /api/machines/{code}\n// Returns single machine by code. hasAnyRole('CUSTOMER','OPERATOR','ADMINISTRATOR')."
+            "url": "{{baseUrl}}/api/sales/me"
           }
         }
       ]
     },
     {
-      "name": "\u25b8 OPERATOR ENDPOINTS",
-      "description": "# SUT: Endpoints accessible by OPERATOR role\n\nOperators can view machines and sales data.",
+      "name": "03 Machine Restock Flow",
       "item": [
         {
-          "name": "O01 GET /api/machines (Operator)",
+          "name": "03.01 Operator lists slots and stores a restockable slot",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 operator JWT token",
-                  "// AAA: Act \u2014 GET /api/machines",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns machine list\", () => {",
-                  "    pm.expect(pm.response.json()).to.be.an('array');",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON array\", () => pm.expect(body).to.be.an(\"array\"));",
+                  "const slot = body.find(s => Number(s.currentStock) < Number(s.capacity)) || body[0];",
+                  "pm.test(\"Machine has slots\", () => pm.expect(slot).to.exist);",
+                  "pm.collectionVariables.set(\"slotId\", slot.id);",
+                  "pm.collectionVariables.set(\"slotCurrentStock\", slot.currentStock);",
+                  "pm.collectionVariables.set(\"slotCapacity\", slot.capacity);"
+                ]
               }
             }
           ],
@@ -1037,131 +631,141 @@
                 "value": "Bearer {{operatorToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/machines",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 GET /api/machines (Operator)\n// Operator can list all machines."
+            "url": "{{baseUrl}}/api/machines/{{machineId}}/slots"
           }
         },
         {
-          "name": "O02 GET /api/machines/{code} (Operator)",
+          "name": "03.02 Operator restocks one unit",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 operator JWT, machine code",
-                  "// AAA: Act \u2014 GET /api/machines/{{machineCode}}",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns machine details\", () => {",
-                  "    pm.expect(pm.response.json().code).to.eq(pm.collectionVariables.get(\"machineCode\"));",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Restock does not exceed capacity\", () => pm.expect(Number(body.currentStock)).to.be.at.most(Number(body.capacity)));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "PUT",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{operatorToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/machines/{{machineCode}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines",
-                "{{machineCode}}"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 GET /api/machines/{code} (Operator)\n// Operator can view individual machine details."
+            "url": "{{baseUrl}}/api/machines/{{machineId}}/slots/{{slotId}}/restock",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "O03 GET /api/sales/machine/1",
+          "name": "03.03 Excessive restock is rejected",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 operator JWT",
-                  "// AAA: Act \u2014 GET /api/sales/machine/1",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Operator can view sales\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns sales array\", () => {",
-                  "    pm.expect(pm.response.json()).to.be.an('array');",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Capacity invariant is enforced\", () => pm.expect(body.error).to.equal(\"Unprocessable Entity\"));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "PUT",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{operatorToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/sales/machine/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "sales",
-                "machine",
-                "1"
-              ]
-            },
-            "description": "// SUT: SaleController \u2014 GET /api/sales/machine/{machineId}\n// Operator can view sales by machine. hasAnyRole('OPERATOR','ADMINISTRATOR')."
+            "url": "{{baseUrl}}/api/machines/{{machineId}}/slots/{{slotId}}/restock",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "03.04 Customer cannot restock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/machines/{{machineId}}/slots/{{slotId}}/restock",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         }
       ]
     },
     {
-      "name": "\u25b8 ADMINISTRATOR ENDPOINTS",
-      "description": "# SUT: Endpoints accessible only by ADMINISTRATOR role\n\nAdministrator has full system access including user management, reports, product creation, and operations.",
+      "name": "04 Admin Product User And OS Operations",
       "item": [
         {
-          "name": "A01 GET /api/admin/dashboard",
+          "name": "04.01 Admin dashboard",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT token",
-                  "// AAA: Act \u2014 GET /api/admin/dashboard",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Admin can access dashboard\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns welcome message\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body).to.have.property(\"message\");",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Dashboard message present\", () => pm.expect(body.message).to.exist);"
+                ]
               }
             }
           ],
@@ -1173,43 +777,22 @@
                 "value": "Bearer {{adminToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/dashboard",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "dashboard"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 GET /api/admin/dashboard\n// Admin dashboard. hasRole('ADMINISTRATOR')."
+            "url": "{{baseUrl}}/api/admin/dashboard"
           }
         },
         {
-          "name": "A02 GET /api/admin/users",
+          "name": "04.02 Admin lists users without password hashes",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Admin user list returns array\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test(\"Returns an array of users\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.be.an('array');",
-                  "    if (jsonData.length > 0) {",
-                  "        pm.expect(jsonData[0]).to.have.property('id');",
-                  "        pm.expect(jsonData[0]).to.have.property('email');",
-                  "        pm.expect(jsonData[0]).to.have.property('role');",
-                  "    }",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON array\", () => pm.expect(body).to.be.an(\"array\"));",
+                  "pm.test(\"Seed users are present\", () => pm.expect(body.length).to.be.at.least(3));",
+                  "pm.test(\"Password hashes are not exposed\", () => pm.expect(JSON.stringify(body)).to.not.include(\"password\"));"
+                ]
               }
             }
           ],
@@ -1221,125 +804,206 @@
                 "value": "Bearer {{adminToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/users",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "users"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 GET /api/admin/users\n// Admin-only user list. hasRole('ADMINISTRATOR')."
+            "url": "{{baseUrl}}/api/admin/users"
           }
         },
         {
-          "name": "A03 GET /api/admin/reports",
+          "name": "04.03 Admin creates operator user",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"createdUserEmail\", \"newman-operator-\" + Date.now() + \"-\" + Math.floor(Math.random() * 100000) + \"@vendnet.io\");"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT",
-                  "// AAA: Act \u2014 GET /api/admin/reports",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns reports endpoint confirmation\", () => {",
-                  "    pm.expect(pm.response.json()).to.have.property(\"message\");",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Created user has requested role\", () => pm.expect(body.role).to.equal(\"ROLE_OPERATOR\"));",
+                  "pm.collectionVariables.set(\"createdUserId\", body.id);"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{adminToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/reports",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "reports"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 GET /api/admin/reports\n// Admin-only reports access. hasRole('ADMINISTRATOR')."
+            "url": "{{baseUrl}}/api/admin/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"e2eop{{$timestamp}}\",\n  \"email\": \"e2e-operator-{{$timestamp}}@vendnet.io\",\n  \"password\": \"Operator@123456\",\n  \"fullName\": \"E2E Operator\",\n  \"role\": \"ROLE_OPERATOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "A04 GET /api/sales/machine/1 (Admin)",
+          "name": "04.04 Admin updates created user role",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT (hierarchical: ADMIN > OPERATOR)",
-                  "// AAA: Act \u2014 GET /api/sales/machine/1",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Admin inherits OPERATOR permissions\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns sales array\", () => {",
-                  "    pm.expect(pm.response.json()).to.be.an('array');",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"User role updated\", () => pm.expect(body.role).to.equal(\"ROLE_CUSTOMER\"));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "PUT",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{adminToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/sales/machine/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "sales",
-                "machine",
-                "1"
-              ]
-            },
-            "description": "// SUT: SaleController \u2014 GET /api/sales/machine/{machineId} (Admin)\n// Admin can also view sales via role hierarchy."
+            "url": "{{baseUrl}}/api/admin/users/{{createdUserId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ROLE_CUSTOMER\",\n  \"name\": \"Newman User Updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "A05 POST /api/admin/operations/backup",
+          "name": "04.05 Admin creates machine",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"createdMachineCode\", \"VM-NEWMAN-\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Machine code persisted\", () => pm.expect(body.code).to.equal(pm.collectionVariables.get(\"createdMachineCode\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/machines",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{createdMachineCode}}\",\n  \"location\": \"Newman Test Location\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "04.06 Admin updates product price",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT",
-                  "// AAA: Act \u2014 POST /api/admin/operations/backup",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 or 500 \u2014 Backup endpoint\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 500]);",
-                  "});",
-                  "pm.test(\"Returns backup status\", () => {",
-                  "    pm.expect(pm.response.json()).to.have.property(\"status\");",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Product update returns requested price\", () => pm.expect(Number(body.price)).to.equal(1.25));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 1.25,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "04.07 Admin creates product with secure image upload",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"createdProductSku\", \"NEW-\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Product SKU persisted\", () => pm.expect(body.sku).to.equal(pm.collectionVariables.get(\"createdProductSku\")));",
+                  "pm.test(\"Image URL stored\", () => pm.expect(body.imageUrl).to.be.a(\"string\").and.not.empty);"
+                ]
               }
             }
           ],
@@ -1351,153 +1015,18 @@
                 "value": "Bearer {{adminToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/operations/backup",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "operations",
-                "backup"
-              ]
-            },
-            "description": "// SUT: OperationsController \u2014 POST /api/admin/operations/backup\n// Triggers database backup. hasRole('ADMINISTRATOR')."
-          }
-        },
-        {
-          "name": "A06 POST /api/admin/operations/reports/sales",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 admin JWT",
-                  "// AAA: Act \u2014 POST /api/admin/operations/reports/sales",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 or 500 \u2014 Reports endpoint\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 500]);",
-                  "});",
-                  "pm.test(\"Returns report directory path\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body).to.have.property(\"status\");",
-                  "    // path property only present on success",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/operations/reports/sales",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "operations",
-                "reports",
-                "sales"
-              ]
-            },
-            "description": "// SUT: OperationsController \u2014 POST /api/admin/operations/reports/sales\n// Generates sales report directory. hasRole('ADMINISTRATOR')."
-          }
-        },
-        {
-          "name": "A07 GET /api/auth/me (Admin)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 admin JWT",
-                  "// AAA: Act \u2014 GET /api/auth/me",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns admin profile with ADMINISTRATOR role\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body.email).to.eq(pm.collectionVariables.get(\"adminEmail\"));",
-                  "    pm.expect(body.role).to.match(/ADMIN/);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "me"
-              ]
-            },
-            "description": "// SUT: UserController \u2014 GET /api/auth/me (Admin)\n// Admin profile. isAuthenticated()."
-          }
-        },
-        {
-          "name": "A08 POST /api/products \u2014 Create (multipart)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 admin JWT, multipart form data",
-                  "// AAA: Act \u2014 POST /api/products",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 or 201 \u2014 Product created\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 400, 500]);",
-                  "    // Note: 400 may occur if image validation fails;",
-                  "    // 500 may occur if file storage path issues in test env.",
-                  "    // The endpoint itself is reachable with ADMIN role.",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              }
-            ],
+            "url": "{{baseUrl}}/api/admin/products",
             "body": {
               "mode": "formdata",
               "formdata": [
                 {
                   "key": "name",
-                  "value": "E2E Test Product",
+                  "value": "Newman Secure Upload Product",
                   "type": "text"
                 },
                 {
                   "key": "description",
-                  "value": "Product created by E2E tests",
+                  "value": "Product image created by Newman E2E",
                   "type": "text"
                 },
                 {
@@ -1507,430 +1036,105 @@
                 },
                 {
                   "key": "sku",
-                  "value": "E2E-TEST-001",
+                  "value": "{{createdProductSku}}",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "e2e/assets/sample-product.png"
+                },
+                {
+                  "key": "currency",
+                  "value": "EUR",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "DRINK",
                   "type": "text"
                 }
               ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/products",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "products"
-              ]
-            },
-            "description": "// SUT: ProductController \u2014 POST /api/products (multipart/form-data)\n// Creates a product with optional image. hasRole('ADMINISTRATOR')."
+            }
+          }
+        },
+        {
+          "name": "04.08 Admin generates report directory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Report path stays inside vendnet sandbox\", () => { pm.expect(body.path).to.include(\"/var/vendnet/\"); pm.expect(body.path).to.not.include(\"..\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/operations/reports/sales"
+          }
+        },
+        {
+          "name": "04.09 Admin backup endpoint is protected and reachable",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201 — encrypted backup created\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Backup metadata returned\", () => {",
+                  "  pm.expect(body.filename).to.match(/\\.sql\\.enc$/);",
+                  "  pm.expect(body.size).to.be.above(0);",
+                  "  pm.expect(body.checksum).to.have.length(64);",
+                  "  pm.expect(body.timestamp).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/backups"
           }
         }
       ]
     },
     {
-      "name": "\u25b8 RBAC / SECURITY TESTS",
-      "description": "# SUT: Role-Based Access Control enforcement\n\nVerifies that each role can only access its authorized endpoints.\nThese tests validate the SecurityConfig authorization rules.",
+      "name": "05 Telemetry And Payment Webhook Security",
       "item": [
         {
-          "name": "S01 No Auth \u2192 GET /api/auth/me \u2192 401",
+          "name": "05.01 Valid telemetry from registered machine is accepted",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 no Authorization header",
-                  "// AAA: Act \u2014 GET /api/auth/me (authenticated endpoint)",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 401 \u2014 Authentication required\", () => {",
-                  "    pm.response.to.have.status(401);",
-                  "});",
-                  "pm.test(\"Returns JSON error with Unauthorized\", () => {",
-                  "                    // 401 returns empty body, skip JSON parsing",
-                  "                    // Skipped (empty 401 body)",
-                  "                    // Body is empty for 401 responses from SecurityConfig",
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Telemetry accepted flag returned\", () => {",
+                  "  pm.expect(body.accepted).to.equal(true);",
+                  "  pm.expect(body.alertsRaised).to.be.a(\"number\");",
                   "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "me"
-              ]
-            },
-            "description": "// SUT: SecurityConfig \u2014 unauthenticated access\n// Expects 401 for protected endpoint without token."
-          }
-        },
-        {
-          "name": "S02 Invalid JWT \u2192 GET /api/products \u2192 401",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 tampered/invalid JWT",
-                  "// AAA: Act \u2014 GET /api/products with bad token",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 401 \u2014 Invalid token rejected\", () => {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer invalid.jwt.token.here"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/products",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "products"
-              ]
-            },
-            "description": "// SUT: JwtAuthenticationFilter \u2014 invalid token\n// Expects 401 for malformed JWT. SR-03."
-          }
-        },
-        {
-          "name": "S03 Customer \u2192 GET /api/admin/dashboard \u2192 403",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 customer JWT (no ADMIN role)",
-                  "// AAA: Act \u2014 GET /api/admin/dashboard (admin endpoint)",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 403 \u2014 Customer cannot access admin\", () => {",
-                  "    pm.response.to.have.status(403);",
-                  "});",
-                  "pm.test(\"RBAC enforced for admin endpoints\", () => {",
-                  "    pm.expect(pm.response.json().error).to.match(/Forbidden/i);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{customerToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/dashboard",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "dashboard"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 GET /api/admin/dashboard (Customer)\n// Expects 403 \u2014 Customer lacks ADMINISTRATOR role."
-          }
-        },
-        {
-          "name": "S04 Operator \u2192 GET /api/admin/dashboard \u2192 403",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 operator JWT (OPERATOR, non-hierarchical for ADMIN-only)",
-                  "// AAA: Act \u2014 GET /api/admin/dashboard",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 403 \u2014 Operator cannot access admin dashboard\", () => {",
-                  "    pm.response.to.have.status(403);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{operatorToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/dashboard",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "dashboard"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 GET /api/admin/dashboard (Operator)\n// Expects 403 \u2014 Operator lacks ADMINISTRATOR role. ADMIN > OPERATOR hierarchy does not grant ADMIN endpoints."
-          }
-        },
-        {
-          "name": "S05 Customer \u2192 GET /api/sales/machine/1 \u2192 403",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 customer JWT (CUSTOMER role lacks sales access)",
-                  "// AAA: Act \u2014 GET /api/sales/machine/1",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 403 \u2014 Customer cannot view sales\", () => {",
-                  "    pm.response.to.have.status(403);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{customerToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/sales/machine/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "sales",
-                "machine",
-                "1"
-              ]
-            },
-            "description": "// SUT: SaleController \u2014 GET /api/sales/machine/1 (Customer)\n// Expects 403 \u2014 Customer lacks OPERATOR/ADMIN role."
-          }
-        },
-        {
-          "name": "S06 Customer \u2192 POST /api/admin/operations/backup \u2192 403",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 customer JWT",
-                  "// AAA: Act \u2014 POST /api/admin/operations/backup",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 403 \u2014 Customer cannot trigger backup\", () => {",
-                  "    pm.response.to.have.status(403);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{customerToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/operations/backup",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "operations",
-                "backup"
-              ]
-            },
-            "description": "// SUT: OperationsController \u2014 POST /api/admin/operations/backup (Customer)\n// Expects 403 \u2014 Customer lacks ADMIN role."
-          }
-        },
-        {
-          "name": "S07 Customer \u2192 POST /api/products \u2192 403",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 customer JWT",
-                  "// AAA: Act \u2014 POST /api/products",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 403 or 500 \u2014 Customer cannot create products\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([403, 500]);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{customerToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"name\":\"test\",\"price\":1.0,\"sku\":\"TEST-001\"}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/products",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "products"
-              ]
-            },
-            "description": "// SUT: ProductController \u2014 POST /api/products (Customer)\n// Expects 403 \u2014 Customer lacks ADMIN role."
-          }
-        },
-        {
-          "name": "S08 CorsCheck \u2014 /api/health with Origin header",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 cross-origin request",
-                  "// AAA: Act \u2014 GET /api/health with Origin header",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Health still accessible\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Origin",
-                "value": "https://evil.example.com"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "health"
-              ]
-            },
-            "description": "// SUT: SecurityConfig \u2014 CSRF disabled, CORS behavior\n// Verifies public endpoint is accessible regardless of origin."
-          }
-        }
-      ]
-    },
-    {
-      "name": "\u25b8 WEBHOOK SIGNATURE TESTS",
-      "description": "# SUT: Payment Webhook HMAC Signature Verification\n\nValidates SR-19 \u2014 Payment Gateway callbacks require HMAC-SHA256 signature.\nTests AC-02 abuse case scenarios.",
-      "item": [
-        {
-          "name": "W01 Missing X-Payment-Signature \u2192 401",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 webhook body without signature header",
-                  "// AAA: Act \u2014 POST /api/webhooks/payment",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 401 \u2014 Missing signature\", () => {",
-                  "    pm.response.to.have.status(401);",
-                  "});",
-                  "pm.test(\"Error message: Invalid signature\", () => {",
-                  "    pm.expect(pm.response.json().error).to.include(\"Invalid signature\");",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"transactionRef\":\"TXN-001\",\"status\":\"COMPLETED\"}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/webhooks/payment",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "webhooks",
-                "payment"
-              ]
-            },
-            "description": "// SUT: PaymentWebhookController \u2014 POST /api/webhooks/payment\n// AC-02: Missing HMAC signature header returns 401."
-          }
-        },
-        {
-          "name": "W02 Invalid X-Payment-Signature \u2192 401",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 all-zero signature (definitely wrong)",
-                  "// AAA: Act \u2014 POST /api/webhooks/payment with fake signature",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 401 \u2014 Invalid signature\", () => {",
-                  "    pm.response.to.have.status(401);",
-                  "});",
-                  "pm.test(\"Error: Invalid signature\", () => {",
-                  "    pm.expect(pm.response.json().error).to.include(\"Invalid signature\");",
-                  "});"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
@@ -1942,60 +1146,119 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Payment-Signature",
-                "value": "0000000000000000000000000000000000000000000000000000000000000000"
+                "key": "X-Machine-CN",
+                "value": "VM-LIS-001"
               }
             ],
+            "url": "{{baseUrl}}/api/machines/telemetry",
             "body": {
               "mode": "raw",
-              "raw": "{\"transactionRef\":\"TXN-001\",\"status\":\"COMPLETED\"}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/webhooks/payment",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "webhooks",
-                "payment"
-              ]
-            },
-            "description": "// SUT: PaymentWebhookController \u2014 POST /api/webhooks/payment\n// AC-02: Invalid HMAC signature returns 401."
+              "raw": "{\n  \"serialNumber\": \"VM-LIS-001\",\n  \"temperature\": 22.5,\n  \"stockLevels\": {\n    \"A1\": 10,\n    \"A2\": 12,\n    \"B1\": 8\n  },\n  \"statusCode\": \"ONLINE\",\n  \"errorCodes\": [],\n  \"timestamp\": \"{{$isoTimestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "W03 Tampered Body with Wrong Secret \u2192 401",
+          "name": "05.02 Unknown machine telemetry is rejected",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 HMAC computed with wrong secret",
-                  "// AAA: Act \u2014 POST /api/webhooks/payment with wrong HMAC",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 401 \u2014 Wrong HMAC secret\", () => {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));"
+                ]
               }
-            },
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Machine-CN",
+                "value": "VM-UNKNOWN"
+              }
+            ],
+            "url": "{{baseUrl}}/api/machines/telemetry",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serialNumber\": \"VM-UNKNOWN\",\n  \"temperature\": 22.5,\n  \"stockLevels\": {\n    \"A1\": 10\n  },\n  \"statusCode\": \"ONLINE\",\n  \"errorCodes\": [],\n  \"timestamp\": \"{{$isoTimestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "05.03 Missing payment webhook signature is rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Invalid signature error returned\", () => pm.expect(body.error).to.equal(\"Invalid signature\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/webhooks/payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"saleId\": \"NEWMAN-SALE\",\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "05.04 Valid payment webhook signature is accepted",
+          "event": [
             {
               "listen": "prerequest",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// Compute HMAC-SHA256 with a wrong secret for testing",
-                  "const body = '{\"transactionRef\":\"TXN-001\",\"status\":\"COMPLETED\"}';",
-                  "const wrongSecret = 'wrong-secret-key-test';",
-                  "",
-                  "// Use CryptoJS for HMAC-SHA256",
-                  "const hash = CryptoJS.HmacSHA256(body, wrongSecret);",
-                  "const hexSignature = CryptoJS.enc.Hex.stringify(hash);",
-                  "",
-                  "pm.collectionVariables.set('_fakeSignature', hexSignature);"
-                ],
-                "type": "text/javascript"
+                  "const body = JSON.stringify({saleId:\"NEWMAN-SALE\",status:\"COMPLETED\"});",
+                  "pm.collectionVariables.set(\"webhookBody\", body);",
+                  "const sig = CryptoJS.HmacSHA256(body, pm.collectionVariables.get(\"webhookSecret\")).toString(CryptoJS.enc.Hex);",
+                  "pm.collectionVariables.set(\"validWebhookSignature\", sig);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));",
+                  "pm.test(\"Webhook accepted\", () => pm.expect(body.status).to.equal(\"ok\"));"
+                ]
               }
             }
           ],
@@ -2008,167 +1271,117 @@
               },
               {
                 "key": "X-Payment-Signature",
-                "value": "{{_fakeSignature}}"
+                "value": "{{validWebhookSignature}}"
               }
             ],
+            "url": "{{baseUrl}}/api/webhooks/payment",
             "body": {
               "mode": "raw",
-              "raw": "{\"transactionRef\":\"TXN-001\",\"status\":\"COMPLETED\"}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/webhooks/payment",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "webhooks",
-                "payment"
-              ]
-            },
-            "description": "// SUT: PaymentWebhookController \u2014 POST /api/webhooks/payment\n// AC-02: HMAC computed with wrong secret returns 401.\n// Pre-request script computes HMAC-SHA256 with 'wrong-secret-key'."
+              "raw": "{{webhookBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "05.05 Tampered payment webhook body is rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Payment-Signature",
+                "value": "{{validWebhookSignature}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/webhooks/payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"saleId\": \"NEWMAN-SALE\",\n  \"status\": \"TAMPERED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         }
       ]
     },
     {
-      "name": "\u25b8 SWAGGER & ACTUATOR",
-      "description": "# SUT: Swagger UI and Actuator endpoints\n\nVerify documentation and monitoring endpoints.",
+      "name": "06 RBAC And Public Documentation",
       "item": [
         {
-          "name": "SW01 GET /swagger-ui/index.html",
+          "name": "06.01 Anonymous protected route returns 401",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 no auth needed",
-                  "// AAA: Act \u2014 GET /swagger-ui/index.html",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Swagger UI accessible\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Response is HTML\", () => {",
-                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/swagger-ui/index.html",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "swagger-ui",
-                "index.html"
-              ]
-            },
-            "description": "// SUT: Swagger UI \u2014 GET /swagger-ui/index.html\n// OpenAPI documentation. permitAll() in SecurityConfig."
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me"
           }
         },
         {
-          "name": "SW02 GET /v3/api-docs",
+          "name": "06.02 Invalid JWT returns 401",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 OpenAPI JSON spec accessible\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Contains VendNet info\", () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body.info.title).to.match(/vendnet/i);",
-                  "});",
-                  "pm.test(\"Has security scheme for Bearer JWT\", () => {",
-                  "    pm.expect(pm.response.json().components.securitySchemes).to.have.property(\"Bearer\");",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/v3/api-docs",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v3",
-                "api-docs"
-              ]
-            },
-            "description": "// SUT: SpringDoc \u2014 GET /v3/api-docs\n// OpenAPI 3.0 JSON specification. permitAll()."
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer not-a-valid-jwt"
+              }
+            ],
+            "url": "{{baseUrl}}/api/products"
           }
         },
         {
-          "name": "SW03 GET /actuator/prometheus",
+          "name": "06.03 Customer cannot access admin dashboard",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 permitAll in SecurityConfig",
-                  "// AAA: Act \u2014 GET /actuator/prometheus",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Prometheus metrics accessible\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns Prometheus-formatted metrics\", () => {",
-                  "    pm.expect(pm.response.text()).to.match(/^#/m);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/actuator/prometheus",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "actuator",
-                "prometheus"
-              ]
-            },
-            "description": "// SUT: Actuator \u2014 GET /actuator/prometheus\n// Prometheus metrics scraping endpoint. permitAll()."
-          }
-        }
-      ]
-    },
-    {
-      "name": "\u25b8 NEW FEATURES \u2014 Purchase, Restock, Admin",
-      "description": "# SUT: New Feature Endpoints\n\nTests for purchase history, machine slot management, restock operations, and admin user/machine management.",
-      "item": [
-        {
-          "name": "C07 \u25cf Customer Purchase History",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 customer JWT token",
-                  "// AAA: Act \u2014 GET /api/sales/me",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Customer can view purchase history\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Returns an array of sales\", () => {",
-                  "    pm.expect(pm.response.json()).to.be.an('array');",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));"
+                ]
               }
             }
           ],
@@ -2180,86 +1393,20 @@
                 "value": "Bearer {{customerToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/sales/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "sales",
-                "me"
-              ]
-            },
-            "description": "// SUT: SaleController \u2014 GET /api/sales/me\n// Returns authenticated customer's purchase history. isAuthenticated()."
+            "url": "{{baseUrl}}/api/admin/dashboard"
           }
         },
         {
-          "name": "N01 \u25cf Operator Restock Slot",
+          "name": "06.04 Operator cannot access admin dashboard",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Assert",
-                  "pm.test(\"Status response for restock\", function () {",
-                  "    var code = pm.response.code;",
-                  "    pm.expect([200, 400, 404, 500]).to.include(code);",
-                  "    console.log(\"Restock response: \" + code + \" body: \" + JSON.stringify(pm.response.json()));",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{operatorToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"quantity\": 5\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/machines/1/slots/1/restock",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines",
-                "1",
-                "slots",
-                "1",
-                "restock"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 PUT /api/machines/{machineId}/slots/{slotId}/restock\n// Operator restocks a specific slot. hasAnyRole('OPERATOR','ADMINISTRATOR')."
-          }
-        },
-        {
-          "name": "N02 \u25cf Operator List Machine Slots",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Assert",
-                  "pm.test(\"Status response for slot listing\", function () {",
-                  "    var code = pm.response.code;",
-                  "    pm.expect([200, 400, 404, 500]).to.include(code);",
-                  "    console.log(\"Slot list response: \" + code + \" body: \" + JSON.stringify(pm.response.json()));",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));"
+                ]
               }
             }
           ],
@@ -2271,359 +1418,92 @@
                 "value": "Bearer {{operatorToken}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/machines/1/slots",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines",
-                "1",
-                "slots"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 GET /api/machines/{machineId}/slots\n// Operator lists all slots for a machine. hasAnyRole('OPERATOR','ADMINISTRATOR')."
+            "url": "{{baseUrl}}/api/admin/dashboard"
           }
         },
         {
-          "name": "N03 \u25cf Operator Restock Exceeds Capacity",
+          "name": "06.05 Customer cannot read machine sales",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 operator JWT, excessive quantity",
-                  "// AAA: Act \u2014 PUT /api/machines/1/slots/1/restock",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 400 \u2014 Restock exceeds capacity\", () => {",
-                  "    pm.response.to.have.status(400);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "const body = pm.response.json(); pm.test(\"Response is JSON object\", () => pm.expect(body).to.be.an(\"object\"));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{operatorToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"quantity\": 999\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/machines/1/slots/1/restock",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines",
-                "1",
-                "slots",
-                "1",
-                "restock"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 PUT /api/machines/{machineId}/slots/{slotId}/restock\n// Verifies that restock exceeding slot capacity returns 400."
-          }
-        },
-        {
-          "name": "N04 \u25cf Customer Purchase",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 customer JWT, purchase payload with idempotency key",
-                  "// AAA: Act \u2014 POST /api/sales/purchase",
-                  "// AAA: Assert",
-                  "pm.test(\"Status is 200, 201, or 400 (depends on stock)\", () => {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 400]);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{customerToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"productId\": 1,\n  \"machineId\": 1,\n  \"paymentToken\": \"test-token\",\n  \"idempotencyKey\": \"newman-test-{{$randomInt}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/sales/purchase",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "sales",
-                "purchase"
-              ]
-            },
-            "description": "// SUT: SaleController \u2014 POST /api/sales/purchase\n// Customer initiates a purchase. 201=success, 200/400=depends on stock. isAuthenticated()."
+            "url": "{{baseUrl}}/api/sales/machine/{{machineId}}"
           }
         },
         {
-          "name": "A09 \u25cf Admin Create User",
+          "name": "06.06 OpenAPI docs are public",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT, new user payload",
-                  "// AAA: Act \u2014 POST /api/admin/users",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 201 \u2014 Admin user created\", () => {",
-                  "    pm.response.to.have.status(201);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json(); pm.test(\"OpenAPI document returned\", () => pm.expect(body.openapi).to.exist);"
+                ]
               }
             }
           ],
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"newman-admin@test.com\",\n  \"password\": \"Newman@1234\",\n  \"name\": \"Newman Admin\",\n  \"role\": \"ROLE_ADMINISTRATOR\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/users",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "users"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 POST /api/admin/users\n// Admin creates a new user. hasRole('ADMINISTRATOR')."
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v3/api-docs"
           }
         },
         {
-          "name": "A10 \u25cf Admin Create Machine",
+          "name": "06.07 Swagger UI is public",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT, new machine payload",
-                  "// AAA: Act \u2014 POST /api/machines",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 201 \u2014 Machine created\", () => {",
-                  "    pm.response.to.have.status(201);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"HTML returned\", () => pm.expect(pm.response.text()).to.include(\"Swagger UI\"));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"code\": \"VM-NEWMAN-001\",\n  \"location\": \"Newman Test Location\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/machines",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "machines"
-              ]
-            },
-            "description": "// SUT: MachineController \u2014 POST /api/machines\n// Admin creates a new vending machine. hasRole('ADMINISTRATOR')."
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/swagger-ui/index.html"
           }
         },
         {
-          "name": "N05 \u25cf Admin Update Product",
+          "name": "06.08 Prometheus metrics endpoint is public",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "// AAA: Arrange \u2014 admin JWT, product update payload",
-                  "// AAA: Act \u2014 PUT /api/products/1",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 Product updated\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Metrics text returned\", () => pm.expect(pm.response.text()).to.include(\"jvm\"));"
+                ]
               }
             }
           ],
           "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"price\": 9.99\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/products/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "products",
-                "1"
-              ]
-            },
-            "description": "// SUT: ProductController \u2014 PUT /api/products/{id}\n// Admin updates a product. hasRole('ADMINISTRATOR')."
-          }
-        },
-        {
-          "name": "N06 \u25cf Admin Update User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 admin JWT, user role update payload",
-                  "// AAA: Act \u2014 PUT /api/admin/users/2",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 User role updated to ADMINISTRATOR\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"role\": \"ROLE_ADMINISTRATOR\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/users/2",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "users",
-                "2"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 PUT /api/admin/users/{id}\n// Admin updates a user's role. hasRole('ADMINISTRATOR')."
-          }
-        },
-        {
-          "name": "N07 \u25cf Admin Set User Back",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// AAA: Arrange \u2014 admin JWT, restore operator role payload",
-                  "// AAA: Act \u2014 PUT /api/admin/users/2",
-                  "// AAA: Assert",
-                  "pm.test(\"Status 200 \u2014 User role restored to OPERATOR\", () => {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"role\": \"ROLE_OPERATOR\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/users/2",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "users",
-                "2"
-              ]
-            },
-            "description": "// SUT: AdminController \u2014 PUT /api/admin/users/{id}\n// Admin restores user role back to OPERATOR after N06. hasRole('ADMINISTRATOR')."
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/prometheus"
           }
         }
       ]

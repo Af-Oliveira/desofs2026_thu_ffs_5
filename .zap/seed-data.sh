@@ -6,9 +6,9 @@
 # and exports JWT tokens for the 3 RBAC roles into .zap/tokens/.
 #
 # This script assumes the app is running with the 'bootstrap' Spring profile
-# which pre-seeds: admin@vendnet.io / Admin@1234
-#                   operator@vendnet.io / Operator@1234
-#                   customer@vendnet.io / Customer@1234
+# which pre-seeds: admin / Admin@123456
+#                   operator / Operator@123456
+#                   customer / Customer@123456
 #
 # Usage: ./.zap/seed-data.sh [BASE_URL] [OUTPUT_DIR]
 #   BASE_URL   — default: http://localhost:8080
@@ -27,33 +27,33 @@ echo "Target: $BASE_URL"
 echo ""
 
 login_and_export_token() {
-    local email=$1
+    local username=$1
     local password=$2
     local name=$3
     local role=$4
     local output_file="$OUTPUT_DIR/$5"
 
-    echo "--- $role ($email) --- "
+    echo "--- $role ($username) ---"
 
     login_resp=$(curl -s -X POST "$BASE_URL/api/auth/login" \
         -H "Content-Type: application/json" \
-        -d "{\"email\":\"$email\",\"password\":\"$password\"}" 2>/dev/null)
+        -d "{\"username\":\"$username\",\"password\":\"$password\"}" 2>/dev/null)
 
-    token=$(echo "$login_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || echo "")
+    token=$(echo "$login_resp" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('accessToken') or data.get('token',''))" 2>/dev/null || echo "")
 
     if [ -n "$token" ] && [ "$token" != "None" ]; then
         echo "$token" > "$output_file"
         echo "  Token obtained: $(echo $token | cut -c1-20)..."
     else
-        echo "  ERROR: Could not obtain token for $email"
+        echo "  ERROR: Could not obtain token for $username"
         echo "  Response: $login_resp"
         exit 1
     fi
 }
 
-login_and_export_token "admin@vendnet.io"     "Admin@1234"     "Admin"          "ADMINISTRATOR"  "admin.jwt"
-login_and_export_token "operator@vendnet.io"  "Operator@1234"  "Operator"       "OPERATOR"       "operator.jwt"
-login_and_export_token "customer@vendnet.io"  "Customer@1234"  "Customer"       "CUSTOMER"       "customer.jwt"
+login_and_export_token "admin"     "Admin@123456"     "Admin"          "ADMINISTRATOR"  "admin.jwt"
+login_and_export_token "operator"  "Operator@123456"  "Operator"       "OPERATOR"       "operator.jwt"
+login_and_export_token "customer"  "Customer@123456"  "Customer"       "CUSTOMER"       "customer.jwt"
 
 echo ""
 echo "=== Tokens exported to: $OUTPUT_DIR/ ==="
@@ -72,7 +72,7 @@ echo "Operator      | /api/sales/machine/1  | GET    | 200"
 echo "Operator      | /api/admin/dashboard  | GET    | 403"
 echo "Administrator | /api/admin/dashboard  | GET    | 200"
 echo "Administrator | /api/admin/users      | GET    | 200"
-echo "Administrator | /api/admin/operations/backup | POST | 200/500"
+echo "Administrator | /api/admin/backups    | POST   | 201"
 echo ""
 echo "=== ZAP Scan Commands ==="
 echo "  # Baseline (public surface)"
