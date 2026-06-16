@@ -364,132 +364,134 @@ The table below provides a cross-reference; detailed per-flow threat entries fol
 
 ## 4.3 Threat Summary
 
-| Threat ID | Element | STRIDE | Threat Description (brief) | Severity |
-|-----------|---------|:------:|---------------------------|:--------:|
-| T-01 | E1 Customer | S | Credential stuffing / account takeover | High |
-| T-02 | E1 Customer | T | Purchase request `unitPrice` parameter manipulation | Medium |
-| T-03 | E1 Customer | R | Purchase repudiation / fraudulent chargeback | Medium |
-| T-04 | E1 Customer | I | Horizontal IDOR — read other customer's purchase history | High |
-| T-05 | E1 Customer | D | Brute-force login flood causes victim account lockout | Medium |
-| T-06 | E1 Customer | E | JWT `role` claim tampered to escalate to Administrator | Critical |
-| T-07 | E2 Operator | S | Operator credential theft via spear-phishing | High |
-| T-08 | E2 Operator | T | Falsified stock restock submission (phantom inventory) | Medium |
-| T-09 | E2 Operator | R | Denial of stock update causing inventory discrepancy | Medium |
-| T-10 | E2 Operator | I | Cross-machine IDOR — unauthorised telemetry access | High |
-| T-11 | E2 Operator | E | Operator calls Administrator-only endpoint (missing `@PreAuthorize`) | High |
-| T-12 | E3 Administrator | S | Administrator account takeover (no MFA documented) | Critical |
-| T-13 | E3 Administrator | T | Rogue Administrator reassigns user roles / suspends accounts | High |
-| T-14 | E3 Administrator | R | Administrator denies pricing change or backup trigger | Medium |
-| T-15 | E3 Administrator | I | Mass data exfiltration via compromised Administrator account | Critical |
-| T-16 | E3 Administrator | D | Disk exhaustion via repeated on-demand backup generation | Medium |
-| T-17 | E3 Administrator | E | OS command execution via `ProcessBuilder` abuse from Admin account | Critical |
-| T-18 | E4 Vending Machine | S | Rogue machine presents stolen mTLS client certificate | High |
-| T-19 | E4 Vending Machine | T | Compromised firmware sends falsified sales events | High |
-| T-20 | E4 Vending Machine | R | Machine operator denies erroneous telemetry / sales data origin | Medium |
-| T-21 | E4 Vending Machine | I | Compromised firmware harvests pushed configuration and price data | Medium |
-| T-22 | E4 Vending Machine | D | Compromised machine floods telemetry endpoint | High |
-| T-23 | E4 Vending Machine | E | VM mTLS cert used to access non-telemetry endpoints | High |
-| T-24 | E5 Payment Gateway | S | Spoofed payment confirmation webhook bypasses HMAC | Critical |
-| T-25 | E5 Payment Gateway | T | Payment callback payload modified (FAILED→COMPLETED) | High |
-| T-26 | E5 Payment Gateway | R | Payment Gateway disputes having sent a confirmation | Medium |
-| T-27 | E5 Payment Gateway | D | Payment Gateway outage blocks all card/mobile sales | High |
-| T-28 | P1 Auth & Authz | S | JWT `alg:none` signature-bypass attack | Critical |
-| T-29 | P1 Auth & Authz | S | JWT HMAC secret brute-force (weak signing key) | High |
-| T-30 | P1 Auth & Authz | T | JWT payload `role` claim tampered after secret recovery | Critical |
-| T-31 | P1 Auth & Authz | R | Auth events logged without IP / user-agent context | Medium |
-| T-32 | P1 Auth & Authz | I | Username enumeration via differential login responses | Medium |
-| T-33 | P1 Auth & Authz | I | PII readable in JWT payload (base64, unencrypted) | Low |
-| T-34 | P1 Auth & Authz | D | BCrypt-amplified login flood exhausts Tomcat thread pool | High |
-| T-35 | P1 Auth & Authz | E | Suspended account's unexpired JWT remains valid (no revocation list) | High |
-| T-36 | P1 Auth & Authz | E | Missing method-level `@PreAuthorize` on application service layer | High |
-| T-37 | P2 Inventory Mgmt | S | Stolen Operator JWT used from unrecognised location | Medium |
-| T-38 | P2 Inventory Mgmt | T | IDOR — stock update on machine outside Operator's assigned fleet | High |
-| T-39 | P2 Inventory Mgmt | T | SQL injection via inventory search query parameters | Critical |
-| T-40 | P2 Inventory Mgmt | R | Stock update audit log missing Operator identity and slot detail | Medium |
-| T-41 | P2 Inventory Mgmt | I | Full fleet GPS/config enumeration via unbounded `GET /machines` | Medium |
-| T-42 | P2 Inventory Mgmt | D | Malformed slot data triggers unhandled domain exception | Low |
-| T-43 | P2 Inventory Mgmt | E | Mass-assignment on inventory endpoint silently modifies product pricing | High |
-| T-44 | P3 Sales Processing | S | JWT replay attack repeats purchase on behalf of victim | Medium |
-| T-45 | P3 Sales Processing | T | TOCTOU race condition causes overselling (negative stock) | High |
-| T-46 | P3 Sales Processing | T | Client-supplied `unitPrice` bypasses server-side catalog validation | Critical |
-| T-47 | P3 Sales Processing | R | Missing payment `transactionRef` prevents chargeback dispute resolution | High |
-| T-48 | P3 Sales Processing | I | IDOR on `GET /sales/{saleId}` exposes other customers' purchases | High |
-| T-49 | P3 Sales Processing | D | Purchase flood exhausts Payment Gateway API quota | High |
-| T-50 | P3 Sales Processing | E | Unauthenticated `POST /sales` processed (missing security filter) | Critical |
-| T-51 | P4 Telemetry | S | Telemetry packet replay injects stale data as current readings | Medium |
-| T-52 | P4 Telemetry | T | Compromised machine injects false stock-depletion telemetry | High |
-| T-53 | P4 Telemetry | R | Telemetry source `MachineId` not recorded in audit log | Medium |
-| T-54 | P4 Telemetry | I | Telemetry response exposes GPS coordinates and activity patterns | Medium |
-| T-55 | P4 Telemetry | D | Coordinated VM fleet floods telemetry database | High |
-| T-56 | P4 Telemetry | E | Malicious telemetry payload exploits server-side deserialisation | High |
-| T-57 | P5 OS Operations | S | Non-Administrator triggers backup/rotation via RBAC misconfiguration | High |
-| T-58 | P5 OS Operations | T | Path traversal via report type parameter escapes sandbox | Critical |
-| T-59 | P5 OS Operations | T | OS command injection via unsanitised `ProcessBuilder` parameters | Critical |
-| T-60 | P5 OS Operations | R | OS file operations not correlated to requesting Admin in audit log | Medium |
-| T-61 | P5 OS Operations | I | Backup files world-readable due to permission misconfiguration | High |
-| T-62 | P5 OS Operations | D | Disk exhaustion from silent backup rotation failure | Medium |
-| T-63 | P5 OS Operations | E | Application-to-OS privilege escalation via `ProcessBuilder` injection | Critical |
-| T-64 | P6 Pricing & Config | S | Suspended Admin's unexpired JWT authorises pricing changes | High |
-| T-65 | P6 Pricing & Config | T | Rogue Admin sets all product prices to zero across full catalog | Critical |
-| T-66 | P6 Pricing & Config | R | Price change not attributed to specific Admin in audit log | Medium |
-| T-67 | P6 Pricing & Config | I | Config endpoint response reveals internal infrastructure details | High |
-| T-68 | P6 Pricing & Config | D | Rapid config update flood causes excessive DB write contention | Medium |
-| T-69 | P6 Pricing & Config | E | Operator accesses pricing endpoint via overly permissive annotation | High |
-| T-70 | DS1 MySQL | S | Direct DB access using leaked application credentials | Critical |
-| T-71 | DS1 MySQL | T | Direct SQL modification bypasses application audit and business rules | Critical |
-| T-72 | DS1 MySQL | T | SQL injection modifies user roles, prices, or sale records | Critical |
-| T-73 | DS1 MySQL | R | No DB-level audit trail for direct-access operations | High |
-| T-74 | DS1 MySQL | I | Full table extraction via SQL injection UNION attack | Critical |
-| T-75 | DS1 MySQL | I | MySQL error messages in HTTP response expose schema structure | Medium |
-| T-76 | DS1 MySQL | D | DB connection pool exhaustion via time-delayed query injection | High |
-| T-77 | DS1 MySQL | E | Excessive DB account privileges enable DDL (DROP/CREATE) operations | Critical |
-| T-78 | DS2 File System | S | OS attacker reads backup archive as application service account | High |
-| T-79 | DS2 File System | T | Audit log file tampered to erase security event evidence | High |
-| T-80 | DS2 File System | T | Symlink attack on report directory writes data outside sandbox | High |
-| T-81 | DS2 File System | R | File system operations not linked to requesting user in audit log | Medium |
-| T-82 | DS2 File System | I | Report files with customer PII served beyond Admin scope | High |
-| T-83 | DS2 File System | D | Disk exhaustion from silent report/log accumulation | Medium |
-| T-84 | DS2 File System | E | Path traversal writes to privileged OS directory enabling persistence | Critical |
-| T-85 | DF1 Customer→VendNet | S | Credential interception via TLS downgrade / SSL stripping | Medium |
-| T-86 | DF1 Customer→VendNet | T | HTTP parameter pollution injects duplicate price field | Low |
-| T-87 | DF1 Customer→VendNet | I | Credentials captured in application DEBUG-level logs | Medium |
-| T-88 | DF1 Customer→VendNet | D | Authenticated HTTP flood exhausts Tomcat thread pool | High |
-| T-89 | DF2 VendNet→Customer | S | JWT leaked in verbose error response or access log | Medium |
-| T-90 | DF2 VendNet→Customer | T | API response modified via TLS cert mismatch on client side | Medium |
-| T-91 | DF2 VendNet→Customer | I | JPA query missing `userId` filter returns all customers' records | High |
-| T-92 | DF2 VendNet→Customer | D | Unbounded response payload from unpaginated endpoint exhausts heap | Medium |
-| T-93 | DF3 Operator→VendNet | T | Stock update payload tampered by proxy-level MITM | Medium |
-| T-94 | DF3 Operator→VendNet | D | Operator endpoint flood causes DB write contention | Medium |
-| T-95 | DF4 VendNet→Operator | I | Machine log response exposes security audit events to Operator role | Medium |
-| T-96 | DF5 Admin→VendNet | S | Admin JWT exfiltrated via XSS in companion web UI | High |
-| T-97 | DF5 Admin→VendNet | T | Admin config request body modified via TLS misconfiguration | Medium |
-| T-98 | DF5 Admin→VendNet | D | Admin endpoint flooded via compromised Admin session | Medium |
-| T-99 | DF6 VendNet→Admin | T | Audit log response modified in transit to conceal attacker activity | Medium |
-| T-100 | DF6 VendNet→Admin | I | `GET /admin/users` response serialises BCrypt password hashes | High |
-| T-101 | DF7 VM→VendNet | S | Stolen mTLS cert used from attacker cloud infrastructure | High |
-| T-102 | DF7 VM→VendNet | T | Compromised firmware sends false sales events (inflated quantity) | High |
-| T-103 | DF7 VM→VendNet | D | Coordinated telemetry flood from multiple compromised VMs | High |
-| T-104 | DF8 VendNet→VM | T | Config push tampered on legacy machine without mTLS enforcement | High |
-| T-105 | DF8 VendNet→VM | I | Price list and slot config stored in plaintext on VM device | Medium |
-| T-106 | DF9 VendNet→PayGW | T | Payment amount tampered in outbound request via SSRF | High |
-| T-107 | DF9 VendNet→PayGW | I | Payment request body captured in DEBUG-level application log | Medium |
-| T-108 | DF10 PayGW→VendNet | S | Forged payment confirmation webhook bypasses HMAC validation | Critical |
-| T-109 | DF10 PayGW→VendNet | T | Payment status modified FAILED→COMPLETED in callback payload | High |
-| T-110 | DF11 VendNet→MySQL | T | Second-order SQL injection via stored malicious input in native query | High |
-| T-111 | DF11 VendNet→MySQL | D | N+1 Hibernate query pattern exhausts DB connection pool | Medium |
-| T-112 | DF12 MySQL→VendNet | I | Over-broad JPA query returns records beyond authorised scope | High |
-| T-113 | DF13 VendNet→FS | T | Path traversal in report type name writes outside `/var/vendnet/` sandbox | Critical |
-| T-114 | DF13 VendNet→FS | D | Concurrent backup writes saturate disk I/O and fill partition | Medium |
-| T-115 | DF14 FS→VendNet | T | Malicious CSV planted in report directory served to Administrator | Medium |
-| T-116 | DF14 FS→VendNet | I | Audit log file API serves full security event history to Operator role | High |
+| Threat ID | Element | STRIDE | Threat Description (brief) | Severity | Status |
+|-----------|---------|:------:|---------------------------|:--------:|:------:|
+| T-01 | E1 Customer | S | Credential stuffing / account takeover | High | ✅ |
+| T-02 | E1 Customer | T | Purchase request `unitPrice` parameter manipulation | Medium | ✅ |
+| T-03 | E1 Customer | R | Purchase repudiation / fraudulent chargeback | Medium | 🔄 |
+| T-04 | E1 Customer | I | Horizontal IDOR — read other customer's purchase history | High | ✅ |
+| T-05 | E1 Customer | D | Brute-force login flood causes victim account lockout | Medium | ✅ |
+| T-06 | E1 Customer | E | JWT `role` claim tampered to escalate to Administrator | Critical | ✅ |
+| T-07 | E2 Operator | S | Operator credential theft via spear-phishing | High | ✅ |
+| T-08 | E2 Operator | T | Falsified stock restock submission (phantom inventory) | Medium | 🔄 |
+| T-09 | E2 Operator | R | Denial of stock update causing inventory discrepancy | Medium | ❌ |
+| T-10 | E2 Operator | I | Cross-machine IDOR — unauthorised telemetry access | High | ❌ |
+| T-11 | E2 Operator | E | Operator calls Administrator-only endpoint (missing `@PreAuthorize`) | High | ✅ |
+| T-12 | E3 Administrator | S | Administrator account takeover (no MFA documented) | Critical | ✅ |
+| T-13 | E3 Administrator | T | Rogue Administrator reassigns user roles / suspends accounts | High | 🔄 |
+| T-14 | E3 Administrator | R | Administrator denies pricing change or backup trigger | Medium | ✅ |
+| T-15 | E3 Administrator | I | Mass data exfiltration via compromised Administrator account | Critical | 🔄 |
+| T-16 | E3 Administrator | D | Disk exhaustion via repeated on-demand backup generation | Medium | 🔄 |
+| T-17 | E3 Administrator | E | OS command execution via `ProcessBuilder` abuse from Admin account | Critical | ✅ |
+| T-18 | E4 Vending Machine | S | Rogue machine presents stolen mTLS client certificate | High | 🔄 |
+| T-19 | E4 Vending Machine | T | Compromised firmware sends falsified sales events | High | ❌ |
+| T-20 | E4 Vending Machine | R | Machine operator denies erroneous telemetry / sales data origin | Medium | 🔄 |
+| T-21 | E4 Vending Machine | I | Compromised firmware harvests pushed configuration and price data | Medium | ⬜ |
+| T-22 | E4 Vending Machine | D | Compromised machine floods telemetry endpoint | High | ✅ |
+| T-23 | E4 Vending Machine | E | VM mTLS cert used to access non-telemetry endpoints | High | ✅ |
+| T-24 | E5 Payment Gateway | S | Spoofed payment confirmation webhook bypasses HMAC | Critical | ✅ |
+| T-25 | E5 Payment Gateway | T | Payment callback payload modified (FAILED→COMPLETED) | High | ✅ |
+| T-26 | E5 Payment Gateway | R | Payment Gateway disputes having sent a confirmation | Medium | ✅ |
+| T-27 | E5 Payment Gateway | D | Payment Gateway outage blocks all card/mobile sales | High | 🔄 |
+| T-28 | P1 Auth & Authz | S | JWT `alg:none` signature-bypass attack | Critical | ✅ |
+| T-29 | P1 Auth & Authz | S | JWT HMAC secret brute-force (weak signing key) | High | ✅ |
+| T-30 | P1 Auth & Authz | T | JWT payload `role` claim tampered after secret recovery | Critical | ✅ |
+| T-31 | P1 Auth & Authz | R | Auth events logged without IP / user-agent context | Medium | ✅ |
+| T-32 | P1 Auth & Authz | I | Username enumeration via differential login responses | Medium | ✅ |
+| T-33 | P1 Auth & Authz | I | PII readable in JWT payload (base64, unencrypted) | Low | ⬜ |
+| T-34 | P1 Auth & Authz | D | BCrypt-amplified login flood exhausts Tomcat thread pool | High | 🔄 |
+| T-35 | P1 Auth & Authz | E | Suspended account's unexpired JWT remains valid (no revocation list) | High | ✅ |
+| T-36 | P1 Auth & Authz | E | Missing method-level `@PreAuthorize` on application service layer | High | ✅ |
+| T-37 | P2 Inventory Mgmt | S | Stolen Operator JWT used from unrecognised location | Medium | ❌ |
+| T-38 | P2 Inventory Mgmt | T | IDOR — stock update on machine outside Operator's assigned fleet | High | ❌ |
+| T-39 | P2 Inventory Mgmt | T | SQL injection via inventory search query parameters | Critical | ✅ |
+| T-40 | P2 Inventory Mgmt | R | Stock update audit log missing Operator identity and slot detail | Medium | 🔄 |
+| T-41 | P2 Inventory Mgmt | I | Full fleet GPS/config enumeration via unbounded `GET /machines` | Medium | ❌ |
+| T-42 | P2 Inventory Mgmt | D | Malformed slot data triggers unhandled domain exception | Low | ✅ |
+| T-43 | P2 Inventory Mgmt | E | Mass-assignment on inventory endpoint silently modifies product pricing | High | ✅ |
+| T-44 | P3 Sales Processing | S | JWT replay attack repeats purchase on behalf of victim | Medium | 🔄 |
+| T-45 | P3 Sales Processing | T | TOCTOU race condition causes overselling (negative stock) | High | ✅ |
+| T-46 | P3 Sales Processing | T | Client-supplied `unitPrice` bypasses server-side catalog validation | Critical | ✅ |
+| T-47 | P3 Sales Processing | R | Missing payment `transactionRef` prevents chargeback dispute resolution | High | ✅ |
+| T-48 | P3 Sales Processing | I | IDOR on `GET /sales/{saleId}` exposes other customers' purchases | High | ✅ |
+| T-49 | P3 Sales Processing | D | Purchase flood exhausts Payment Gateway API quota | High | ❌ |
+| T-50 | P3 Sales Processing | E | Unauthenticated `POST /sales` processed (missing security filter) | Critical | ✅ |
+| T-51 | P4 Telemetry | S | Telemetry packet replay injects stale data as current readings | Medium | ❌ |
+| T-52 | P4 Telemetry | T | Compromised machine injects false stock-depletion telemetry | High | 🔄 |
+| T-53 | P4 Telemetry | R | Telemetry source `MachineId` not recorded in audit log | Medium | ✅ |
+| T-54 | P4 Telemetry | I | Telemetry response exposes GPS coordinates and activity patterns | Medium | ❌ |
+| T-55 | P4 Telemetry | D | Coordinated VM fleet floods telemetry database | High | ✅ |
+| T-56 | P4 Telemetry | E | Malicious telemetry payload exploits server-side deserialisation | High | ✅ |
+| T-57 | P5 OS Operations | S | Non-Administrator triggers backup/rotation via RBAC misconfiguration | High | ✅ |
+| T-58 | P5 OS Operations | T | Path traversal via report type parameter escapes sandbox | Critical | ✅ |
+| T-59 | P5 OS Operations | T | OS command injection via unsanitised `ProcessBuilder` parameters | Critical | ✅ |
+| T-60 | P5 OS Operations | R | OS file operations not correlated to requesting Admin in audit log | Medium | ✅ |
+| T-61 | P5 OS Operations | I | Backup files world-readable due to permission misconfiguration | High | ✅ |
+| T-62 | P5 OS Operations | D | Disk exhaustion from silent backup rotation failure | Medium | 🔄 |
+| T-63 | P5 OS Operations | E | Application-to-OS privilege escalation via `ProcessBuilder` injection | Critical | ✅ |
+| T-64 | P6 Pricing & Config | S | Suspended Admin's unexpired JWT authorises pricing changes | High | ✅ |
+| T-65 | P6 Pricing & Config | T | Rogue Admin sets all product prices to zero across full catalog | Critical | 🔄 |
+| T-66 | P6 Pricing & Config | R | Price change not attributed to specific Admin in audit log | Medium | 🔄 |
+| T-67 | P6 Pricing & Config | I | Config endpoint response reveals internal infrastructure details | High | 🔄 |
+| T-68 | P6 Pricing & Config | D | Rapid config update flood causes excessive DB write contention | Medium | ❌ |
+| T-69 | P6 Pricing & Config | E | Operator accesses pricing endpoint via overly permissive annotation | High | ✅ |
+| T-70 | DS1 MySQL | S | Direct DB access using leaked application credentials | Critical | ✅ |
+| T-71 | DS1 MySQL | T | Direct SQL modification bypasses application audit and business rules | Critical | 🔄 |
+| T-72 | DS1 MySQL | T | SQL injection modifies user roles, prices, or sale records | Critical | ✅ |
+| T-73 | DS1 MySQL | R | No DB-level audit trail for direct-access operations | High | ❌ |
+| T-74 | DS1 MySQL | I | Full table extraction via SQL injection UNION attack | Critical | ✅ |
+| T-75 | DS1 MySQL | I | MySQL error messages in HTTP response expose schema structure | Medium | ✅ |
+| T-76 | DS1 MySQL | D | DB connection pool exhaustion via time-delayed query injection | High | 🔄 |
+| T-77 | DS1 MySQL | E | Excessive DB account privileges enable DDL (DROP/CREATE) operations | Critical | 🔄 |
+| T-78 | DS2 File System | S | OS attacker reads backup archive as application service account | High | ✅ |
+| T-79 | DS2 File System | T | Audit log file tampered to erase security event evidence | High | 🔄 |
+| T-80 | DS2 File System | T | Symlink attack on report directory writes data outside sandbox | High | ✅ |
+| T-81 | DS2 File System | R | File system operations not linked to requesting user in audit log | Medium | ✅ |
+| T-82 | DS2 File System | I | Report files with customer PII served beyond Admin scope | High | ❌ |
+| T-83 | DS2 File System | D | Disk exhaustion from silent report/log accumulation | Medium | 🔄 |
+| T-84 | DS2 File System | E | Path traversal writes to privileged OS directory enabling persistence | Critical | ✅ |
+| T-85 | DF1 Customer→VendNet | S | Credential interception via TLS downgrade / SSL stripping | Medium | ✅ |
+| T-86 | DF1 Customer→VendNet | T | HTTP parameter pollution injects duplicate price field | Low | ✅ |
+| T-87 | DF1 Customer→VendNet | I | Credentials captured in application DEBUG-level logs | Medium | ✅ |
+| T-88 | DF1 Customer→VendNet | D | Authenticated HTTP flood exhausts Tomcat thread pool | High | ❌ |
+| T-89 | DF2 VendNet→Customer | S | JWT leaked in verbose error response or access log | Medium | ✅ |
+| T-90 | DF2 VendNet→Customer | T | API response modified via TLS cert mismatch on client side | Medium | ⬜ |
+| T-91 | DF2 VendNet→Customer | I | JPA query missing `userId` filter returns all customers' records | High | ✅ |
+| T-92 | DF2 VendNet→Customer | D | Unbounded response payload from unpaginated endpoint exhausts heap | Medium | ✅ |
+| T-93 | DF3 Operator→VendNet | T | Stock update payload tampered by proxy-level MITM | Medium | ✅ |
+| T-94 | DF3 Operator→VendNet | D | Operator endpoint flood causes DB write contention | Medium | ❌ |
+| T-95 | DF4 VendNet→Operator | I | Machine log response exposes security audit events to Operator role | Medium | ❌ |
+| T-96 | DF5 Admin→VendNet | S | Admin JWT exfiltrated via XSS in companion web UI | High | 🔄 |
+| T-97 | DF5 Admin→VendNet | T | Admin config request body modified via TLS misconfiguration | Medium | ✅ |
+| T-98 | DF5 Admin→VendNet | D | Admin endpoint flooded via compromised Admin session | Medium | ❌ |
+| T-99 | DF6 VendNet→Admin | T | Audit log response modified in transit to conceal attacker activity | Medium | ✅ |
+| T-100 | DF6 VendNet→Admin | I | `GET /admin/users` response serialises BCrypt password hashes | High | ✅ |
+| T-101 | DF7 VM→VendNet | S | Stolen mTLS cert used from attacker cloud infrastructure | High | 🔄 |
+| T-102 | DF7 VM→VendNet | T | Compromised firmware sends false sales events (inflated quantity) | High | 🔄 |
+| T-103 | DF7 VM→VendNet | D | Coordinated telemetry flood from multiple compromised VMs | High | ✅ |
+| T-104 | DF8 VendNet→VM | T | Config push tampered on legacy machine without mTLS enforcement | High | ✅ |
+| T-105 | DF8 VendNet→VM | I | Price list and slot config stored in plaintext on VM device | Medium | ⬜ |
+| T-106 | DF9 VendNet→PayGW | T | Payment amount tampered in outbound request via SSRF | High | ❌ |
+| T-107 | DF9 VendNet→PayGW | I | Payment request body captured in DEBUG-level application log | Medium | ✅ |
+| T-108 | DF10 PayGW→VendNet | S | Forged payment confirmation webhook bypasses HMAC validation | Critical | ✅ |
+| T-109 | DF10 PayGW→VendNet | T | Payment status modified FAILED→COMPLETED in callback payload | High | ✅ |
+| T-110 | DF11 VendNet→MySQL | T | Second-order SQL injection via stored malicious input in native query | High | 🔄 |
+| T-111 | DF11 VendNet→MySQL | D | N+1 Hibernate query pattern exhausts DB connection pool | Medium | ✅ |
+| T-112 | DF12 MySQL→VendNet | I | Over-broad JPA query returns records beyond authorised scope | High | ✅ |
+| T-113 | DF13 VendNet→FS | T | Path traversal in report type name writes outside `/var/vendnet/` sandbox | Critical | ✅ |
+| T-114 | DF13 VendNet→FS | D | Concurrent backup writes saturate disk I/O and fill partition | Medium | ❌ |
+| T-115 | DF14 FS→VendNet | T | Malicious CSV planted in report directory served to Administrator | Medium | 🔄 |
+| T-116 | DF14 FS→VendNet | I | Audit log file API serves full security event history to Operator role | High | ✅ |
 
 ---
 
-*Total threats identified: **116** (T-01 – T-116)*
-
-*Severity distribution — Critical: 22 · High: 49 · Medium: 42 · Low: 3*
-
-*All threats feed directly into Sec. 5 (Abuse Cases), Sec. 6 (Risk Assessment), Sec. 7 (Mitigations), and Sec. 8 (Security Requirements). Critical and High threats are prioritised for immediate mitigation planning.*
+> Total threats identified: **116** (T-01 – T-116)
+>
+> Severity distribution — Critical: 22 · High: 49 · Medium: 42 · Low: 3
+>
+> Status — ✅ Compliant · 🔄 In Progress · ❌ Not Started · ⬜ Not Applicable
+>
+> All threats feed directly into Sec. 5 (Abuse Cases), Sec. 6 (Risk Assessment), Sec. 7 (Mitigations), and Sec. 8 (Security Requirements). Critical and High threats are prioritised for immediate mitigation planning.
 
 ---
 
