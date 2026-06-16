@@ -1,20 +1,15 @@
-# DESOFS 2025/2026 — Project Phase 2: Sprint 2 Deliverable
+# DESOFS — Phase 2, Sprint 2: CI/CD Pipeline — Deep-Dive Technical Report
 
-## VendNet CI/CD Pipeline — Deep-Dive Technical Report
-
-| Field | Value |
-|---|---|
-| **Course** | Desenvolvimento de Software Seguro (DESOFS) |
-| **Deliverable** | Project: Phase 2 — Sprint 2 |
-| **Submission milestone** | June 2026 |
-| **Repository** | `desofs2026_wed_ffs_6` |
-| **System** | VendNet — Vending Machine Network Back-End |
-| **Pipeline file** | `.github/workflows/vendnet-ci-cd.yml` |
-| **Technology stack** | Java 17, Spring Boot 3.5.x, Maven, MySQL, Docker, GitHub Actions |
+**Project:** VendNet — Vending Machine Network Back-End
+**Organisation:** Grupo Sensacao (ISEP — DESOFS 2025/2026)
+**Date:** Junho 2026
+**Pipeline file:** `.github/workflows/vendnet-ci-cd.yml`
+**Technology stack:** Java 17, Spring Boot 3.5.x, Maven, MySQL, Docker, GitHub Actions
+**Status:** ☑ Done
 
 ---
 
-## 1.  Summary
+## 1. Summary
 
 This report presents a deep-dive analysis of the **VendNet CI/CD Pipeline v2.0** (`vendnet-ci-cd.yml`), an enterprise-grade DevSecOps pipeline architected to enforce security, quality, and compliance gates at every stage of the software delivery lifecycle. The pipeline orchestrates 14 distinct jobs across 13 stages — from source-code secret detection through to Docker image publication and zero-downtime deployment — applying a defence-in-depth philosophy to the build-and-release process itself.
 

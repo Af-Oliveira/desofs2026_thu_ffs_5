@@ -1,9 +1,9 @@
-# VendNet Testing Overview
+# DESOFS — Phase 2, Sprint 2: Testing Overview
 
-
-> **Project:** VendNet — Vending Machine Network<br>
-> **Phase:** 2 Sprint 2 — Tests<br>
-> **Date:** 2026-06-16
+**Project:** VendNet — Vending Machine Network Back-End
+**Organisation:** Grupo Sensacao (ISEP — DESOFS 2025/2026)
+**Date:** Junho 2026
+**Status:** ☑ Done
 
 ---
 
