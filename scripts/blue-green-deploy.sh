@@ -86,7 +86,7 @@ NETWORK=""
 SECURITY_OPTS=""
 CAP_DROP=""
 CAP_ADD="NET_BIND_SERVICE"
-HEALTH_TIMEOUT=120
+HEALTH_TIMEOUT=300
 NGINX_HEALTH_TIMEOUT=30
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -449,8 +449,8 @@ start_app_container() {
         --health-cmd="wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"
         --health-interval=10s
         --health-timeout=5s
-        --health-retries=3
-        --health-start-period=60s
+        --health-retries=7
+        --health-start-period=180s
     )
 
     run_args+=("$full_image")
