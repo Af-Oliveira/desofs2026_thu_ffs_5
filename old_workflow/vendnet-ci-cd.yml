@@ -934,7 +934,10 @@ jobs:
     name: "🟢 Deploy DEV — Manual Overwrite"
     runs-on: self-hosted
     needs: [setup-context, docker-build-push, sonarqube]
-    if: false  # Deploy disabled
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      inputs.deploy_dev == true &&
+      needs.docker-build-push.result == 'success'
     environment:
       name: DEV
       url: http://${{ env.REMOTE_HOST }}:${{ env.DEV_PORT }}
@@ -1044,7 +1047,9 @@ jobs:
     name: "🟡🔵 Deploy STAGING — Blue/Green"
     runs-on: self-hosted
     needs: [setup-context, docker-build-push, sonarqube, dast-zap]
-    if: false  # Deploy disabled
+    if: |
+      needs.setup-context.outputs.is_main == 'true' &&
+      needs.docker-build-push.result == 'success'
     environment:
       name: STAGING
       url: http://${{ env.REMOTE_HOST }}:${{ env.STAGE_PORT }}
@@ -1143,7 +1148,9 @@ jobs:
     name: "🔴🔵 Deploy PROD — Blue/Green"
     runs-on: self-hosted
     needs: [setup-context, docker-build-push, sonarqube, dast-zap, deploy-staging]
-    if: false  # Deploy disabled
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_prod == true) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     environment:
       name: PROD
       url: http://${{ env.REMOTE_HOST }}:${{ env.PROD_PORT }}
