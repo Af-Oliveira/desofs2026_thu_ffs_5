@@ -1,9 +1,11 @@
 # DESOFS — Phase 2, Sprint 2: Threat Model — STRIDE Analysis
 
-**Project:** VendNet — Vending Machine Network Back-End
-**Organisation:** Grupo Sensacao (ISEP — DESOFS 2025/2026)
-**Date:** Junho 2026
-**Status:** ☑ Done
+| | |
+|---|---|
+| **Project** | VendNet — Vending Machine Network Back-End |
+| **Organisation** | Grupo Sensacao (ISEP — DESOFS 2025/2026) |
+| **Date** | Junho 2026 |
+| **Status** | ☑ Done |
 
 > **Phase 1 baseline + Sprint 2 implementation status.** Sprint 2 implementation status (Status, Implementation, Test Evidence columns) added to all threat tables in Sec. 4.2.1–Sec. 4.2.4. Summary in Sec. 4.4.
 

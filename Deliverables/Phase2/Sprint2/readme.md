@@ -1,27 +1,29 @@
 # DESOFS — Phase 2, Sprint 2: Deliverables Index
 
-**Project:** VendNet — Vending Machine Network Back-End
-**Organisation:** Grupo Sensacao (ISEP — DESOFS 2025/2026)
-**Date:** Junho 2026
-**Status:** ☑ Done
+|                  |                                            |
+| ---------------- | ------------------------------------------ |
+| **Project**      | VendNet — Vending Machine Network Back-End |
+| **Organisation** | Grupo Sensacao (ISEP — DESOFS 2025/2026)   |
+| **Date**         | Junho 2026                                 |
+| **Status**       | ☑ Done                                     |
 
 ---
 
 ## Sprint 2 Overview
 
-Sprint 2 delivers the complete VendNet system — a secure, observable, and operationally mature backend for managing a network of vending machines. The deliverables span six domains, each documented in its own chapter with evidence, screenshots, and reproducible commands.
+Sprint 2 delivers the complete VendNet system — a secure, observable, and operationally mature backend for managing a network of vending machines. The deliverables span seven chapters, each documented with evidence, screenshots, and reproducible commands.
 
-| #   | Chapter         | Directory      | Purpose                                            |
-| --- | --------------- | -------------- | -------------------------------------------------- |
-| 1   | **Demo Guide**  | `Demo/`        | Reproducible live demonstration walkthrough        |
-| 2   | **Pipeline**    | `Pipeline/`    | Deep-dive CI/CD pipeline technical report          |
-| 3   | **Telemetry**   | `Telemetry/`   | Observability stack architecture and usage         |
-| 4   | **Security**    | `Security/`    | Phase 1 plan vs. Phase 2 implementation evidence   |
-| 5   | **Testing**     | `Testing/`     | Testing strategy: black-box, white-box, and E2E    |
-| 6   | **ASVS**        | `ASVS/`        | Updated threat model with Sprint 2 evidence        |
-| 7   | **Development** | `Development/` | Architecture, DDD, database, and API documentation |
+| #   | Chapter         | Document                                                          | Purpose                                          |
+| --- | --------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
+| 1   | **Demo Guide**  | [Demo.md](Demo/Demo.md)                                           | Reproducible live demonstration walkthrough      |
+| 2   | **Pipeline**    | [Deep_Pipeline_Report.md](Pipeline/Deep_Pipeline_Report.md)       | CI/CD pipeline deep-dive technical report        |
+| 3   | **Telemetry**   | [telemetry.md](Telemetry/telemetry.md)                            | Observability stack architecture and usage       |
+| 4   | **Security**    | [security-implementation.md](Security/security-implementation.md) | Phase 1 plan vs. Phase 2 implementation evidence |
+| 5   | **Testing**     | [Testing.md](Testing/Testing.md)                                  | Testing strategy: black-box, white-box, E2E      |
+| 6   | **ASVS**        | [Threat_Model.md](ASVS/Threat_Model.md)                           | Updated threat model with Sprint 2 evidence      |
+| 7   | **Development** | [Docs.md](Development/Docs.md)                                    | Architecture, DDD, database, and API docs        |
 
-**Total:** 7 markdown documents, 15 screenshots, 7 CI/CD code snippets, 1 ASVS workbook (`.xlsx`)
+**Total:** 7 markdown documents · 15 screenshots · 7 CI/CD code snippets · 1 ASVS workbook (`.xlsx`)
 
 ---
 
@@ -104,8 +106,10 @@ make api-test
 
 ## Chapter 1 — Demonstration Guide
 
-**File:** `Demo/Demo.md`
-**Screenshots:** 6 (`demo-swagger-ui.png`, `demo-account-locked.png`, `demo-rbac-enforcement.png`, `demo-grafana-dashboard.png`, `demo-jaeger-trace.png`, `demo-prometheus-metrics.png`)
+|                 |                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Document**    | [Demo.md](Demo/Demo.md)                                                                                                                                                                                                                                                                                                                                                          |
+| **Screenshots** | 6 — [swagger-ui](Demo/screenshots/demo-swagger-ui.png), [account-locked](Demo/screenshots/demo-account-locked.png), [rbac-enforcement](Demo/screenshots/demo-rbac-enforcement.png), [grafana-dashboard](Demo/screenshots/demo-grafana-dashboard.png), [jaeger-trace](Demo/screenshots/demo-jaeger-trace.png), [prometheus-metrics](Demo/screenshots/demo-prometheus-metrics.png) |
 
 A step-by-step academic demonstration guide covering all 13 use cases. Structured as a 18-minute presentation script with exact commands, expected outputs, and verification criteria.
 
@@ -123,13 +127,13 @@ A step-by-step academic demonstration guide covering all 13 use cases. Structure
 
 **Figure 1.1 — RBAC enforcement across three roles:**
 
-![RBAC Enforcement](./Demo/screenshots/demo-rbac-enforcement.png)
+![RBAC Enforcement](Demo/screenshots/demo-rbac-enforcement.png)
 
 > Customer → Admin endpoint = 403. Operator → Purchase = 403. Admin → Customer endpoint = 200 (role hierarchy).
 
 **Figure 1.2 — Account lockout after brute-force attempt:**
 
-![Account Lockout](./Demo/screenshots/demo-account-locked.png)
+![Account Lockout](Demo/screenshots/demo-account-locked.png)
 
 > After 5 rapid failed login attempts within 15 minutes, a valid login returns HTTP 423. Auto-unlock after 30 minutes.
 
@@ -137,11 +141,13 @@ A step-by-step academic demonstration guide covering all 13 use cases. Structure
 
 ## Chapter 2 — CI/CD Pipeline
 
-**File:** `Pipeline/Deep_Pipeline_Report.md`
-**Code Snippets:** 7 (`01_setup_context_metadata.sh` through `07_pipeline_summary_aggregator.sh` + `03_jacoco_coverage_parser.py`)
-**Screenshots:** 2 (`sprint2-github-actions-overview.png`, `sprint2-github-artifacts.png`)
+|                   |                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Document**      | [Deep_Pipeline_Report.md](Pipeline/Deep_Pipeline_Report.md)                                                                                                                                                                                                                                                                                                                                       |
+| **Code snippets** | 7 — [01](Pipeline/code_snips/01_setup_context_metadata.sh), [02](Pipeline/code_snips/02_build_unit_tests.sh), [03](Pipeline/code_snips/03_jacoco_coverage_parser.py), [04](Pipeline/code_snips/04_sonarqube_quality_gate.sh), [05](Pipeline/code_snips/05_dast_zap_scan.sh), [06](Pipeline/code_snips/06_docker_build_push_trivy.sh), [07](Pipeline/code_snips/07_pipeline_summary_aggregator.sh) |
+| **Screenshots**   | 2 — [github-actions-overview](Pipeline/screenshots/sprint2-github-actions-overview.png), [github-artifacts](Pipeline/screenshots/sprint2-github-artifacts.png)                                                                                                                                                                                                                                    |
 
-A deep-dive technical report on the VendNet CI/CD Pipeline v2.0 — an enterprise-grade DevSecOps pipeline with 14 jobs across 13 stages, from source-code secret detection through Docker image publication and zero-downtime deployment.
+A deep-dive technical report on the VendNet CI/CD Pipeline v2.0 — an enterprise-grade DevSecOps pipeline with 14 jobs across 13 stages, from source-code secret detection through Docker image publication and zero-downtime deployment. Includes a full section on the SonarQube Quality Gate with configuration files, quality gate rules, and coverage enforcement.
 
 **Pipeline stages:**
 
@@ -172,16 +178,18 @@ A deep-dive technical report on the VendNet CI/CD Pipeline v2.0 — an enterpris
 **Run locally:**
 
 ```bash
-make pipeline        # Full CI: clean + SAST + SCA + verify
-make ci-local-pipeline  # GitHub Actions via act (local)
+make pipeline            # Full CI: clean + SAST + SCA + verify
+make ci-local-pipeline   # GitHub Actions via act (local)
 ```
 
 ---
 
 ## Chapter 3 — Telemetry & Observability
 
-**File:** `Telemetry/telemetry.md`
-**Screenshots:** 3 (`demo-grafana-dashboard.png`, `demo-jaeger-trace.png`, `demo-prometheus-metrics.png`)
+|                 |                                                                                                                                                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Document**    | [telemetry.md](Telemetry/telemetry.md)                                                                                                                                                                          |
+| **Screenshots** | 3 — [grafana-dashboard](Telemetry/screenshots/demo-grafana-dashboard.png), [jaeger-trace](Telemetry/screenshots/demo-jaeger-trace.png), [prometheus-metrics](Telemetry/screenshots/demo-prometheus-metrics.png) |
 
 Documents the full observability stack: metrics (Prometheus), logs (Loki + Promtail), and traces (Jaeger + OpenTelemetry Collector). Every signal is collected, stored, and visualised with zero manual instrumentation beyond Spring Boot Actuator, Micrometer, and OpenTelemetry.
 
@@ -197,13 +205,13 @@ Documents the full observability stack: metrics (Prometheus), logs (Loki + Promt
 
 **Figure 3.1 — Grafana VendNet Dashboard with all 8 panels:**
 
-![Grafana Dashboard](./Telemetry/screenshots/demo-grafana-dashboard.png)
+![Grafana Dashboard](Telemetry/screenshots/demo-grafana-dashboard.png)
 
 > JVM memory, CPU usage, HTTP request rate/latency, app status, active threads, max heap, and application logs — all in one auto-provisioned dashboard.
 
 **Figure 3.2 — Jaeger distributed trace waterfall view:**
 
-![Jaeger Trace](./Telemetry/screenshots/demo-jaeger-trace.png)
+![Jaeger Trace](Telemetry/screenshots/demo-jaeger-trace.png)
 
 > Full request path: JWT filter → controller → service → repository → SQL queries. Each span shows duration in microseconds.
 
@@ -211,8 +219,10 @@ Documents the full observability stack: metrics (Prometheus), logs (Loki + Promt
 
 ## Chapter 4 — Security Implementation Evidence
 
-**File:** `Security/security-implementation.md`
-**Screenshots:** 2 (`security-zap-baseline.png`, `asvs-level2-tracker.png`)
+|                 |                                                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Document**    | [security-implementation.md](Security/security-implementation.md)                                                                |
+| **Screenshots** | 2 — [zap-baseline](Security/screenshots/security-zap-baseline.png), [asvs-tracker](Security/screenshots/asvs-level2-tracker.png) |
 
 Traces every security control planned in Phase 1 (Reports 07, 09, and 10) to its actual implementation in the Sprint 2 codebase. Contains 21 verbatim Java code blocks from the source, each with an evidence caption explaining what threat it mitigates.
 
@@ -231,15 +241,17 @@ Traces every security control planned in Phase 1 (Reports 07, 09, and 10) to its
 
 **Figure 4.1 — OWASP ZAP DAST baseline scan results:**
 
-![ZAP Baseline](./Security/screenshots/security-zap-baseline.png)
+![ZAP Baseline](Security/screenshots/security-zap-baseline.png)
 
 > Dynamic Application Security Testing against the public API surface. Baseline scan executed via `make zap-full`.
 
 **Figure 4.2 — ASVS Level 2 compliance tracker:**
 
-![ASVS Tracker](./Security/screenshots/asvs-level2-tracker.png)
+![ASVS Tracker](Security/screenshots/asvs-level2-tracker.png)
 
-**Selected code evidence — alg:none rejection in JwtService:**
+> Filled workbook shows 41 of 46 security requirements implemented (89% coverage). Generated by `make asvs-tracker`.
+
+**Selected code evidence — alg:none rejection in JwtService.java:**
 
 ```java
 // JwtService.java:142-158
@@ -266,7 +278,9 @@ private void rejectAlgNone(String token) {
 
 ## Chapter 5 — Testing Strategy
 
-**File:** `Testing/Testing.md`
+|              |                                  |
+| ------------ | -------------------------------- |
+| **Document** | [Testing.md](Testing/Testing.md) |
 
 Summarises the project's testing strategy: black-box (external API behaviour), white-box (internal logic and coverage), and end-to-end (full user journeys via Newman/Postman). Covers all 8 abuse cases with specific test scenarios and expected outcomes.
 
@@ -295,21 +309,21 @@ make e2e               # End-to-end (Newman, fully automatic)
 
 ## Chapter 6 — ASVS & Threat Model
 
-**File:** `ASVS/Threat_Model.md`
-**Workbook:** `ASVS/ASVS.xlsx`
+|              |                                         |
+| ------------ | --------------------------------------- |
+| **Document** | [Threat_Model.md](ASVS/Threat_Model.md) |
+| **Workbook** | [ASVS.xlsx](ASVS/ASVS.xlsx)             |
 
-Updated Phase 1 threat model (STRIPE-per-element analysis over DFD Level 1) with Sprint 2 implementation columns added: **Status**, **Implementation** (file:line), and **Test Evidence** for all 116 threats. The `.xlsx` workbook provides the ASVS 5.0 Level 2 compliance tracker.
-
-```bash
-make asvs-tracker   # Regenerate filled workbook with test evidence
-```
+Updated Phase 1 threat model (STRIDE-per-element analysis over DFD Level 1) with Sprint 2 implementation columns added: **Status**, **Implementation** (file:line), and **Test Evidence** for all 116 threats. The `.xlsx` workbook provides the ASVS 5.0 Level 2 compliance tracker.
 
 ---
 
 ## Chapter 7 — Development Documentation
 
-**File:** `Development/Docs.md`
-**Screenshots:** 2 (`e2e-report.png`, `security-zap-baseline.png`)
+|                 |                                                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Document**    | [Docs.md](Development/Docs.md)                                                                                              |
+| **Screenshots** | 2 — [e2e-report](Development/screenshots/e2e-report.png), [zap-baseline](Development/screenshots/security-zap-baseline.png) |
 
 Comprehensive architectural documentation covering the C4 model (Level 1–3), domain model (DDD aggregates and value objects), database schema (Mermaid ER diagram), backend API (30+ endpoints with request/response examples), and authentication/authorisation flows with sequence diagrams.
 
@@ -338,15 +352,15 @@ Comprehensive architectural documentation covering the C4 model (Level 1–3), d
 
 **Screenshots by chapter:**
 
-| Chapter     | Screenshots                                                                                                       |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| Demo        | 6 (`swagger-ui`, `account-locked`, `rbac-enforcement`, `grafana-dashboard`, `jaeger-trace`, `prometheus-metrics`) |
-| Pipeline    | 2 (`github-actions-overview`, `github-artifacts`)                                                                 |
-| Telemetry   | 3 (`grafana-dashboard`, `jaeger-trace`, `prometheus-metrics`)                                                     |
-| Security    | 2 (`zap-baseline`, `asvs-tracker`)                                                                                |
-| Development | 2 (`e2e-report`, `zap-baseline`)                                                                                  |
-| Testing     | 0                                                                                                                 |
-| ASVS        | 0                                                                                                                 |
+| Chapter     | Count | Files                                                                                                         |
+| ----------- | ----- | ------------------------------------------------------------------------------------------------------------- |
+| Demo        | 6     | `swagger-ui`, `account-locked`, `rbac-enforcement`, `grafana-dashboard`, `jaeger-trace`, `prometheus-metrics` |
+| Pipeline    | 2     | `github-actions-overview`, `github-artifacts`                                                                 |
+| Telemetry   | 3     | `grafana-dashboard`, `jaeger-trace`, `prometheus-metrics`                                                     |
+| Security    | 2     | `zap-baseline`, `asvs-tracker`                                                                                |
+| Development | 2     | `e2e-report`, `zap-baseline`                                                                                  |
+| Testing     | 0     | —                                                                                                             |
+| ASVS        | 0     | —                                                                                                             |
 
 **Key Make targets for reproducing all evidence:**
 
@@ -361,10 +375,13 @@ make archunit          # Architecture enforcement tests
 make abuse-tests       # Abuse case regression tests
 make e2e               # End-to-end tests (Newman, fully automatic)
 make zap-full          # OWASP ZAP DAST (baseline + authenticated API scan)
-make asvs-tracker      # Regenerate ASVS filled workbook
 make grafana           # Open Grafana (http://localhost:3000, admin/admin)
 make jaeger            # Open Jaeger (http://localhost:16686)
 make loki-logs         # Query recent logs from Loki
 make metrics           # View raw Prometheus metrics
 make urls              # Print all service URLs
 ```
+
+---
+
+_Sprint 2 delivered by Grupo Sensacao — ISEP DESOFS 2025/2026. All commands are executable and reproducible. Screenshots captured from live `make demo` sessions._

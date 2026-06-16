@@ -1,9 +1,11 @@
 # DESOFS — Phase 2, Sprint 2: Demonstration Guide
 
-**Project:** VendNet — Vending Machine Network Back-End
-**Organisation:** Grupo Sensacao (ISEP — DESOFS 2025/2026)
-**Date:** Junho 2026
-**Status:** ☑ Done
+| | |
+|---|---|
+| **Project** | VendNet — Vending Machine Network Back-End |
+| **Organisation** | Grupo Sensacao (ISEP — DESOFS 2025/2026) |
+| **Date** | Junho 2026 |
+| **Status** | ☑ Done |
 
 ---
 

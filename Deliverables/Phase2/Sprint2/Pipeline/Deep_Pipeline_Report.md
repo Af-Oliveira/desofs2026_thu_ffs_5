@@ -1,11 +1,13 @@
 # DESOFS — Phase 2, Sprint 2: CI/CD Pipeline — Deep-Dive Technical Report
 
-**Project:** VendNet — Vending Machine Network Back-End
-**Organisation:** Grupo Sensacao (ISEP — DESOFS 2025/2026)
-**Date:** Junho 2026
-**Pipeline file:** `.github/workflows/vendnet-ci-cd.yml`
-**Technology stack:** Java 17, Spring Boot 3.5.x, Maven, MySQL, Docker, GitHub Actions
-**Status:** ☑ Done
+| | |
+|---|---|
+| **Project** | VendNet — Vending Machine Network Back-End |
+| **Organisation** | Grupo Sensacao (ISEP — DESOFS 2025/2026) |
+| **Date** | Junho 2026 |
+| **Pipeline file** | `.github/workflows/vendnet-ci-cd.yml` |
+| **Technology stack** | Java 17, Spring Boot 3.5.x, Maven, MySQL, Docker, GitHub Actions |
+| **Status** | ☑ Done |
 
 ---
 

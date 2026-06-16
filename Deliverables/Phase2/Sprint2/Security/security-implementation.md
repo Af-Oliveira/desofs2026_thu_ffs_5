@@ -1,10 +1,12 @@
 # DESOFS — Phase 2, Sprint 2: Security Implementation Evidence
 
-**Project:** VendNet — Vending Machine Network Back-End
-**Organisation:** Grupo Sensacao (ISEP — DESOFS 2025/2026)
-**Date:** Junho 2026
-**Purpose:** Contrast planned security controls (Phase 1 — Reports 07, 09 & 10) with implemented controls (Phase 2 — Sprint 2)
-**Status:** ☑ Done
+| | |
+|---|---|
+| **Project** | VendNet — Vending Machine Network Back-End |
+| **Organisation** | Grupo Sensacao (ISEP — DESOFS 2025/2026) |
+| **Date** | Junho 2026 |
+| **Purpose** | Contrast planned security controls (Phase 1 — Reports 07, 09 & 10) with implemented controls (Phase 2 — Sprint 2) |
+| **Status** | ☑ Done |
 
 > This document maps every security control planned in Phase 1 to its actual implementation in the Sprint 2 codebase, using verbatim source code excerpts. Each section follows the structure of `10_Secure_Architecture.md` from Phase 1.
 
