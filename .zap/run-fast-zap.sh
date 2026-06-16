@@ -33,7 +33,7 @@ zap-api-scan.py \
       -config replacer.full_list[0].regex=false \
       -config replacer.full_list[0].replacement=Bearer ${ADMIN_TOKEN}"
 
-zap.sh -daemon -host 127.0.0.1 -port "${ZAP_PORT}" -dir /tmp/zap-rbac-home -config api.disablekey=true >/tmp/zap-rbac.log 2>&1 &
+zap.sh -daemon -host 127.0.0.1 -port "${ZAP_PORT}" -dir /tmp/zap-rbac-home -config api.disablekey=true -config proxy.port="${ZAP_PORT}" >/tmp/zap-rbac.log 2>&1 &
 ZAP_PID="$!"
 trap 'kill "${ZAP_PID}" 2>/dev/null || true' EXIT
 
