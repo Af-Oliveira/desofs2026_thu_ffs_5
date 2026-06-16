@@ -91,6 +91,8 @@ vendnet/e2e/reports/
 
 ## Others ##
 Doc/
+!Doc/
+!Doc/Testes.md
 /Desofs/
 
 ### ZAP DAST artifacts (generated at runtime) ###
