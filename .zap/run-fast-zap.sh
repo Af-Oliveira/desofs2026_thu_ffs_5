@@ -5,8 +5,9 @@ APP_URL="${APP_URL:-http://localhost:8080}"
 REPORT_DIR="/zap/wrk/reports"
 REPORT_REL_DIR="reports"
 RULES_FILE="${RULES_FILE:-rules.tsv}"
-ZAP_PORT="${ZAP_PORT:-9090}"
-ZAP_PROXY="http://127.0.0.1:${ZAP_PORT}"
+SCAN_ZAP_PORT="${SCAN_ZAP_PORT:-9090}"
+RBAC_ZAP_PORT="${RBAC_ZAP_PORT:-9091}"
+ZAP_PROXY="http://127.0.0.1:${RBAC_ZAP_PORT}"
 
 mkdir -p "${REPORT_DIR}"
 
@@ -16,7 +17,7 @@ zap-baseline.py \
   -r "${REPORT_REL_DIR}/zap-baseline.html" \
   -w "${REPORT_REL_DIR}/zap-baseline.md" \
   -x "${REPORT_REL_DIR}/zap-baseline.xml" \
-  -z "-config proxy.port=${ZAP_PORT}"
+  -z "-config proxy.port=${SCAN_ZAP_PORT}"
 
 zap-api-scan.py \
   -t "${APP_URL}/v3/api-docs" \
@@ -25,7 +26,7 @@ zap-api-scan.py \
   -r "${REPORT_REL_DIR}/zap-api-admin.html" \
   -w "${REPORT_REL_DIR}/zap-api-admin.md" \
   -x "${REPORT_REL_DIR}/zap-api-admin.xml" \
-  -z "-config proxy.port=${ZAP_PORT} \
+  -z "-config proxy.port=${SCAN_ZAP_PORT} \
       -config replacer.full_list[0].description=admin_auth \
       -config replacer.full_list[0].enabled=true \
       -config replacer.full_list[0].matchtype=REQ_HEADER \
@@ -33,7 +34,7 @@ zap-api-scan.py \
       -config replacer.full_list[0].regex=false \
       -config replacer.full_list[0].replacement=Bearer ${ADMIN_TOKEN}"
 
-zap.sh -daemon -host 127.0.0.1 -port "${ZAP_PORT}" -dir /tmp/zap-rbac-home -config api.disablekey=true -config proxy.port="${ZAP_PORT}" >/tmp/zap-rbac.log 2>&1 &
+zap.sh -daemon -host 127.0.0.1 -port "${RBAC_ZAP_PORT}" -dir /tmp/zap-rbac-home -config api.disablekey=true >/tmp/zap-rbac.log 2>&1 &
 ZAP_PID="$!"
 trap 'kill "${ZAP_PID}" 2>/dev/null || true' EXIT
 
