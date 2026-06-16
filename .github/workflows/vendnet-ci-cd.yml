@@ -605,13 +605,13 @@ jobs:
             maven-${{ runner.os }}-
 
       - name: "📥 Download Build Output (for class reuse)"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-output
           path: vendnet/target/
 
       - name: "📥 Download JaCoCo Report (for unified coverage)"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: jacoco-report
           path: vendnet/target/site/jacoco/
@@ -804,7 +804,7 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
 
       - name: "📥 Download Runtime Jar"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vendnet-runtime-jar
           path: vendnet/target/
