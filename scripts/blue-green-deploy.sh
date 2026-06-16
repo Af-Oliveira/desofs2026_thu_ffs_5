@@ -399,6 +399,7 @@ start_app_container() {
         --name "$container_name"
         --network "$NETWORK"
         --restart unless-stopped
+        --memory=512m
         -e "SPRING_PROFILES_ACTIVE=${PROFILE}"
         -e "APP_JWT_SECRET=${JWT_SECRET}"
     )
