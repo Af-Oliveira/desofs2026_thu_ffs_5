@@ -2,7 +2,6 @@ package pt.isep.desofs.vendnet.application.service;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +20,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.product.Product;
 import pt.isep.desofs.vendnet.domain.model.telemetry.MachineTelemetry;
-import pt.isep.desofs.vendnet.domain.model.user.Role;
 import pt.isep.desofs.vendnet.domain.model.user.User;
 import pt.isep.desofs.vendnet.domain.repository.ProductRepository;
 import pt.isep.desofs.vendnet.domain.repository.SaleRepository;

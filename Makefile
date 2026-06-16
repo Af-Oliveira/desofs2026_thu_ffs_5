@@ -8,7 +8,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 
-.PHONY: help app-help clean build maven-build docker-build docker-push \
+.PHONY: help app-help clean clean-db reset-db db-clean db-reset build maven-build docker-build docker-push \
         dev dev-up dev-stop dev-clean dev-status dev-logs \
         stage stage-up stage-stop stage-clean stage-status stage-logs \
         prod prod-up prod-stop prod-clean prod-status prod-logs \
@@ -57,6 +57,7 @@ help:
 	@echo "Deploy:  make deploy-dev | deploy-stage | deploy-prod"
 	@echo "Tests:   make test | verify | coverage | archunit | abuse-tests | integration-test"
 	@echo "Security: make security-scan | sast | sca | sonar"
+	@echo "DB:       make clean-db | reset-db"
 	@echo "ASVS:    make asvs | asvs-tracker | asvs-fill"
 	@echo "App DX:  make app-help | app-<target>  (example: make app-run)"
 	@echo "Pipeline: make pipeline | ci-all"
@@ -260,6 +261,12 @@ security-scan: sast sca
 # =============================================================================
 test verify coverage lint format format-check archunit abuse-tests integration-test e2e sbom enforcer docker-scan secret-scan zap-baseline zap-api-scan:
 	@$(APP_MAKE) $@
+
+clean-db db-clean:
+	@$(APP_MAKE) db-clean
+
+reset-db db-reset:
+	@$(APP_MAKE) db-reset
 
 # =============================================================================
 # ASVS TRACKER

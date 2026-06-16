@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
+import pt.isep.desofs.vendnet.domain.exception.FileValidationException;
 
 @Slf4j
 @Component
@@ -22,7 +23,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp");
 
-	private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
+	private static final long MAX_FILE_SIZE = 5L * 1024 * 1024;
 
 	private final Tika tika = new Tika();
 
@@ -63,7 +64,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 		try {
 			String detected = tika.detect(new ByteArrayInputStream(data));
 			return ALLOWED_CONTENT_TYPES.contains(detected);
-		} catch (Exception e) {
+		} catch (IOException e) {
 			log.warn("Magic byte detection failed", e);
 			return false;
 		}
@@ -73,7 +74,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 		try {
 			String detected = tika.detect(file.getInputStream());
 			return ALLOWED_CONTENT_TYPES.contains(detected);
-		} catch (Exception e) {
+		} catch (IOException e) {
 			log.warn("Magic byte detection failed for file: {}", file.getOriginalFilename(), e);
 			return false;
 		}
@@ -89,8 +90,8 @@ public class FileValidationServiceImpl implements FileValidationService {
 
 	private boolean crossCheckMagicBytesWithExtension(MultipartFile file) {
 		try {
-			byte[] firstBytes = file.getInputStream().readNBytes(16);
-			file.getInputStream().reset();
+			byte[] bytes = file.getBytes();
+			byte[] firstBytes = java.util.Arrays.copyOf(bytes, Math.min(bytes.length, 16));
 
 			String magicMime = tika.detect(new ByteArrayInputStream(firstBytes));
 			String ext = file.getOriginalFilename();
@@ -130,7 +131,7 @@ public class FileValidationServiceImpl implements FileValidationService {
 			byte[] hash = digest.digest(data);
 			return HexFormat.of().formatHex(hash);
 		} catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException("SHA-256 not available", e);
+			throw new FileValidationException("SHA-256 not available", e);
 		}
 	}
 }

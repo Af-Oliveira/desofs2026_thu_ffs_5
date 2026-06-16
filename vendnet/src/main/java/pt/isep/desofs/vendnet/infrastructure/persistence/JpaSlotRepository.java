@@ -14,19 +14,19 @@ import pt.isep.desofs.vendnet.domain.model.slot.Slot;
 public interface JpaSlotRepository
 		extends JpaRepository<Slot, Long>, pt.isep.desofs.vendnet.domain.repository.SlotRepository {
 
-	@Query("SELECT s FROM Slot s WHERE s.machine.id = :machineId")
+	@Query("SELECT s FROM Slot s JOIN FETCH s.machine JOIN FETCH s.product WHERE s.machine.id = :machineId")
 	List<Slot> findByMachineId(@Param("machineId") Long machineId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("SELECT s FROM Slot s WHERE s.machine.id = :machineId AND s.id = :slotId")
+	@Query("SELECT s FROM Slot s JOIN FETCH s.machine JOIN FETCH s.product WHERE s.machine.id = :machineId AND s.id = :slotId")
 	Optional<Slot> findByMachineIdAndId(@Param("machineId") Long machineId, @Param("slotId") Long slotId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("SELECT s FROM Slot s WHERE s.machine.id = :machineId AND s.product.id = :productId")
-	Optional<Slot> findByMachineIdAndProductId(@Param("machineId") Long machineId, @Param("productId") Long productId);
+	@Query("SELECT s FROM Slot s JOIN FETCH s.machine JOIN FETCH s.product WHERE s.machine.id = :machineId AND s.product.id = :productId ORDER BY s.id")
+	List<Slot> findByMachineIdAndProductId(@Param("machineId") Long machineId, @Param("productId") Long productId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("SELECT s FROM Slot s WHERE s.machine.id = :machineId AND s.product.sku = :productSku ORDER BY s.id")
+	@Query("SELECT s FROM Slot s JOIN FETCH s.machine JOIN FETCH s.product WHERE s.machine.id = :machineId AND s.product.sku = :productSku ORDER BY s.id")
 	List<Slot> lockSlotsForPurchase(
 			@Param("machineId") Long machineId, @Param("productSku") String productSku);
 }

@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Product {
@@ -41,8 +42,19 @@ public class Product {
 	@Column(nullable = false, unique = true, length = 50)
 	private String sku;
 
+	@Column(nullable = false, length = 3)
+	@Builder.Default
+	private String currency = "EUR";
+
+	@Column(nullable = false, length = 50)
+	@Builder.Default
+	private String category = "GENERAL";
+
 	@Column(length = 500)
 	private String imageUrl;
+
+	@Column(length = 64)
+	private String imageChecksum;
 
 	@Column(nullable = false)
 	private boolean active;
@@ -52,4 +64,5 @@ public class Product {
 
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
 }

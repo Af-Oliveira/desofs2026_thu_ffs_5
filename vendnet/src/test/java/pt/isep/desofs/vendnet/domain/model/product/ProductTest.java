@@ -83,9 +83,18 @@ class ProductTest {
 	void allArgsConstructor_shouldCreateProduct() {
 		LocalDateTime now = LocalDateTime.now();
 
-		Product product = new Product(
-				3L, "Fanta", "Laranja 330ml", new BigDecimal("1.20"),
-				"FANTA-001", "/images/fanta.jpg", true, now, now);
+		Product product =
+				Product.builder()
+						.id(3L)
+						.name("Fanta")
+						.description("Laranja 330ml")
+						.price(new BigDecimal("1.20"))
+						.sku("FANTA-001")
+						.imageUrl("/images/fanta.jpg")
+						.active(true)
+						.createdAt(now)
+						.updatedAt(now)
+						.build();
 
 		assertEquals(3L, product.getId());
 		assertEquals("Fanta", product.getName());

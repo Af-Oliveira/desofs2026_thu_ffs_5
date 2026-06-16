@@ -33,7 +33,7 @@ public class User {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(length = 50)
+	@Column(unique = true, length = 30)
 	private String username;
 
 	@Column(nullable = false, unique = true, length = 100)
@@ -88,7 +88,7 @@ public class User {
 	}
 
 	public boolean verifyPassword(String rawPassword, String encodedPassword) {
-		return BCrypt.checkpw(rawPassword, this.password);
+		return BCrypt.checkpw(rawPassword, encodedPassword);
 	}
 
 	public void resetFailedAttempts() {

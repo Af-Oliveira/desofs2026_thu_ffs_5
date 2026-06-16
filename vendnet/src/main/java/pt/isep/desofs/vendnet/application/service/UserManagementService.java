@@ -62,6 +62,16 @@ public class UserManagementService {
 
 	@PreAuthorize("hasRole('ADMINISTRATOR')")
 	public UserResponse createUser(String email, String password, String name, String roleStr) {
+		String username = email != null && email.contains("@") ? email.substring(0, email.indexOf('@')) : email;
+		return createUser(username, email, password, name, roleStr, 0L);
+	}
+
+	@PreAuthorize("hasRole('ADMINISTRATOR')")
+	public UserResponse createUser(
+			String username, String email, String password, String fullName, String roleStr, Long adminId) {
+		if (userRepository.existsByUsername(username)) {
+			throw new IllegalArgumentException("Username already taken");
+		}
 		if (userRepository.existsByEmail(email)) {
 			throw new IllegalArgumentException("Email already registered");
 		}
@@ -77,9 +87,10 @@ public class UserManagementService {
 
 		LocalDateTime now = LocalDateTime.now();
 		User user = User.builder()
+				.username(username)
 				.email(email)
 				.password(passwordEncoder.encode(password))
-				.name(name)
+				.name(fullName)
 				.role(role)
 				.accountStatus(AccountStatus.ACTIVE)
 				.createdAt(now)
@@ -87,6 +98,17 @@ public class UserManagementService {
 				.build();
 
 		User saved = userRepository.save(user);
+
+		auditLogRepository.save(
+				AuditLog.builder()
+						.eventType("USER_CREATED")
+						.principal(String.valueOf(adminId))
+						.details("Created user " + saved.getUsername() + " with role " + saved.getRole())
+						.resource("User")
+						.action("CREATE")
+						.outcome("SUCCESS")
+						.timestamp(now)
+						.build());
 
 		return UserResponse.builder()
 				.id(saved.getId())

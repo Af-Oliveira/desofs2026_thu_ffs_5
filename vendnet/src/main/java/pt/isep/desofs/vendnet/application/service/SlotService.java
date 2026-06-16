@@ -2,12 +2,13 @@ package pt.isep.desofs.vendnet.application.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pt.isep.desofs.vendnet.domain.exception.MachineOfflineException;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import pt.isep.desofs.vendnet.domain.model.audit.AuditLog;
 import pt.isep.desofs.vendnet.domain.model.machine.VendingMachine;
 import pt.isep.desofs.vendnet.domain.model.slot.Slot;
@@ -32,42 +33,37 @@ public class SlotService {
 
 	@PreAuthorize("hasAnyRole('OPERATOR', 'ADMINISTRATOR')")
 	public Slot restock(Long machineId, Long slotId, int quantity, Long operatorId) {
-		VendingMachine machine =
-				machineRepository
-						.findById(machineId)
-						.orElseThrow(
-								() ->
-										new IllegalArgumentException(
-												"Machine not found: " + machineId));
+		VendingMachine machine = machineRepository
+				.findById(machineId)
+				.orElseThrow(
+						() -> new IllegalArgumentException(
+								"Machine not found: " + machineId));
 
 		machine.checkStatus();
 
-		Slot slot =
-				slotRepository
-						.findByMachineIdAndId(machineId, slotId)
-						.orElseThrow(
-								() ->
-										new IllegalArgumentException(
-												"Slot not found: "
-														+ slotId
-														+ " for machine "
-														+ machineId));
+		Slot slot = slotRepository
+				.findByMachineIdAndId(machineId, slotId)
+				.orElseThrow(
+						() -> new IllegalArgumentException(
+								"Slot not found: "
+										+ slotId
+										+ " for machine "
+										+ machineId));
 
 		slot.addStock(quantity);
 		slot.setUpdatedAt(LocalDateTime.now());
 
 		Slot saved = slotRepository.save(slot);
 
-		AuditLog audit =
-				AuditLog.builder()
-						.eventType("RESTOCK")
-						.principal(String.valueOf(operatorId))
-						.details("Restocked slot " + slotId + " in machine " + machineId)
-						.resource("Slot")
-						.action("RESTOCK")
-						.outcome("SUCCESS")
-						.timestamp(LocalDateTime.now())
-						.build();
+		AuditLog audit = AuditLog.builder()
+				.eventType("RESTOCK")
+				.principal(String.valueOf(operatorId))
+				.details("Restocked slot " + slotId + " in machine " + machineId)
+				.resource("Slot")
+				.action("RESTOCK")
+				.outcome("SUCCESS")
+				.timestamp(LocalDateTime.now())
+				.build();
 		auditLogRepository.save(audit);
 
 		log.info(

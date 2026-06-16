@@ -3,18 +3,18 @@ package pt.isep.desofs.vendnet.infrastructure.security;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import jakarta.servlet.FilterChain;
-import java.util.List;
 import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import jakarta.servlet.FilterChain;
 import pt.isep.desofs.vendnet.application.service.JwtService;
 import pt.isep.desofs.vendnet.domain.model.user.AccountStatus;
 import pt.isep.desofs.vendnet.domain.model.user.Role;
@@ -67,17 +67,17 @@ class JwtAuthenticationFilterTest {
 		FilterChain filterChain = mock(FilterChain.class);
 
 		User user = User.builder()
-				.id(1L).email("admin@vendnet.io").role(Role.ROLE_ADMINISTRATOR)
+				.id(1L).username("admin").email("admin@vendnet.io").role(Role.ROLE_ADMINISTRATOR)
 				.accountStatus(AccountStatus.ACTIVE).build();
 
 		when(jwtService.isTokenValid("valid-token")).thenReturn(true);
-		when(jwtService.extractEmail("valid-token")).thenReturn("admin@vendnet.io");
-		when(userRepository.findByEmail("admin@vendnet.io")).thenReturn(Optional.of(user));
+		when(jwtService.extractSubject("valid-token")).thenReturn("1");
+		when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
 		filter.doFilterInternal(request, response, filterChain);
 
 		assertNotNull(SecurityContextHolder.getContext().getAuthentication());
-		assertEquals("admin@vendnet.io", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+		assertEquals("admin", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
 	}
 
 	@Test
@@ -88,12 +88,12 @@ class JwtAuthenticationFilterTest {
 		FilterChain filterChain = mock(FilterChain.class);
 
 		User user = User.builder()
-				.id(1L).email("suspended@vendnet.io").role(Role.ROLE_CUSTOMER)
+				.id(1L).username("suspended").email("suspended@vendnet.io").role(Role.ROLE_CUSTOMER)
 				.accountStatus(AccountStatus.SUSPENDED).build();
 
 		when(jwtService.isTokenValid("valid-token")).thenReturn(true);
-		when(jwtService.extractEmail("valid-token")).thenReturn("suspended@vendnet.io");
-		when(userRepository.findByEmail("suspended@vendnet.io")).thenReturn(Optional.of(user));
+		when(jwtService.extractSubject("valid-token")).thenReturn("2");
+		when(userRepository.findById(2L)).thenReturn(Optional.of(user));
 
 		filter.doFilterInternal(request, response, filterChain);
 		assertNull(SecurityContextHolder.getContext().getAuthentication());
@@ -107,12 +107,12 @@ class JwtAuthenticationFilterTest {
 		FilterChain filterChain = mock(FilterChain.class);
 
 		User user = User.builder()
-				.id(1L).email("locked@vendnet.io").role(Role.ROLE_CUSTOMER)
+				.id(1L).username("locked").email("locked@vendnet.io").role(Role.ROLE_CUSTOMER)
 				.accountStatus(AccountStatus.LOCKED).build();
 
 		when(jwtService.isTokenValid("valid-token")).thenReturn(true);
-		when(jwtService.extractEmail("valid-token")).thenReturn("locked@vendnet.io");
-		when(userRepository.findByEmail("locked@vendnet.io")).thenReturn(Optional.of(user));
+		when(jwtService.extractSubject("valid-token")).thenReturn("3");
+		when(userRepository.findById(3L)).thenReturn(Optional.of(user));
 
 		filter.doFilterInternal(request, response, filterChain);
 		assertNull(SecurityContextHolder.getContext().getAuthentication());
@@ -126,8 +126,8 @@ class JwtAuthenticationFilterTest {
 		FilterChain filterChain = mock(FilterChain.class);
 
 		when(jwtService.isTokenValid("valid-token")).thenReturn(true);
-		when(jwtService.extractEmail("valid-token")).thenReturn("unknown@vendnet.io");
-		when(userRepository.findByEmail("unknown@vendnet.io")).thenReturn(Optional.empty());
+		when(jwtService.extractSubject("valid-token")).thenReturn("999");
+		when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
 		filter.doFilterInternal(request, response, filterChain);
 		assertNull(SecurityContextHolder.getContext().getAuthentication());

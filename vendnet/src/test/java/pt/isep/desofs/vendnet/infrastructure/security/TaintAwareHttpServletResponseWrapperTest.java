@@ -33,7 +33,7 @@ class TaintAwareHttpServletResponseWrapperTest {
 	}
 
 	@Test
-	void getOutputStream_calledTwice_shouldReturnSameStream() throws IOException {
+	void getOutputStream_calledTwice_shouldReturnSameStream() {
 		var os1 = wrapper.getOutputStream();
 		var os2 = wrapper.getOutputStream();
 		assertEquals(os1, os2);

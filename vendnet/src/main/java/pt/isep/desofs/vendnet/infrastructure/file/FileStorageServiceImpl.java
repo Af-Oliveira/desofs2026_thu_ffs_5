@@ -4,14 +4,18 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import pt.isep.desofs.vendnet.domain.exception.FileStorageException;
 import pt.isep.desofs.vendnet.infrastructure.os.PathValidator;
 
 @Slf4j
@@ -41,10 +45,9 @@ public class FileStorageServiceImpl implements FileStorageService {
 			Files.createDirectories(targetDir);
 
 			String originalName = file.getOriginalFilename();
-			String extension =
-					originalName != null && originalName.contains(".")
-							? originalName.substring(originalName.lastIndexOf("."))
-							: "";
+			String extension = originalName != null && originalName.contains(".")
+					? originalName.substring(originalName.lastIndexOf("."))
+					: "";
 			String storedName = UUID.randomUUID().toString() + extension;
 			Path targetFile = targetDir.resolve(storedName);
 
@@ -65,14 +68,15 @@ public class FileStorageServiceImpl implements FileStorageService {
 			log.info("Image checksum (SHA-256): {}", checksum);
 
 			Files.write(targetFile, strippedBytes, StandardOpenOption.CREATE_NEW);
+			setStoredFilePermissions(targetFile);
 
-			String relativePath = Path.of(basePath).relativize(targetFile).toString();
+			String relativePath = sandbox.relativize(targetFile).toString();
 			log.info("File stored: {} (checksum: {})", relativePath, checksum);
 
 			return relativePath;
 		} catch (IOException e) {
 			log.error("File storage failed", e);
-			throw new RuntimeException("Failed to store file: " + e.getMessage(), e);
+			throw new FileStorageException("Failed to store file: " + e.getMessage(), e);
 		}
 	}
 
@@ -90,7 +94,20 @@ public class FileStorageServiceImpl implements FileStorageService {
 			log.info("File deleted: {}", filePath);
 		} catch (IOException e) {
 			log.error("File deletion failed: {}", filePath, e);
-			throw new RuntimeException("Failed to delete file: " + e.getMessage(), e);
+			throw new FileStorageException("Failed to delete file: " + e.getMessage(), e);
+		}
+	}
+
+	private void setStoredFilePermissions(Path targetFile) throws IOException {
+		try {
+			Files.setPosixFilePermissions(
+					targetFile,
+					Set.of(
+							PosixFilePermission.OWNER_READ,
+							PosixFilePermission.OWNER_WRITE,
+							PosixFilePermission.GROUP_READ));
+		} catch (UnsupportedOperationException ignored) {
+			// Non-POSIX filesystems keep default permissions.
 		}
 	}
 }

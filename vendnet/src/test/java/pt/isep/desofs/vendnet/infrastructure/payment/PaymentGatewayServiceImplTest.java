@@ -6,10 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
+import java.security.GeneralSecurityException;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import pt.isep.desofs.vendnet.domain.exception.PaymentGatewayException;
 
 class PaymentGatewayServiceImplTest {
 
@@ -23,17 +26,20 @@ class PaymentGatewayServiceImplTest {
 
 	@Test
 	void authorizePayment_validToken_shouldNotThrow() {
-		assertDoesNotThrow(() -> service.authorizePayment("tok_12345", new java.math.BigDecimal("10.00")));
+		BigDecimal amount = new BigDecimal("10.00");
+		assertDoesNotThrow(() -> service.authorizePayment("tok_12345", amount));
 	}
 
 	@Test
 	void authorizePayment_nullToken_shouldThrow() {
-		assertThrows(RuntimeException.class, () -> service.authorizePayment(null, new java.math.BigDecimal("10.00")));
+		BigDecimal amount = new BigDecimal("10.00");
+		assertThrows(PaymentGatewayException.class, () -> service.authorizePayment(null, amount));
 	}
 
 	@Test
 	void authorizePayment_blankToken_shouldThrow() {
-		assertThrows(RuntimeException.class, () -> service.authorizePayment("   ", new java.math.BigDecimal("10.00")));
+		BigDecimal amount = new BigDecimal("10.00");
+		assertThrows(PaymentGatewayException.class, () -> service.authorizePayment("   ", amount));
 	}
 
 	@Test
@@ -75,8 +81,8 @@ class PaymentGatewayServiceImplTest {
 			mac.init(keySpec);
 			byte[] hash = mac.doFinal(data.getBytes());
 			return java.util.HexFormat.of().formatHex(hash);
-		} catch (Exception e) {
-			throw new RuntimeException(e);
+		} catch (GeneralSecurityException e) {
+			throw new IllegalStateException(e);
 		}
 	}
 }

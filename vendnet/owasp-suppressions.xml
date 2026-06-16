@@ -61,6 +61,11 @@
         <gav regex="true">io\.opentelemetry\.semconv:opentelemetry-semconv:.*</gav>
         <cve>CVE-2026-39882</cve>
     </suppress>
+    <suppress>
+        <notes><![CDATA[See opentelemetry-semconv suppression above.]]></notes>
+        <gav regex="true">io\.opentelemetry\.semconv:opentelemetry-semconv:.*</gav>
+        <cve>CVE-2026-24051</cve>
+    </suppress>
 
     <!-- Apache Tika — used only for MIME type detection (tika-core), not document parsing -->
     <suppress>

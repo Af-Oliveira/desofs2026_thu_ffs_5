@@ -46,9 +46,15 @@ public class SaleController {
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<PurchaseResponse> purchase(
 			@Valid @RequestBody PurchaseRequest request) {
-		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-		var userResponse = authService.getCurrentUser(auth.getName());
-		PurchaseResponse response = saleService.purchase(request, userResponse.getId());
-		return ResponseEntity.status(HttpStatus.CREATED).body(response);
+			Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+			var userResponse = authService.getCurrentUser(auth.getName());
+			PurchaseResponse response = saleService.purchase(request, userResponse.getId());
+			if ("DUPLICATE".equals(response.getStatus())) {
+				return ResponseEntity.ok(response);
+			}
+			if ("PENDING_VERIFICATION".equals(response.getStatus())) {
+				return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+			}
+			return ResponseEntity.status(HttpStatus.CREATED).body(response);
+		}
 	}
-}
