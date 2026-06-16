@@ -1,7 +1,7 @@
 .PHONY: help certs setup \
         db-up db-down obs-up obs-down up down restart \
         logs db-logs app-logs loki-logs obs-logs \
-        run stop debug ping bootstrap \
+        run stop debug ping bootstrap demo \
         lint format format-check lint-fix \
         swagger grafana prometheus jaeger \
         metrics traces status urls \
@@ -65,6 +65,7 @@ help:
 	@printf "  $(C_GREEN)make run$(C_RESET)            Start MySQL + Spring Boot (foreground)\n"
 	@printf "  $(C_GREEN)make debug$(C_RESET)          Start app with debug port 5005\n"
 	@printf "  $(C_GREEN)make bootstrap$(C_RESET)      Start app + seed test data (dev + bootstrap profiles)\n"
+	@printf "  $(C_GREEN)make demo$(C_RESET)          Full reset: stop + clean + docker up + db-reset + bootstrap\n"
 	@printf "  $(C_GREEN)make ping$(C_RESET)           Ping the health endpoint (no auth)\n"
 	@printf "  $(C_GREEN)make stop$(C_RESET)           Kill app + stop all Docker\n"
 	@printf "  $(C_GREEN)make kill$(C_RESET)           Force-kill port $(APP_PORT)\n"
@@ -160,7 +161,7 @@ db-shell:
 db-up:
 	@printf "$(C_ARROW) Starting MySQL... "
 	@$(DC) up -d mysql 2>/dev/null
-	@until $(DC) exec mysql mysqladmin ping -h localhost --silent 2>/dev/null; do sleep 1; done
+	@until $(DC) exec mysql mysqladmin ping -h localhost -u vendnet_user -pvendnet_pass --silent 2>/dev/null; do sleep 1; done
 	@printf "$(C_OK) Ready (localhost:3306)\n"
 
 db-down:
@@ -261,6 +262,41 @@ bootstrap: db-up
 	@mkdir -p logs data
 	@printf "$(C_ARROW) Starting VendNet with bootstrap profile (seeds test data)...\n"
 	@$(MVN) spring-boot:run -Dspring-boot.run.profiles=dev,bootstrap
+
+demo:
+	@printf "\n$(C_BOLD)$(C_CYAN)  ═══ VendNet Demo ═══$(C_RESET)\n\n"
+	@printf "$(C_ARROW) Step 1/4: Stopping everything + nuking volumes...\n"
+	@lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true
+	@$(DC) down -v 2>/dev/null; true
+	@printf "$(C_ARROW) Waiting for port $(APP_PORT) to be released..."
+	@for i in $$(seq 1 15); do \
+		if ! lsof -ti:$(APP_PORT) >/dev/null 2>&1; then printf " $(C_OK) free\n"; break; fi; \
+		printf "."; sleep 1; \
+	done
+	@if lsof -ti:$(APP_PORT) >/dev/null 2>&1; then printf "\n$(C_FAIL) Port $(APP_PORT) still in use. Run 'make kill'.\n"; exit 1; fi
+	@printf "$(C_ARROW) Step 2/4: Building VendNet Docker image...\n"
+	@$(DC) build vendnet
+	@printf "$(C_OK) Image built.\n"
+	@printf "$(C_ARROW) Step 3/4: Starting MySQL and resetting database...\n"
+	@$(DC) up -d mysql
+	@printf "$(C_ARROW) Waiting for MySQL..."
+	@until $(DC) exec mysql mysqladmin ping -h localhost -u vendnet_user -pvendnet_pass --silent 2>/dev/null; do sleep 1; done
+	@printf " $(C_OK) Ready (localhost:3306)\n"
+	@printf "$(C_ARROW) Resetting database...\n"
+	@$(DC) exec mysql mysql -u vendnet_user -pvendnet_pass -e "DROP DATABASE IF EXISTS vendnet; CREATE DATABASE vendnet;"
+	@printf "$(C_OK) Database reset\n"
+	@printf "$(C_ARROW) Step 4/4: Starting all services...\n"
+	@$(DC) up -d
+	@printf "$(C_ARROW) Waiting for VendNet to be healthy..."
+	@until curl -sf --max-time 2 http://localhost:$(APP_PORT)/actuator/health >/dev/null 2>&1; do printf "."; sleep 2; done
+	@printf " $(C_OK) Ready\n\n"
+	@printf "$(C_OK) VendNet demo is running!\n"
+	@printf "  App:      http://localhost:$(APP_PORT)\n"
+	@printf "  Swagger:  http://localhost:$(APP_PORT)/swagger-ui/index.html\n"
+	@printf "  Grafana:  http://localhost:3000 (admin/admin)\n"
+	@printf "  Jaeger:   http://localhost:16686\n"
+	@printf "\n$(C_ARROW) Following app logs (Ctrl+C to stop following, app stays running):\n"
+	@$(DC) logs -f vendnet
 
 stop:
 	@lsof -ti:$(APP_PORT) | xargs kill -9 2>/dev/null || true
