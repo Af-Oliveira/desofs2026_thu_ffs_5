@@ -115,7 +115,7 @@ jobs:
       is_main: ${{ steps.meta.outputs.is_main }}
       is_develop: ${{ steps.meta.outputs.is_develop }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -218,7 +218,7 @@ jobs:
     name: "🕵️ Secret Detection — Gitleaks"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -234,7 +234,7 @@ jobs:
     name: "🔬 SAST — Semgrep"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "🔬 Running Semgrep (Java + Secrets rules)"
         uses: returntocorp/semgrep-action@v1
@@ -267,7 +267,7 @@ jobs:
     outputs:
       artifact_name: ${{ needs.setup-context.outputs.artifact_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -383,7 +383,7 @@ jobs:
     needs: [setup-context, build-unit-tests]
     if: ${{ !cancelled() && needs.build-unit-tests.result == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
@@ -427,7 +427,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-unit-tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
@@ -469,7 +469,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-unit-tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
@@ -527,7 +527,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-unit-tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
@@ -585,7 +585,7 @@ jobs:
           echo "has_secrets=true" >> "${GITHUB_OUTPUT}"
           echo "📡 SonarQube connection verified"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -690,7 +690,7 @@ jobs:
       image_dockerhub: ${{ steps.img.outputs.dockerhub }}
       image_tag: ${{ needs.setup-context.outputs.image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "📦 Cache Docker Layers (buildx gha)"
         uses: docker/setup-buildx-action@v3
@@ -795,7 +795,7 @@ jobs:
       contents: read
       actions: write
     steps:
-      - uses: actions/checkout@v4  
+      - uses: actions/checkout@v6  
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
@@ -940,7 +940,7 @@ jobs:
       name: DEV
       url: http://${{ env.REMOTE_HOST }}:${{ env.DEV_PORT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "🔐 Setup SSH Key"
         env:
@@ -1050,7 +1050,7 @@ jobs:
       name: STAGING
       url: http://${{ env.REMOTE_HOST }}:${{ env.STAGE_PORT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "🔐 Setup SSH Key"
         env:
@@ -1149,7 +1149,7 @@ jobs:
       name: PROD
       url: http://${{ env.REMOTE_HOST }}:${{ env.PROD_PORT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "🔐 Setup SSH Key"
         env:
@@ -1263,7 +1263,7 @@ jobs:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "☕ Setup Java ${{ env.JAVA_VERSION }} (Temurin)"
         uses: actions/setup-java@v4
