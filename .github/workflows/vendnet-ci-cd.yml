@@ -278,7 +278,7 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
 
       - name: "📦 Cache Maven Repository"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -393,7 +393,7 @@ jobs:
           cache: 'maven'
 
       - name: "📦 Restore Maven Cache"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -437,7 +437,7 @@ jobs:
           cache: 'maven'
 
       - name: "📦 Restore Maven Cache"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -479,7 +479,7 @@ jobs:
           cache: 'maven'
 
       - name: "📦 Restore Maven Cache"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -487,7 +487,7 @@ jobs:
             maven-${{ runner.os }}-
 
       - name: "🗄️ Cache NVD Database"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.dependency-check/data
           key: nvd-cache-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -537,7 +537,7 @@ jobs:
           cache: 'maven'
 
       - name: "📦 Restore Maven Cache"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -597,7 +597,7 @@ jobs:
           cache: 'maven'
 
       - name: "📦 Restore Maven Cache"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -617,7 +617,7 @@ jobs:
           path: vendnet/target/site/jacoco/
 
       - name: "🗄️ Cache SonarQube Plugins"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.sonar/cache
           key: sonar-cache-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
@@ -1273,7 +1273,7 @@ jobs:
           cache: 'maven'
 
       - name: "📦 Restore Maven Cache"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('vendnet/pom.xml') }}
